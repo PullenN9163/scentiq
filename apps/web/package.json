@@ -1,0 +1,33 @@
+{
+  "name": "@scentiq/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": ">=16.3.0 <16.4",
+    "react": ">=19.2.8 <19.3",
+    "react-dom": ">=19.2.8 <19.3"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": ">=7.0.0 <7.1",
+    "@testing-library/react": ">=16.3.2 <16.4",
+    "@testing-library/user-event": ">=14.6.3 <14.7",
+    "@types/node": ">=24 <25",
+    "@types/react": ">=19.2.18 <19.3",
+    "@types/react-dom": ">=19.2.4 <19.3",
+    "@vitejs/plugin-react": ">=6.0.5 <6.1",
+    "eslint": ">=9.39.0 <10",
+    "eslint-config-next": ">=16.3.0 <16.4",
+    "jsdom": ">=30.0.1 <30.1",
+    "typescript": ">=6.0.2 <6.1",
+    "vitest": ">=4.1.10 <4.2"
+  }
+}

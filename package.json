@@ -8,10 +8,22 @@
   },
   "scripts": {
     "install:all": "pnpm install --frozen-lockfile && uv sync --directory apps/api --frozen --all-groups",
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"pnpm dev:api\" \"pnpm dev:web\"",
     "dev:api": "uv run --directory apps/api fastapi dev src/scentiq_api/main.py --port 8000",
+    "dev:web": "pnpm --filter @scentiq/web dev",
+    "test": "pnpm test:api && pnpm test:web",
     "test:api": "uv run --directory apps/api pytest -m \"not integration\"",
+    "test:web": "pnpm --filter @scentiq/web test",
+    "lint": "pnpm lint:api && pnpm lint:web",
     "lint:api": "uv run --directory apps/api ruff check . && uv run --directory apps/api ruff format --check .",
+    "lint:web": "pnpm --filter @scentiq/web lint",
+    "typecheck": "pnpm typecheck:api && pnpm typecheck:web",
     "typecheck:api": "uv run --directory apps/api mypy src tests",
+    "typecheck:web": "pnpm --filter @scentiq/web typecheck",
+    "build": "pnpm --filter @scentiq/web build",
     "api:migrate": "uv run --directory apps/api alembic upgrade head"
+  },
+  "devDependencies": {
+    "concurrently": ">=9.2.1 <9.3"
   }
 }
