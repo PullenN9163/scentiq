@@ -6,6 +6,7 @@
 .ai
 .codex
 .chatgpt
+.superpowers
 node_modules
 **/node_modules
 .next

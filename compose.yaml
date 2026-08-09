@@ -38,25 +38,29 @@ services:
         - CMD
         - .venv/bin/python
         - -c
-        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live', timeout=3)
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=3)
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 10s
     ports:
-      - "8000:8000"
+      - target: 8000
+        published: "8000"
+        host_ip: 127.0.0.1
+        protocol: tcp
 
   web:
     image: scentiq-web:milestone-1
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-development}
     depends_on:
       api:
         condition: service_healthy
     environment:
       API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:8000}
-      NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-development}
     healthcheck:
       test:
         - CMD
@@ -68,7 +72,10 @@ services:
       retries: 10
       start_period: 10s
     ports:
-      - "3000:3000"
+      - target: 3000
+        published: "3000"
+        host_ip: 127.0.0.1
+        protocol: tcp
 
 volumes:
   postgres_data:
