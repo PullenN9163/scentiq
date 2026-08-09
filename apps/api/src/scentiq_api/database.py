@@ -2,8 +2,10 @@ from collections.abc import Callable
 from typing import Protocol, runtime_checkable
 
 from sqlalchemy import Engine, create_engine, text
+from sqlalchemy.orm import Session, sessionmaker
 
 DatabaseProbe = Callable[[], None]
+SessionFactory = sessionmaker[Session]
 
 
 @runtime_checkable
@@ -27,6 +29,14 @@ class _SQLAlchemyDatabaseProbe:
 
 def create_database_probe(database_url: str) -> DatabaseProbe:
     return _SQLAlchemyDatabaseProbe(database_url)
+
+
+def create_database_engine(database_url: str) -> Engine:
+    return create_engine(database_url, pool_pre_ping=True)
+
+
+def create_session_factory(engine: Engine) -> SessionFactory:
+    return sessionmaker(bind=engine, expire_on_commit=False)
 
 
 def dispose_database_probe(database_probe: DatabaseProbe) -> None:

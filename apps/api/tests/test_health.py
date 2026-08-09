@@ -1,3 +1,5 @@
+import io
+import json
 import logging
 
 import pytest
@@ -26,6 +28,17 @@ def test_liveness_is_independent_of_database() -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_health_alias_preserves_the_process_liveness_contract() -> None:
+    def unavailable_probe() -> None:
+        raise RuntimeError("database host detail")
+
+    with TestClient(create_app(make_test_settings(), unavailable_probe)) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 def test_readiness_reports_ready_after_successful_probe() -> None:
     with TestClient(create_app(make_test_settings(), lambda: None)) as client:
         response = client.get("/health/ready")
@@ -34,22 +47,40 @@ def test_readiness_reports_ready_after_successful_probe() -> None:
     assert response.json() == {"status": "ready"}
 
 
-def test_readiness_sanitizes_database_failure(caplog: pytest.LogCaptureFixture) -> None:
+def test_readiness_logs_safe_diagnostic_context() -> None:
     def unavailable_probe() -> None:
         raise RuntimeError("postgresql://user:secret@private-host/database")
 
-    with (
-        caplog.at_level(logging.ERROR, logger="scentiq_api.health"),
-        TestClient(create_app(make_test_settings(), unavailable_probe)) as client,
-    ):
-        response = client.get("/health/ready")
+    with TestClient(create_app(make_test_settings(), unavailable_probe)) as client:
+        diagnostic_logger = logging.getLogger("scentiq_api.diagnostic")
+        diagnostic_handler = next(
+            handler
+            for handler in diagnostic_logger.handlers
+            if handler.get_name() == "scentiq-runtime-diagnostic"
+        )
+        assert isinstance(diagnostic_handler, logging.StreamHandler)
+        runtime_stream = io.StringIO()
+        original_stream = diagnostic_handler.setStream(runtime_stream)
+        try:
+            response = client.get("/health/ready")
+        finally:
+            diagnostic_handler.setStream(original_stream)
 
     assert response.status_code == 503
     assert response.json() == {"status": "not_ready"}
-    assert "secret" not in response.text
-    assert "private-host" not in response.text
-    assert "secret" not in caplog.text
-    assert "private-host" not in caplog.text
+    runtime_output = runtime_stream.getvalue()
+    assert runtime_output.count("\n") == 1
+    payload = json.loads(runtime_output)
+    assert payload == {
+        "event": "database_readiness_failed",
+        "exception_type": "RuntimeError",
+        "level": "WARNING",
+        "operation": "database_readiness_probe",
+    }
+    for output in (response.text, runtime_output):
+        assert "secret" not in output
+        assert "private-host" not in output
+        assert "postgresql://" not in output
 
 
 def test_lifespan_disposes_owned_database_probe(monkeypatch: pytest.MonkeyPatch) -> None:

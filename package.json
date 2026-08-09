@@ -9,7 +9,7 @@
   "scripts": {
     "install:all": "pnpm install --frozen-lockfile && uv sync --directory apps/api --frozen --all-groups",
     "dev": "concurrently -k -n api,web -c cyan,magenta \"pnpm dev:api\" \"pnpm dev:web\"",
-    "dev:api": "uv run --directory apps/api fastapi dev src/scentiq_api/main.py --port 8000",
+    "dev:api": "uv run --directory apps/api fastapi dev src/scentiq_api/bootstrap.py --port 8000",
     "dev:web": "pnpm --filter @scentiq/web dev",
     "test": "pnpm test:api && pnpm test:web",
     "test:api": "uv run --directory apps/api pytest -m \"not integration\"",
@@ -22,6 +22,7 @@
     "typecheck:web": "pnpm --filter @scentiq/web typecheck",
     "build": "pnpm --filter @scentiq/web build",
     "api:migrate": "uv run --directory apps/api alembic upgrade head",
+    "api:seed": "uv run --directory apps/api python -m scentiq_api.seed",
     "compose:config": "docker compose --env-file .env.example config --quiet",
     "verify": "pnpm test && pnpm lint && pnpm typecheck && pnpm build && pnpm compose:config"
   },

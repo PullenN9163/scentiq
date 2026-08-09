@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved for implementation on August 8, 2026.
+Implemented and verified on August 8, 2026.
 
 ## Objective
 
@@ -72,7 +72,7 @@ The initial HTTP contract is:
 - `GET /health/live` returns HTTP 200 with `{"status":"ok"}` whenever the process can serve requests.
 - `GET /health/ready` runs `SELECT 1` through the configured database engine. It returns HTTP 200 with `{"status":"ready"}` on success and HTTP 503 with `{"status":"not_ready"}` when the database is unavailable.
 
-The readiness response does not expose exception text, hostnames, connection strings, or credentials. Detailed failures are logged to standard output for the runtime log collector.
+The readiness response does not expose exception text, hostnames, connection strings, or credentials. A structured runtime warning records the fixed probe operation and exception type, but never the exception message or connection details.
 
 The API remains stateless. It writes no durable data to the container filesystem and keeps no request state in process memory beyond bounded framework and connection-pool state.
 
@@ -113,14 +113,14 @@ Application startup does not run migrations automatically. Local and deployment 
 `compose.yaml` defines `db`, `api`, and `web` services:
 
 - `db` uses PostgreSQL 18, persists data in a named volume, and exposes a health check.
-- `api` builds the backend image, depends on a healthy database, exposes port 8000, and uses the liveness endpoint for its container health check.
+- `api` builds the backend image, depends on a healthy database, exposes port 8000, and uses the database-aware readiness endpoint for its container health check.
 - `web` builds the frontend image, depends on a healthy API, exposes port 3000, and reaches the API over the Compose network.
 
 The Compose file contains safe local defaults and supports overrides from an ignored `.env` file. `docker compose config` must succeed without access to private credentials. The documented clean-start workflow must build the images, initialize the database, run migrations, start the services, and pass HTTP smoke checks.
 
 ## Container and deployment contract
 
-Both applications use multi-stage Dockerfiles with pinned major runtime images and locked dependency installation. Final stages run as non-root users, expose only their application ports, and receive configuration at runtime rather than build time.
+Both applications use multi-stage Dockerfiles with pinned major runtime images and locked dependency installation. Final stages run as non-root users and expose only their application ports. Secrets and server-only settings are supplied at runtime; the intentional build-time exception is the non-sensitive, browser-visible `NEXT_PUBLIC_APP_ENV` label that Next.js embeds in frontend output.
 
 The backend image starts one application process and emits logs to standard output and standard error. The frontend image uses Next.js standalone output. Neither image embeds `.env` files, source-control metadata, local caches, test artifacts, or credentials.
 
@@ -142,9 +142,20 @@ Caching may accelerate package installation but must not bypass lockfile enforce
 
 ## Error handling and observability
 
-Configuration errors fail startup with a clear variable-level message that never includes secret values. Health endpoints use stable response bodies and status codes. Database readiness failures are logged with structured context while the HTTP response remains sanitized. Frontend backend-status failures render an unavailable state without failing the page.
+Configuration errors fail startup with a clear variable-level human-readable message whose text and representation omit validation inputs. Any future boundary that emits structured `ValidationError` details must use `errors(include_input=False)` or `json(include_input=False)`; the default structured forms are not a redaction boundary. Health endpoints use stable response bodies and status codes. Database readiness failures log the probe operation and exception type while excluding exception messages and keeping the HTTP response sanitized. Frontend backend-status failures render an unavailable state without failing the page.
 
-Request logs include method, path, status, and duration. They exclude authorization headers, cookies, request bodies, database URLs, and environment values. A full telemetry and alerting design is deferred until Azure deployment.
+Request logs are one-record JSON lines containing method, path, status, and duration. JSON escaping prevents decoded path control characters from creating forged records or terminal control sequences. Logs exclude query strings, authorization headers, cookies, request bodies, database URLs, and environment values. A full telemetry and alerting design is deferred until Azure deployment.
+
+## Verification
+
+Milestone 1 was verified against the documented runtime contracts on August 8, 2026:
+
+- Host dependencies and quality gates passed from clean dependency directories with `pnpm install --frozen-lockfile`, `uv sync --directory apps/api --frozen --all-groups`, `pnpm verify`, and `uv build --directory apps/api`.
+- A disposable PostgreSQL 18 database passed `alembic upgrade head`, `alembic current --check-heads`, `alembic downgrade base`, a second upgrade and head check, `alembic check`, and the integration test suite.
+- A clean `docker compose --env-file .env.example build --pull` and startup passed database initialization, explicit migration, service health, HTTP smoke checks, and warning-, error-, and secret-free log inspection.
+- Final image checks with `docker build --check`, `docker image inspect`, default-user `id`, and read-only filesystem searches confirmed non-root users and excluded environment, source-control, private-tool, and test-cache paths.
+- The GitHub Actions workflow passed YAML parsing and semantic checks for least privilege, locked installs, frontend and backend gates, PostgreSQL 18 migrations and drift detection, Compose validation, image builds, and the absence of Azure secrets.
+- `git ls-files`, tracked-content secret scans, staged-path and staged-diff reviews, `git diff --cached --check`, and the repository privacy hook confirmed that only official ScentIQ files entered the commit history.
 
 ## Acceptance criteria
 

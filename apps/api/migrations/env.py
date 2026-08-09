@@ -1,17 +1,18 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 
 from scentiq_api.config import Settings
+from scentiq_api.models import Base
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = MetaData()
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:

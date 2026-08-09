@@ -16,6 +16,7 @@ ENV NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV}
 COPY apps/web/app ./apps/web/app
 COPY apps/web/components ./apps/web/components
 COPY apps/web/lib ./apps/web/lib
+COPY apps/web/instrumentation.ts ./apps/web/instrumentation.ts
 COPY apps/web/next.config.ts apps/web/next-env.d.ts apps/web/tsconfig.json apps/web/vitest.setup.ts ./apps/web/
 
 RUN mkdir -p apps/web/public \

@@ -1,0 +1,52 @@
+# Secrets and local configuration
+.env
+.env.*
+*.pem
+*.key
+
+# Private assistant/tool state
+.ai/
+.codex/
+.openai/
+.chatgpt/
+.superpowers/
+
+# Virtual environments and Python artifacts
+.venv/
+venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyd
+*.so
+
+# Test, type, lint, and coverage state
+tests/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.hypothesis/
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+
+# Version-control and repository metadata
+.git/
+.gitignore
+.gitattributes
+.github/
+.hg/
+.svn/
+
+# Documentation, logs, and build outputs
+docs/
+site/
+README*
+*.log
+build/
+dist/
+*.egg-info/
+.eggs/

@@ -1,0 +1,17 @@
+using '../main.bicep'
+
+param location = 'eastus'
+param postgresLocation = 'northcentralus'
+param environmentName = 'dev'
+param useExistingFoundation = true
+param workspaceName = 'scentiq-law-dev-us'
+param storageName = 'scentiqstrgdevus'
+param keyVaultName = 'scentiq-kv-dev-eus'
+param postgresServerName = 'scentiq-pg-dev-eus'
+param identityName = 'scentiq-api-id-dev-eus'
+param containerEnvironmentName = 'scentiq-cae-dev-eus'
+param registryName = 'scentiqacrdevus'
+param applicationInsightsName = 'scentiq-appi-dev-eus'
+param apiAppName = 'scentiq-api-dev-eus'
+param webAppName = 'scentiq-web-dev-eus'
+param migrationJobName = 'scentiq-migrate-dev-eus'

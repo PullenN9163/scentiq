@@ -1,6 +1,6 @@
 FROM ghcr.io/astral-sh/uv:0.12.2 AS uv
 
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -18,7 +18,7 @@ COPY migrations ./migrations
 COPY alembic.ini ./
 RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -38,4 +38,4 @@ USER scentiq
 
 EXPOSE 8000
 
-CMD [".venv/bin/fastapi", "run", "src/scentiq_api/main.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD [".venv/bin/fastapi", "run", "src/scentiq_api/bootstrap.py", "--host", "0.0.0.0", "--port", "8000"]

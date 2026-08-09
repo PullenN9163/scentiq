@@ -5,6 +5,7 @@ services:
     image: postgres:18-bookworm
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-scentiq_local}
+      POSTGRES_INITDB_ARGS: --auth-local=scram-sha-256 --auth-host=scram-sha-256
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scentiq_local_only}
       POSTGRES_USER: ${POSTGRES_USER:-scentiq_local}
     healthcheck:
@@ -19,7 +20,7 @@ services:
   # Apply migrations explicitly before application startup:
   # docker compose --env-file .env.example run --rm api .venv/bin/alembic upgrade head
   api:
-    image: scentiq-api:milestone-1
+    image: scentiq-api:milestone-3
     build:
       context: ./apps/api
       dockerfile: Dockerfile
@@ -30,8 +31,10 @@ services:
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
       AZURE_KEY_VAULT_URL: ${AZURE_KEY_VAULT_URL:-}
       AZURE_STORAGE_ACCOUNT_URL: ${AZURE_STORAGE_ACCOUNT_URL:-}
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://scentiq_local:scentiq_local_only@db:5432/scentiq_local}
+      DEMO_USER_ID: ${DEMO_USER_ID:-00000000-0000-4000-8000-000000000001}
       SCENTIQ_ENV: ${SCENTIQ_ENV:-development}
     healthcheck:
       test:
@@ -50,7 +53,7 @@ services:
         protocol: tcp
 
   web:
-    image: scentiq-web:milestone-1
+    image: scentiq-web:milestone-3
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -60,6 +63,7 @@ services:
       api:
         condition: service_healthy
     environment:
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
       API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:8000}
     healthcheck:
       test:
