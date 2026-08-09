@@ -3,6 +3,8 @@
 .env.*
 !.env.example
 *.local
+*.pem
+*.key
 
 # Python
 __pycache__/
