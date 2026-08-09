@@ -20,8 +20,10 @@ def create_app(
 ) -> FastAPI:
     resolved_settings = settings or Settings()
     owns_database_probe = database_probe is None
-    resolved_database_probe = database_probe or create_database_probe(
-        resolved_settings.database_url_value
+    resolved_database_probe = (
+        create_database_probe(resolved_settings.database_url_value)
+        if database_probe is None
+        else database_probe
     )
 
     @asynccontextmanager

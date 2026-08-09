@@ -72,6 +72,28 @@ def test_lifespan_disposes_owned_database_probe(monkeypatch: pytest.MonkeyPatch)
     assert probe.disposed
 
 
+def test_falsey_injected_database_probe_is_used(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FalseyProbe:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def __bool__(self) -> bool:
+            return False
+
+        def __call__(self) -> None:
+            self.calls += 1
+
+    probe = FalseyProbe()
+    monkeypatch.setattr("scentiq_api.main.create_database_probe", lambda _: lambda: None)
+
+    with TestClient(create_app(make_test_settings(), probe)) as client:
+        response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+    assert probe.calls == 1
+
+
 def test_cors_allows_only_configured_origin() -> None:
     with TestClient(create_app(make_test_settings(), lambda: None)) as client:
         allowed_response = client.get("/health/live", headers={"Origin": "http://localhost:5173"})
