@@ -21,7 +21,9 @@
     "typecheck:api": "uv run --directory apps/api mypy src tests",
     "typecheck:web": "pnpm --filter @scentiq/web typecheck",
     "build": "pnpm --filter @scentiq/web build",
-    "api:migrate": "uv run --directory apps/api alembic upgrade head"
+    "api:migrate": "uv run --directory apps/api alembic upgrade head",
+    "compose:config": "docker compose --env-file .env.example config --quiet",
+    "verify": "pnpm test && pnpm lint && pnpm typecheck && pnpm build && pnpm compose:config"
   },
   "devDependencies": {
     "concurrently": ">=9.2.1 <9.3"
