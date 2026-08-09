@@ -5,5 +5,13 @@
   "packageManager": "pnpm@11.16.0",
   "engines": {
     "node": ">=24 <25"
+  },
+  "scripts": {
+    "install:all": "pnpm install --frozen-lockfile && uv sync --directory apps/api --frozen --all-groups",
+    "dev:api": "uv run --directory apps/api fastapi dev src/scentiq_api/main.py --port 8000",
+    "test:api": "uv run --directory apps/api pytest -m \"not integration\"",
+    "lint:api": "uv run --directory apps/api ruff check . && uv run --directory apps/api ruff format --check .",
+    "typecheck:api": "uv run --directory apps/api mypy src tests",
+    "api:migrate": "uv run --directory apps/api alembic upgrade head"
   }
 }
