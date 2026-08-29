@@ -148,7 +148,7 @@ jobs:
           az bicep build-params --file infra/parameters/dev.bicepparam --outfile /tmp/scentiq-dev.json
 
       - name: Verify compiled infrastructure safety
-        run: pwsh -File infra/tests/Test-CompiledInfrastructure.ps1 -TemplatePath /tmp/scentiq-subscription.json -Mode dev
+        run: pwsh -File infra/tests/Test-CompiledInfrastructure.ps1 -TemplatePath /tmp/scentiq-subscription.json -ParametersPath /tmp/scentiq-dev.json -Mode dev
 
       - name: Verify repository privacy
         run: pwsh -File scripts/ci/Test-RepositoryPrivacy.ps1 -RepositoryRoot . -Scope tracked

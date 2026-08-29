@@ -8,6 +8,7 @@ resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: vaultName
   location: location
   properties: {
+    accessPolicies: []
     tenantId: tenant().tenantId
     sku: {
       family: 'A'
@@ -16,6 +17,9 @@ resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enablePurgeProtection: true
     enableRbacAuthorization: true
     enableSoftDelete: true
+    enabledForDeployment: false
+    enabledForDiskEncryption: false
+    enabledForTemplateDeployment: false
     networkAcls: {
       bypass: 'None'
       defaultAction: 'Allow'

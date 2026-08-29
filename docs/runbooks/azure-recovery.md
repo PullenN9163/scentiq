@@ -55,7 +55,7 @@ List deleted container versions first and select the exact deleted version to re
 ```powershell
 $storageAccountName = '<storage-account-name>'
 $containerName = '<container-name>'
-az storage container list --account-name $storageAccountName --include-deleted --auth-mode login --query "[?name=='$containerName'].{name:name,version:version,deleted:deleted}" -o table
+az storage container list --account-name $storageAccountName --prefix $containerName --include-deleted --auth-mode login --query "[?name=='$containerName' && deleted==``true``].{name:name,version:version,deleted:deleted}" -o table
 ```
 
 Restore only the selected deleted version:
@@ -75,12 +75,12 @@ $secretName = '<secret-name>'
 az keyvault secret list-versions --vault-name $keyVaultName --name $secretName --query "[].{id:id,enabled:attributes.enabled,created:attributes.created}" -o table
 ```
 
-Disable the explicitly selected newer version, then confirm only the resolved version identifier:
+Disable the explicitly selected newer version, then confirm enabled version metadata without retrieving any secret value:
 
 ```powershell
 $newerVersionId = '<newer-secret-version-id>'
 az keyvault secret set-attributes --id $newerVersionId --enabled false --only-show-errors -o none
-az keyvault secret show --vault-name $keyVaultName --name $secretName --query id -o tsv
+az keyvault secret list-versions --vault-name $keyVaultName --name $secretName --query "[?attributes.enabled==``true``].{id:id,enabled:attributes.enabled,created:attributes.created}" -o table
 ```
 
 Re-enable the version if the rollback needs to be reversed:
