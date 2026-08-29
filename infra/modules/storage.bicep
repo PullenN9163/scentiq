@@ -76,34 +76,19 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
   }
 }
 
-resource uploadsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+resource uploadsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
   parent: blobService
   name: 'uploads'
-  properties: {
-    defaultEncryptionScope: '$account-encryption-key'
-    denyEncryptionScopeOverride: false
-    publicAccess: 'None'
-  }
 }
 
-resource exportsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+resource exportsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
   parent: blobService
   name: 'exports'
-  properties: {
-    defaultEncryptionScope: '$account-encryption-key'
-    denyEncryptionScopeOverride: false
-    publicAccess: 'None'
-  }
 }
 
-resource systemContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+resource systemContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
   parent: blobService
   name: 'system'
-  properties: {
-    defaultEncryptionScope: '$account-encryption-key'
-    denyEncryptionScopeOverride: false
-    publicAccess: 'None'
-  }
 }
 
 resource managementPolicy 'Microsoft.Storage/storageAccounts/managementPolicies@2023-05-01' = {

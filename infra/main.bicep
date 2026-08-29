@@ -118,6 +118,7 @@ module keyVault 'modules/key-vault.bicep' = {
   params: {
     location: location
     vaultName: keyVaultName
+    useExisting: useExistingFoundation
     commonTags: commonTags
     workspaceResourceId: workspaceResourceId
     enableFoundationLocks: enableFoundationLocks

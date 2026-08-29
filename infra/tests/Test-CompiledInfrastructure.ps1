@@ -18,6 +18,25 @@ function Assert-True([bool] $Condition, [string] $Message) {
     if (-not $Condition) { $script:failures.Add($Message) }
 }
 
+function Get-PropertyPathValue([object] $Object, [string] $Path) {
+    $current = $Object
+    foreach ($segment in $Path.Split('.')) {
+        if ($null -eq $current -or $null -eq $current.PSObject.Properties[$segment]) {
+            return @{ Found = $false; Value = $null }
+        }
+        $current = $current.PSObject.Properties[$segment].Value
+    }
+
+    return @{ Found = $true; Value = $current }
+}
+
+function Assert-PreservationBaseline([object] $Resource, [hashtable] $Expected, [string] $Label) {
+    foreach ($path in $Expected.Keys) {
+        $actual = Get-PropertyPathValue $Resource $path
+        Assert-True ($actual.Found -and $actual.Value -eq $Expected[$path]) "$Label must explicitly preserve $path"
+    }
+}
+
 function Get-ArmResources([object] $Resources) {
     $resourceItems = if ($Resources -is [System.Array]) {
         $Resources
@@ -253,6 +272,28 @@ if ($Mode -eq 'dev') {
     Assert-True ($null -ne $managedStorage -and $managedStorage.properties.dnsEndpointType -eq 'Standard') 'storage must preserve the current Standard DNS endpoint type'
     Assert-True ($null -ne $managedStorage -and $managedStorage.properties.encryption.keySource -eq 'Microsoft.Storage' -and $managedStorage.properties.encryption.requireInfrastructureEncryption -eq $false -and $managedStorage.properties.encryption.services.blob.enabled -eq $true -and $managedStorage.properties.encryption.services.blob.keyType -eq 'Account' -and $managedStorage.properties.encryption.services.file.enabled -eq $true -and $managedStorage.properties.encryption.services.file.keyType -eq 'Account') 'storage must preserve Microsoft-managed Blob and File encryption settings'
     Assert-True ($null -ne $managedStorage -and $managedStorage.properties.networkAcls.defaultAction -eq 'Allow' -and $managedStorage.properties.networkAcls.ipRules.Count -eq 0 -and $managedStorage.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'storage must preserve empty IPv4 and virtual-network ACL arrays'
+    Assert-PreservationBaseline $managedStorage @{
+        'kind' = 'StorageV2'
+        'sku.name' = 'Standard_LRS'
+        'properties.accessTier' = 'Hot'
+        'properties.allowBlobPublicAccess' = $false
+        'properties.allowCrossTenantReplication' = $false
+        'properties.allowSharedKeyAccess' = "[parameters('enableStorageSharedKeyAccess')]"
+        'properties.defaultToOAuthAuthentication' = $true
+        'properties.dnsEndpointType' = 'Standard'
+        'properties.encryption.keySource' = 'Microsoft.Storage'
+        'properties.encryption.requireInfrastructureEncryption' = $false
+        'properties.encryption.services.blob.enabled' = $true
+        'properties.encryption.services.blob.keyType' = 'Account'
+        'properties.encryption.services.file.enabled' = $true
+        'properties.encryption.services.file.keyType' = 'Account'
+        'properties.minimumTlsVersion' = 'TLS1_2'
+        'properties.networkAcls.bypass' = 'AzureServices'
+        'properties.networkAcls.defaultAction' = 'Allow'
+        'properties.publicNetworkAccess' = 'Enabled'
+        'properties.supportsHttpsTrafficOnly' = $true
+    } 'the adopted storage account preservation baseline'
+    Assert-True ($null -ne $managedStorage -and $managedStorage.properties.networkAcls.ipRules.Count -eq 0 -and $managedStorage.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'the adopted storage account preservation baseline must retain observed empty ACL collections'
 
     $blobService = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/blobServices' }) | Select-Object -First 1
     Assert-True ($null -ne $blobService -and $blobService.properties.isVersioningEnabled -eq $true -and $blobService.properties.changeFeed.enabled -eq $true) 'the Blob service must enable versioning and change feed'
@@ -260,30 +301,54 @@ if ($Mode -eq 'dev') {
     Assert-True ($null -ne $blobService -and $blobService.properties.containerDeleteRetentionPolicy.enabled -eq $true -and $blobService.properties.containerDeleteRetentionPolicy.days -eq 14) 'the Blob service must retain soft-deleted containers for fourteen days'
     Assert-True ($null -ne $blobService -and $blobService.name -match "parameters\('storageName'\).+'default'") 'the Blob service must be the default child of the adopted storage account'
     Assert-True ($null -ne $blobService -and $blobService.properties.cors.corsRules.Count -eq 0) 'the Blob service must preserve the observed empty CORS rule set'
+    Assert-PreservationBaseline $blobService @{
+        'properties.changeFeed.enabled' = $true
+        'properties.containerDeleteRetentionPolicy.enabled' = $true
+        'properties.containerDeleteRetentionPolicy.days' = 14
+        'properties.deleteRetentionPolicy.allowPermanentDelete' = $false
+        'properties.deleteRetentionPolicy.enabled' = $true
+        'properties.deleteRetentionPolicy.days' = 14
+        'properties.isVersioningEnabled' = $true
+    } 'the Blob service preservation baseline'
 
     $storageContainers = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/blobServices/containers' })
-    Assert-True ($storageContainers.Count -eq 3 -and @($storageContainers | Where-Object { $_.properties.publicAccess -ne 'None' }).Count -eq 0) 'storage must declare exactly three private Blob containers'
+    Assert-True ($storageContainers.Count -eq 3 -and @($storageContainers | Where-Object { -not $_.existing }).Count -eq 0) 'existing private Blob containers must use adoption references so deployment does not reset container metadata'
     foreach ($containerName in @('uploads', 'exports', 'system')) {
         Assert-True ((@($storageContainers | Where-Object { $_.name -match [regex]::Escape("'$containerName'") }).Count) -eq 1) "storage must declare the $containerName container"
     }
-    Assert-True (@($storageContainers | Where-Object { $_.properties.defaultEncryptionScope -ne '$account-encryption-key' -or $_.properties.denyEncryptionScopeOverride -ne $false }).Count -eq 0) 'storage containers must preserve their account encryption scope settings'
 
     $storagePolicy = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/managementPolicies' }) | Select-Object -First 1
     Assert-True ($null -ne $storagePolicy -and $storagePolicy.properties.policy.rules.Count -eq 1) 'storage must use one scoped lifecycle policy rule and rely on Azure garbage collection for uncommitted blocks'
     $temporaryExportsRule = $storagePolicy.properties.policy.rules | Where-Object { $_.name -eq 'delete-temporary-exports-after-seven-days' } | Select-Object -First 1
     Assert-True ($null -ne $temporaryExportsRule -and $temporaryExportsRule.definition.filters.prefixMatch.Count -eq 1 -and $temporaryExportsRule.definition.filters.prefixMatch[0] -eq 'exports/temporary/' -and $temporaryExportsRule.definition.actions.baseBlob.delete.daysAfterModificationGreaterThan -eq 7) 'storage lifecycle deletion must be limited to temporary exports after seven days'
 
-    $managedKeyVault = @($resources | Where-Object {
-        $_.type -eq 'Microsoft.KeyVault/vaults' -and -not $_.existing -and $null -eq $_.condition
+    $newKeyVault = @($resources | Where-Object {
+        $_.type -eq 'Microsoft.KeyVault/vaults' -and -not $_.existing -and $_.condition -eq "[not(parameters('useExisting'))]"
     }) | Select-Object -First 1
-    Assert-True ($null -ne $managedKeyVault -and $managedKeyVault.properties.sku.name -eq 'standard') 'the adopted Key Vault must be managed in place with the standard SKU'
+    Assert-True ($null -ne $newKeyVault -and $newKeyVault.properties.sku.name -eq 'standard') 'the fresh Key Vault path must use the standard SKU'
     $keyVaultTagMerge = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/tags' -and $_.scope -match 'Microsoft.KeyVault/vaults' -and $_.properties.tags -match '^\[union\(.+\)\]$' }) | Select-Object -First 1
     Assert-True ($null -ne $keyVaultTagMerge) 'the adopted Key Vault must preserve existing tags through a merge-safe tag update'
-    Assert-True ($null -ne $managedKeyVault -and $managedKeyVault.properties.enableRbacAuthorization -eq $true -and $managedKeyVault.properties.enablePurgeProtection -eq $true -and $managedKeyVault.properties.enableSoftDelete -eq $true -and $managedKeyVault.properties.softDeleteRetentionInDays -eq 7) 'Key Vault must use RBAC, purge protection, and seven-day soft delete retention'
-    Assert-True ($null -ne $managedKeyVault -and $managedKeyVault.properties.publicNetworkAccess -eq 'Enabled') 'Key Vault must preserve approved dev public network access'
-    Assert-True ($null -ne $managedKeyVault -and $managedKeyVault.name -eq "[parameters('vaultName')]") 'the managed Key Vault must use the exact vaultName adoption parameter'
-    Assert-True ($null -ne $managedKeyVault -and $managedKeyVault.properties.accessPolicies.Count -eq 0 -and $managedKeyVault.properties.enabledForDeployment -eq $false -and $managedKeyVault.properties.enabledForDiskEncryption -eq $false -and $managedKeyVault.properties.enabledForTemplateDeployment -eq $false) 'Key Vault must preserve the observed RBAC-only access-policy and deployment-flag state'
-    Assert-True ($null -ne $managedKeyVault -and $managedKeyVault.properties.networkAcls.bypass -eq 'None' -and $managedKeyVault.properties.networkAcls.defaultAction -eq 'Allow' -and $managedKeyVault.properties.networkAcls.ipRules.Count -eq 0 -and $managedKeyVault.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'Key Vault must preserve the observed network ACL configuration'
+    Assert-True ($null -ne $newKeyVault -and $newKeyVault.properties.enableRbacAuthorization -eq $true -and $newKeyVault.properties.enablePurgeProtection -eq $true -and $newKeyVault.properties.enableSoftDelete -eq $true -and $newKeyVault.properties.softDeleteRetentionInDays -eq 7) 'the fresh Key Vault path must use RBAC, purge protection, and seven-day soft delete retention'
+    Assert-True ($null -ne $newKeyVault -and $newKeyVault.properties.publicNetworkAccess -eq 'Enabled') 'the fresh Key Vault path must preserve approved dev public network access'
+    $adoptedKeyVault = @($resources | Where-Object { $_.type -eq 'Microsoft.KeyVault/vaults' -and $_.existing -and $null -eq $_.condition -and $_.name -eq "[parameters('vaultName')]" }) | Select-Object -First 1
+    Assert-True ($null -ne $adoptedKeyVault -and $adoptedKeyVault.name -eq "[parameters('vaultName')]") 'the unchanged adopted Key Vault must use an unconditional existing reference'
+    Assert-True ($null -ne $newKeyVault -and $newKeyVault.name -eq "[parameters('vaultName')]") 'the fresh Key Vault path must use the exact vaultName parameter'
+    Assert-True ($null -ne $newKeyVault -and $newKeyVault.properties.accessPolicies.Count -eq 0 -and $newKeyVault.properties.enabledForDeployment -eq $false -and $newKeyVault.properties.enabledForDiskEncryption -eq $false -and $newKeyVault.properties.enabledForTemplateDeployment -eq $false) 'the fresh Key Vault path must use the RBAC-only access-policy and deployment-flag state'
+    Assert-True ($null -ne $newKeyVault -and $newKeyVault.properties.networkAcls.bypass -eq 'None' -and $newKeyVault.properties.networkAcls.defaultAction -eq 'Allow' -and $newKeyVault.properties.networkAcls.ipRules.Count -eq 0 -and $newKeyVault.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'the fresh Key Vault path must use the approved network ACL configuration'
+    Assert-PreservationBaseline $newKeyVault @{
+        'properties.enablePurgeProtection' = $true
+        'properties.enableRbacAuthorization' = $true
+        'properties.enableSoftDelete' = $true
+        'properties.enabledForDeployment' = $false
+        'properties.enabledForDiskEncryption' = $false
+        'properties.enabledForTemplateDeployment' = $false
+        'properties.networkAcls.bypass' = 'None'
+        'properties.networkAcls.defaultAction' = 'Allow'
+        'properties.publicNetworkAccess' = 'Enabled'
+        'properties.softDeleteRetentionInDays' = 7
+        'properties.sku.name' = 'standard'
+    } 'the Key Vault fresh-create preservation baseline'
+    Assert-True ($null -ne $newKeyVault -and $newKeyVault.properties.accessPolicies.Count -eq 0 -and $newKeyVault.properties.networkAcls.ipRules.Count -eq 0 -and $newKeyVault.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'the Key Vault preservation baseline must retain observed empty access-policy and ACL collections'
 
     $diagnosticSettings = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/diagnosticSettings' })
     Assert-True ($diagnosticSettings.Count -eq 2 -and @($diagnosticSettings | Where-Object { $_.properties.workspaceId -ne "[parameters('workspaceResourceId')]" }).Count -eq 0) 'Storage and Key Vault diagnostics must target the Log Analytics workspace'
@@ -310,7 +375,7 @@ if ($Mode -eq 'dev') {
         Assert-True ($null -ne $storageDeployment -and $storageDeployment.properties.template.outputs.containerIds.value.$containerName -eq "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageName'), 'default', '$containerName')]") "storage output must resolve the $containerName declared container resource ID"
     }
     $keyVaultDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match "key-vault-" }) | Select-Object -First 1
-    Assert-True ($null -ne $keyVaultDeployment -and $keyVaultDeployment.properties.template.outputs.id.value -eq "[resourceId('Microsoft.KeyVault/vaults', parameters('vaultName'))]" -and $keyVaultDeployment.properties.template.outputs.uri.value -match "reference\('vault'\)\.vaultUri") 'Key Vault module outputs must resolve to the adopted vault ID and URI'
+    Assert-True ($null -ne $keyVaultDeployment -and $keyVaultDeployment.properties.template.outputs.id.value -eq "[resourceId('Microsoft.KeyVault/vaults', parameters('vaultName'))]" -and $keyVaultDeployment.properties.template.outputs.uri.value -match "if\(parameters\('useExisting'\), reference\('existingVault'\)\.vaultUri, reference\('newVault'\)\.vaultUri\)") 'Key Vault module outputs must resolve to the adopted vault ID and URI'
 
     $compiledTemplate = $template | ConvertTo-Json -Depth 100
     Assert-True ((@($resources | Where-Object { $_.type -eq 'Microsoft.KeyVault/vaults/secrets' }).Count) -eq 0) 'Bicep must not declare a Key Vault secret or its value'
