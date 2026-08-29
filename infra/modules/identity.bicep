@@ -1,10 +1,12 @@
 param location string
 param identityName string
 param useExisting bool
+param commonTags object
 
 resource newIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (!useExisting) {
   name: identityName
   location: location
+  tags: commonTags
 }
 
 resource existingIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = if (useExisting) {

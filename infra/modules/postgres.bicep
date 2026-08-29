@@ -5,10 +5,12 @@ param administratorLogin string = 'scentiqadmin'
 @secure()
 param administratorPassword string = ''
 param skuName string = 'Standard_B1ms'
+param commonTags object
 
 resource newServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = if (!useExisting) {
   name: serverName
   location: location
+  tags: commonTags
   sku: { name: skuName, tier: 'Burstable' }
   properties: {
     administratorLogin: administratorLogin

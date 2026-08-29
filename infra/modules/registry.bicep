@@ -1,10 +1,12 @@
 param location string
 param registryName string
 param principalId string
+param commonTags object
 
 resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: registryName
   location: location
+  tags: commonTags
   sku: { name: 'Basic' }
   properties: {
     adminUserEnabled: false

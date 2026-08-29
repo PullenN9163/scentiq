@@ -2,10 +2,12 @@ param location string
 param storageName string
 param useExisting bool
 param principalId string
+param commonTags object
 
 resource newStorage 'Microsoft.Storage/storageAccounts@2023-05-01' = if (!useExisting) {
   name: storageName
   location: location
+  tags: commonTags
   kind: 'StorageV2'
   sku: { name: 'Standard_LRS' }
   properties: {

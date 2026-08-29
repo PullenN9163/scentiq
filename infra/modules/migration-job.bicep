@@ -8,10 +8,12 @@ param image string
 param applicationInsightsConnectionString string
 @secure()
 param databaseSecretUri string
+param commonTags object
 
 resource job 'Microsoft.App/jobs@2025-01-01' = {
   name: name
   location: location
+  tags: commonTags
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: { '${identityId}': {} }

@@ -2,10 +2,12 @@ param location string
 param vaultName string
 param useExisting bool
 param principalId string
+param commonTags object
 
 resource newVault 'Microsoft.KeyVault/vaults@2023-07-01' = if (!useExisting) {
   name: vaultName
   location: location
+  tags: commonTags
   properties: {
     tenantId: tenant().tenantId
     sku: { family: 'A', name: 'standard' }

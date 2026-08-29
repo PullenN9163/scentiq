@@ -2,10 +2,12 @@ param location string
 param environmentName string
 param useExisting bool
 param workspaceResourceId string
+param commonTags object
 
 resource newEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = if (!useExisting) {
   name: environmentName
   location: location
+  tags: commonTags
   properties: {
     appLogsConfiguration: {
       destination: 'log-analytics'

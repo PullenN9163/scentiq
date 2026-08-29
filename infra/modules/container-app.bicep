@@ -11,6 +11,7 @@ param maxReplicas int
 param cpu string
 param memory string
 param environmentVariables array
+param commonTags object
 @secure()
 param applicationInsightsConnectionString string
 @secure()
@@ -24,6 +25,7 @@ var secrets = concat(
 resource app 'Microsoft.App/containerApps@2025-01-01' = {
   name: name
   location: location
+  tags: commonTags
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: { '${identityId}': {} }

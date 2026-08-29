@@ -1,8 +1,17 @@
-using '../main.bicep'
+using '../subscription.bicep'
 
+param resourceGroupName = 'scentiq-rg-dev-eus'
 param location = 'eastus'
 param postgresLocation = 'northcentralus'
 param environmentName = 'dev'
+param owner = 'platform-owner'
+param costCenter = 'scentiq-development'
+param dataClassification = 'nonproduction'
+param alertEmails = '[]'
+param budgetAmount = 50
+param deploymentMode = 'dev'
+param networkMode = 'publicDev'
+param productionApproved = false
 param useExistingFoundation = true
 param workspaceName = 'scentiq-law-dev-us'
 param storageName = 'scentiqstrgdevus'

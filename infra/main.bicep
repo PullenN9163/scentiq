@@ -32,6 +32,14 @@ param apiMinReplicas int = 1
 param apiMaxReplicas int = 2
 param webMinReplicas int = 1
 param webMaxReplicas int = 2
+param commonTags object
+param actionGroupId string
+@allowed([
+  'publicDev'
+  'private'
+])
+param networkMode string = 'publicDev'
+param productionApproved bool = false
 
 module monitoring 'modules/monitoring.bicep' = {
   name: 'monitoring-${environmentName}'
@@ -40,17 +48,18 @@ module monitoring 'modules/monitoring.bicep' = {
     workspaceName: workspaceName
     applicationInsightsName: applicationInsightsName
     useExistingWorkspace: useExistingFoundation
+    commonTags: commonTags
   }
 }
 
 module identity 'modules/identity.bicep' = {
   name: 'identity-${environmentName}'
-  params: { location: location, identityName: identityName, useExisting: useExistingFoundation }
+  params: { location: location, identityName: identityName, useExisting: useExistingFoundation, commonTags: commonTags }
 }
 
 module registry 'modules/registry.bicep' = {
   name: 'registry-${environmentName}'
-  params: { location: location, registryName: registryName, principalId: identity.outputs.principalId }
+  params: { location: location, registryName: registryName, principalId: identity.outputs.principalId, commonTags: commonTags }
 }
 
 module storage 'modules/storage.bicep' = {
@@ -60,6 +69,7 @@ module storage 'modules/storage.bicep' = {
     storageName: storageName
     useExisting: useExistingFoundation
     principalId: identity.outputs.principalId
+    commonTags: commonTags
   }
 }
 
@@ -70,6 +80,7 @@ module keyVault 'modules/key-vault.bicep' = {
     vaultName: keyVaultName
     useExisting: useExistingFoundation
     principalId: identity.outputs.principalId
+    commonTags: commonTags
   }
 }
 
@@ -82,6 +93,7 @@ module postgres 'modules/postgres.bicep' = {
     administratorLogin: postgresAdministratorLogin
     administratorPassword: postgresAdministratorPassword
     skuName: postgresSkuName
+    commonTags: commonTags
   }
 }
 
@@ -92,6 +104,7 @@ module containerEnvironment 'modules/container-environment.bicep' = {
     environmentName: containerEnvironmentName
     useExisting: useExistingFoundation
     workspaceResourceId: monitoring.outputs.workspaceResourceId
+    commonTags: commonTags
   }
 }
 
@@ -112,6 +125,7 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
     memory: '1Gi'
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
     databaseSecretUri: databaseSecretUri
+    commonTags: commonTags
     environmentVariables: [
       { name: 'SCENTIQ_ENV', value: environmentName }
       { name: 'CORS_ORIGINS', value: 'https://${webAppName}' }
@@ -140,6 +154,7 @@ module web 'modules/container-app.bicep' = if (deployApplications) {
     memory: '1Gi'
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
     environmentVariables: [{ name: 'API_INTERNAL_URL', value: 'https://${api!.outputs.fqdn}' }]
+    commonTags: commonTags
   }
 }
 
@@ -154,6 +169,7 @@ module migration 'modules/migration-job.bicep' = if (deployMigration) {
     image: apiImage
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
     databaseSecretUri: databaseSecretUri
+    commonTags: commonTags
   }
 }
 
@@ -161,3 +177,6 @@ output registryLoginServer string = registry.outputs.loginServer
 output apiFqdn string = deployApplications ? api!.outputs.fqdn : ''
 output webFqdn string = deployApplications ? web!.outputs.fqdn : ''
 output migrationJob string = deployMigration ? migration!.outputs.name : ''
+output governanceActionGroupId string = actionGroupId
+output selectedNetworkMode string = networkMode
+output productionDeploymentApproved bool = productionApproved

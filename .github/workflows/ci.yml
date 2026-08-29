@@ -144,11 +144,11 @@ jobs:
 
       - name: Compile Bicep templates
         run: |
-          az bicep build --file infra/main.bicep --outfile /tmp/scentiq-main.json
+          az bicep build --file infra/subscription.bicep --outfile /tmp/scentiq-subscription.json
           az bicep build-params --file infra/parameters/dev.bicepparam --outfile /tmp/scentiq-dev.json
 
       - name: Verify compiled infrastructure safety
-        run: pwsh -File infra/tests/Test-CompiledInfrastructure.ps1 -TemplatePath /tmp/scentiq-main.json -Mode dev
+        run: pwsh -File infra/tests/Test-CompiledInfrastructure.ps1 -TemplatePath /tmp/scentiq-subscription.json -Mode dev
 
       - name: Verify repository privacy
         run: pwsh -File scripts/ci/Test-RepositoryPrivacy.ps1 -RepositoryRoot . -Scope tracked

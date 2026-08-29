@@ -2,10 +2,12 @@ param location string
 param workspaceName string
 param applicationInsightsName string
 param useExistingWorkspace bool
+param commonTags object
 
 resource newWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = if (!useExistingWorkspace) {
   name: workspaceName
   location: location
+  tags: commonTags
   properties: {
     retentionInDays: 30
     features: { enableLogAccessUsingOnlyResourcePermissions: true }
@@ -21,6 +23,7 @@ var workspaceId = useExistingWorkspace ? existingWorkspace.id : newWorkspace.id
 resource insights 'Microsoft.Insights/components@2020-02-02' = {
   name: applicationInsightsName
   location: location
+  tags: commonTags
   kind: 'web'
   properties: {
     Application_Type: 'web'
