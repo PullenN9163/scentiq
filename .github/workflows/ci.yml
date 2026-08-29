@@ -59,7 +59,7 @@ jobs:
       CORS_ORIGINS: http://localhost:3000
     services:
       postgres:
-        image: postgres:18-bookworm
+        image: postgres@sha256:a10c981235b4f635e65df0cfb66a5598064628128505dbc6a3ed4ca303717521
         env:
           POSTGRES_DB: scentiq_ci
           POSTGRES_INITDB_ARGS: --auth-local=scram-sha-256 --auth-host=scram-sha-256
