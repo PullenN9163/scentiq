@@ -37,6 +37,7 @@ param identityPrincipalId string
 param webIdentityName string
 param migrationIdentityName string
 param deploymentIdentityName string
+param deploymentIdentityPrincipalId string
 param containerEnvironmentName string
 param registryName string
 param applicationInsightsName string
@@ -111,6 +112,7 @@ module platform 'main.bicep' = {
     webIdentityName: webIdentityName
     migrationIdentityName: migrationIdentityName
     deploymentIdentityName: deploymentIdentityName
+    deploymentIdentityPrincipalId: deploymentIdentityPrincipalId
     actionGroupId: '${subscription().id}/resourceGroups/${resourceGroupName}/providers/Microsoft.Insights/actionGroups/scentiq-ag-${environmentName}-eus'
     containerEnvironmentName: containerEnvironmentName
     registryName: registryName

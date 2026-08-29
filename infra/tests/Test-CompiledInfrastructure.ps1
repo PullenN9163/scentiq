@@ -70,6 +70,7 @@ if ($Mode -eq 'dev') {
     foreach ($identityOutput in $platformIdentityOutputs) {
         $contract = $platformDeploymentForIdentityContracts.properties.template.outputs.$identityOutput
         Assert-True ($null -ne $contract -and $contract.type -eq 'object') "platform must expose the $identityOutput identity contract"
+        Assert-True ($null -ne $contract -and @($contract.value.PSObject.Properties.Name | Where-Object { $_ -in @('id', 'clientId', 'principalId') }).Count -eq 3) "the $identityOutput identity contract must contain id, clientId, and principalId"
     }
 
     $roleAssignments = @($resources | Where-Object { $_.type -eq 'Microsoft.Authorization/roleAssignments' })
@@ -92,6 +93,15 @@ if ($Mode -eq 'dev') {
     Assert-True ((@($roleAssignments | Where-Object { (Test-RoleDefinition $_ $roleDefinitions.AcrPush) -and $_.scope -match 'Microsoft.ContainerRegistry/registries' }).Count) -eq 1) 'deployment identity must retain AcrPush at the registry scope'
     Assert-True ((@($roleAssignments | Where-Object { $_.properties.principalType -ne 'ServicePrincipal' }).Count) -eq 0) 'all identity role assignments must declare ServicePrincipal principals'
     Assert-True ((@($roleAssignments | Where-Object { $_.name -notmatch 'guid\(' }).Count) -eq 0) 'all identity role assignment names must be deterministic GUID expressions'
+
+    $apiAssignments = @($roleAssignments | Where-Object { $_.condition -match "parameters\('useExistingFoundation'\)" })
+    $webAssignments = @($roleAssignments | Where-Object { $_.properties.principalId -match "reference\('webIdentity'\)\.outputs\.principalId\.value" })
+    $migrationAssignments = @($roleAssignments | Where-Object { $_.properties.principalId -match "reference\('migrationIdentity'\)\.outputs\.principalId\.value" })
+    $deploymentAssignments = @($roleAssignments | Where-Object { $_.properties.principalId -eq "[parameters('deploymentIdentityPrincipalId')]" })
+    Assert-True ($apiAssignments.Count -eq 6 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPull }).Count -eq 2 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.BlobContributor }).Count -eq 2 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser }).Count -eq 2) 'API identity must have exactly AcrPull, Storage Blob Data Contributor, and Key Vault Secrets User across fresh and adopted branches'
+    Assert-True ($webAssignments.Count -eq 1 -and (Test-RoleDefinition $webAssignments[0] $roleDefinitions.AcrPull)) 'web identity must have only AcrPull'
+    Assert-True ($migrationAssignments.Count -eq 2 -and @($migrationAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPull }).Count -eq 1 -and @($migrationAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser }).Count -eq 1) 'migration identity must have exactly AcrPull and Key Vault Secrets User'
+    Assert-True ($deploymentAssignments.Count -eq 3 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.Contributor }).Count -eq 1 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.RbacAdministrator }).Count -eq 1 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPush }).Count -eq 1) 'deployment identity must retain exactly Contributor, Role Based Access Control Administrator, and AcrPush'
 
     $requiredTypes = @(
         'Microsoft.Insights/actionGroups',

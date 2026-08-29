@@ -17,6 +17,7 @@ param identityPrincipalId string
 param webIdentityName string
 param migrationIdentityName string
 param deploymentIdentityName string
+param deploymentIdentityPrincipalId string
 param actionGroupId string
 param containerEnvironmentName string
 param registryName string
@@ -170,7 +171,7 @@ resource freshKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-
 }
 
 resource adoptedAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (useExistingFoundation) {
-  name: guid(registryResource.id, identityPrincipalId, acrPullRoleDefinitionId)
+  name: guid(registryResource.id, identityPrincipalId, 'AcrPull')
   scope: registryResource
   properties: {
     principalId: identityPrincipalId
@@ -233,29 +234,29 @@ resource migrationKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2
 }
 
 resource deploymentContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, deploymentIdentityName, contributorRoleDefinitionId)
+  name: guid(resourceGroup().id, deploymentIdentityPrincipalId, contributorRoleDefinitionId)
   properties: {
-    principalId: deploymentIdentity.outputs.principalId
+    principalId: deploymentIdentityPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: contributorRoleDefinitionId
   }
 }
 
 resource deploymentRoleBasedAccessControlAdministrator 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, deploymentIdentityName, roleBasedAccessControlAdministratorRoleDefinitionId)
+  name: guid(resourceGroup().id, deploymentIdentityPrincipalId, roleBasedAccessControlAdministratorRoleDefinitionId)
   properties: {
-    principalId: deploymentIdentity.outputs.principalId
+    principalId: deploymentIdentityPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: roleBasedAccessControlAdministratorRoleDefinitionId
   }
 }
 
 resource deploymentAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(registryResource.id, deploymentIdentityName, acrPushRoleDefinitionId)
+  name: guid(registryResource.id, deploymentIdentityPrincipalId, acrPushRoleDefinitionId)
   scope: registryResource
   dependsOn: [registry]
   properties: {
-    principalId: deploymentIdentity.outputs.principalId
+    principalId: deploymentIdentityPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: acrPushRoleDefinitionId
   }
