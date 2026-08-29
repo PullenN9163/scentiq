@@ -18,6 +18,11 @@ param webIdentityName string
 param migrationIdentityName string
 param deploymentIdentityName string
 param deploymentIdentityPrincipalId string
+param apiBlobRoleAssignmentName string
+param apiKeyVaultRoleAssignmentName string
+param deploymentContributorRoleAssignmentName string
+param deploymentRbacAdministratorRoleAssignmentName string
+param deploymentAcrPushRoleAssignmentName string
 param actionGroupId string
 param containerEnvironmentName string
 param registryName string
@@ -181,7 +186,7 @@ resource adoptedAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = i
 }
 
 resource adoptedBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (useExistingFoundation) {
-  name: guid(storageResource.id, identityPrincipalId, storageBlobDataContributorRoleDefinitionId)
+  name: apiBlobRoleAssignmentName
   scope: storageResource
   properties: {
     principalId: identityPrincipalId
@@ -191,7 +196,7 @@ resource adoptedBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04
 }
 
 resource adoptedKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (useExistingFoundation) {
-  name: guid(keyVaultResource.id, identityPrincipalId, keyVaultSecretsUserRoleDefinitionId)
+  name: apiKeyVaultRoleAssignmentName
   scope: keyVaultResource
   properties: {
     principalId: identityPrincipalId
@@ -234,7 +239,7 @@ resource migrationKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2
 }
 
 resource deploymentContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, deploymentIdentityPrincipalId, contributorRoleDefinitionId)
+  name: deploymentContributorRoleAssignmentName
   properties: {
     principalId: deploymentIdentityPrincipalId
     principalType: 'ServicePrincipal'
@@ -243,7 +248,7 @@ resource deploymentContributor 'Microsoft.Authorization/roleAssignments@2022-04-
 }
 
 resource deploymentRoleBasedAccessControlAdministrator 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, deploymentIdentityPrincipalId, roleBasedAccessControlAdministratorRoleDefinitionId)
+  name: deploymentRbacAdministratorRoleAssignmentName
   properties: {
     principalId: deploymentIdentityPrincipalId
     principalType: 'ServicePrincipal'
@@ -252,7 +257,7 @@ resource deploymentRoleBasedAccessControlAdministrator 'Microsoft.Authorization/
 }
 
 resource deploymentAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(registryResource.id, deploymentIdentityPrincipalId, acrPushRoleDefinitionId)
+  name: deploymentAcrPushRoleAssignmentName
   scope: registryResource
   dependsOn: [registry]
   properties: {

@@ -38,6 +38,11 @@ param webIdentityName string
 param migrationIdentityName string
 param deploymentIdentityName string
 param deploymentIdentityPrincipalId string
+param apiBlobRoleAssignmentName string
+param apiKeyVaultRoleAssignmentName string
+param deploymentContributorRoleAssignmentName string
+param deploymentRbacAdministratorRoleAssignmentName string
+param deploymentAcrPushRoleAssignmentName string
 param containerEnvironmentName string
 param registryName string
 param applicationInsightsName string
@@ -113,6 +118,11 @@ module platform 'main.bicep' = {
     migrationIdentityName: migrationIdentityName
     deploymentIdentityName: deploymentIdentityName
     deploymentIdentityPrincipalId: deploymentIdentityPrincipalId
+    apiBlobRoleAssignmentName: apiBlobRoleAssignmentName
+    apiKeyVaultRoleAssignmentName: apiKeyVaultRoleAssignmentName
+    deploymentContributorRoleAssignmentName: deploymentContributorRoleAssignmentName
+    deploymentRbacAdministratorRoleAssignmentName: deploymentRbacAdministratorRoleAssignmentName
+    deploymentAcrPushRoleAssignmentName: deploymentAcrPushRoleAssignmentName
     actionGroupId: '${subscription().id}/resourceGroups/${resourceGroupName}/providers/Microsoft.Insights/actionGroups/scentiq-ag-${environmentName}-eus'
     containerEnvironmentName: containerEnvironmentName
     registryName: registryName
