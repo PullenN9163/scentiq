@@ -37,6 +37,11 @@ function Assert-PreservationBaseline([object] $Resource, [hashtable] $Expected, 
     }
 }
 
+function Assert-EmptyArrayProperty([object] $Resource, [string] $Path, [string] $Label) {
+    $actual = Get-PropertyPathValue $Resource $Path
+    Assert-True ($actual.Found -and @($actual.Value).Count -eq 0) "$Label must explicitly preserve an empty $Path collection"
+}
+
 function Get-ArmResources([object] $Resources) {
     $resourceItems = if ($Resources -is [System.Array]) {
         $Resources
@@ -270,8 +275,8 @@ if ($Mode -eq 'dev') {
     Assert-True ($null -ne $managedStorage -and $managedStorage.properties.allowSharedKeyAccess -eq "[parameters('enableStorageSharedKeyAccess')]") 'storage Shared Key disablement must be modeled through the staged adoption control'
     Assert-True ($null -ne $managedStorage -and $managedStorage.name -eq "[parameters('storageName')]") 'the managed storage account must use the exact storageName adoption parameter'
     Assert-True ($null -ne $managedStorage -and $managedStorage.properties.dnsEndpointType -eq 'Standard') 'storage must preserve the current Standard DNS endpoint type'
-    Assert-True ($null -ne $managedStorage -and $managedStorage.properties.encryption.keySource -eq 'Microsoft.Storage' -and $managedStorage.properties.encryption.requireInfrastructureEncryption -eq $false -and $managedStorage.properties.encryption.services.blob.enabled -eq $true -and $managedStorage.properties.encryption.services.blob.keyType -eq 'Account' -and $managedStorage.properties.encryption.services.file.enabled -eq $true -and $managedStorage.properties.encryption.services.file.keyType -eq 'Account') 'storage must preserve Microsoft-managed Blob and File encryption settings'
-    Assert-True ($null -ne $managedStorage -and $managedStorage.properties.networkAcls.defaultAction -eq 'Allow' -and $managedStorage.properties.networkAcls.ipRules.Count -eq 0 -and $managedStorage.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'storage must preserve empty IPv4 and virtual-network ACL arrays'
+    Assert-True ($null -ne $managedStorage -and $managedStorage.properties.encryption.keySource -eq 'Microsoft.Storage' -and $managedStorage.properties.encryption.requireInfrastructureEncryption -eq $false -and $managedStorage.properties.encryption.services.blob.enabled -eq $true -and $managedStorage.properties.encryption.services.blob.keyType -eq 'Account' -and $managedStorage.properties.encryption.services.file.enabled -eq $true -and $managedStorage.properties.encryption.services.file.keyType -eq 'Account' -and $managedStorage.properties.encryption.services.queue.keyType -eq 'Service' -and $managedStorage.properties.encryption.services.table.keyType -eq 'Service') 'storage must preserve Microsoft-managed Blob, File, Queue, and Table encryption settings'
+    Assert-True ($null -ne $managedStorage -and $managedStorage.properties.networkAcls.defaultAction -eq 'Allow' -and $managedStorage.properties.networkAcls.ipRules.Count -eq 0 -and $managedStorage.properties.networkAcls.resourceAccessRules.Count -eq 0 -and $managedStorage.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'storage must preserve empty IPv4, resource-access, and virtual-network ACL arrays'
     Assert-PreservationBaseline $managedStorage @{
         'kind' = 'StorageV2'
         'sku.name' = 'Standard_LRS'
@@ -287,13 +292,18 @@ if ($Mode -eq 'dev') {
         'properties.encryption.services.blob.keyType' = 'Account'
         'properties.encryption.services.file.enabled' = $true
         'properties.encryption.services.file.keyType' = 'Account'
+        'properties.encryption.services.queue.keyType' = 'Service'
+        'properties.encryption.services.table.keyType' = 'Service'
         'properties.minimumTlsVersion' = 'TLS1_2'
         'properties.networkAcls.bypass' = 'AzureServices'
         'properties.networkAcls.defaultAction' = 'Allow'
         'properties.publicNetworkAccess' = 'Enabled'
         'properties.supportsHttpsTrafficOnly' = $true
     } 'the adopted storage account preservation baseline'
-    Assert-True ($null -ne $managedStorage -and $managedStorage.properties.networkAcls.ipRules.Count -eq 0 -and $managedStorage.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'the adopted storage account preservation baseline must retain observed empty ACL collections'
+    Assert-EmptyArrayProperty $managedStorage 'properties.networkAcls.ipRules' 'the adopted storage account preservation baseline'
+    Assert-EmptyArrayProperty $managedStorage 'properties.networkAcls.resourceAccessRules' 'the adopted storage account preservation baseline'
+    Assert-EmptyArrayProperty $managedStorage 'properties.networkAcls.virtualNetworkRules' 'the adopted storage account preservation baseline'
+    Assert-True ($null -ne $managedStorage -and $managedStorage.properties.networkAcls.ipRules.Count -eq 0 -and $managedStorage.properties.networkAcls.resourceAccessRules.Count -eq 0 -and $managedStorage.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'the adopted storage account preservation baseline must retain observed empty ACL collections'
 
     $blobService = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/blobServices' }) | Select-Object -First 1
     Assert-True ($null -ne $blobService -and $blobService.properties.isVersioningEnabled -eq $true -and $blobService.properties.changeFeed.enabled -eq $true) 'the Blob service must enable versioning and change feed'

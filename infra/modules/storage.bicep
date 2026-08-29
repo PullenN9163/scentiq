@@ -31,6 +31,12 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
           enabled: true
           keyType: 'Account'
         }
+        queue: {
+          keyType: 'Service'
+        }
+        table: {
+          keyType: 'Service'
+        }
       }
     }
     minimumTlsVersion: 'TLS1_2'
@@ -38,6 +44,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
       bypass: 'AzureServices'
       defaultAction: 'Allow'
       ipRules: []
+      resourceAccessRules: []
       virtualNetworkRules: []
     }
     publicNetworkAccess: 'Enabled'
