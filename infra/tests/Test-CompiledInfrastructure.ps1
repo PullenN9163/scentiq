@@ -5,6 +5,7 @@ param(
 
 $template = Get-Content -Raw -LiteralPath $TemplatePath | ConvertFrom-Json -Depth 100
 $failures = [System.Collections.Generic.List[string]]::new()
+$roleDefinitionExpressions = @{}
 
 function Assert-True([bool] $Condition, [string] $Message) {
     if (-not $Condition) { $script:failures.Add($Message) }
@@ -23,10 +24,28 @@ function Get-ArmResources([object] $Resources) {
 
     foreach ($resource in $resourceItems) {
         $resource
+        if ($resource.properties.template.variables) {
+            foreach ($variable in $resource.properties.template.variables.PSObject.Properties) {
+                $script:roleDefinitionExpressions[$variable.Name] = $variable.Value
+            }
+        }
         if ($resource.properties.template.resources) {
             Get-ArmResources $resource.properties.template.resources
         }
     }
+}
+
+function Test-RoleDefinition([object] $Assignment, [string] $RoleDefinitionId) {
+    $value = [string] $Assignment.properties.roleDefinitionId
+    if ($value -match [regex]::Escape($RoleDefinitionId)) {
+        return $true
+    }
+
+    if ($value -match "variables\('([^']+)'\)") {
+        return ([string] $script:roleDefinitionExpressions[$Matches[1]]) -match [regex]::Escape($RoleDefinitionId)
+    }
+
+    return $false
 }
 
 $resources = @(Get-ArmResources $template.resources)
@@ -35,6 +54,45 @@ Assert-True (-not ($template | ConvertTo-Json -Depth 100 | Select-String -Quiet 
 Assert-True (-not ($template | ConvertTo-Json -Depth 100 | Select-String -Quiet '0\.0\.0\.0/0')) 'unrestricted CIDR is forbidden'
 
 if ($Mode -eq 'dev') {
+    $createdWorkloadIdentities = @($resources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities' -and -not $_.existing })
+    $adoptedWorkloadIdentities = @($resources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities' -and $_.existing })
+    Assert-True ($createdWorkloadIdentities.Count -eq 3 -and $adoptedWorkloadIdentities.Count -eq 3) 'development must declare dedicated API, web, migration, and GitHub deployment identities without duplicate create/adopt declarations'
+
+    $federatedCredentials = @($resources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials' })
+    $githubFederatedCredential = $federatedCredentials | Select-Object -First 1
+    Assert-True ($federatedCredentials.Count -eq 1) 'development must declare exactly one GitHub federated credential'
+    Assert-True ($null -ne $githubFederatedCredential -and $githubFederatedCredential.properties.issuer -eq 'https://token.actions.githubusercontent.com') 'GitHub federated credential must use the GitHub Actions issuer'
+    Assert-True ($null -ne $githubFederatedCredential -and $githubFederatedCredential.properties.subject -eq 'repo:PullenN9163/scentiq:environment:development') 'GitHub federated credential must be restricted to the development environment'
+    Assert-True ($null -ne $githubFederatedCredential -and $githubFederatedCredential.properties.audiences.Count -eq 1 -and $githubFederatedCredential.properties.audiences[0] -eq 'api://AzureADTokenExchange') 'GitHub federated credential must use the Azure AD token exchange audience'
+
+    $platformIdentityOutputs = @('apiIdentity', 'webIdentity', 'migrationIdentity', 'deploymentIdentity')
+    $platformDeploymentForIdentityContracts = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'platform-' }) | Select-Object -First 1
+    foreach ($identityOutput in $platformIdentityOutputs) {
+        $contract = $platformDeploymentForIdentityContracts.properties.template.outputs.$identityOutput
+        Assert-True ($null -ne $contract -and $contract.type -eq 'object') "platform must expose the $identityOutput identity contract"
+    }
+
+    $roleAssignments = @($resources | Where-Object { $_.type -eq 'Microsoft.Authorization/roleAssignments' })
+    $roleDefinitions = @{
+        AcrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+        BlobContributor = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+        KeyVaultSecretsUser = '4633458b-17de-408a-b874-0445c86b69e6'
+        Contributor = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
+        RbacAdministrator = 'f58310d9-a9f6-439a-9e8d-f62e7b41a168'
+        AcrPush = '8311e382-0749-4cb8-b61a-304f252e45ec'
+    }
+    $acrPullAssignments = @($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPull })
+    $blobAssignments = @($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.BlobContributor })
+    $keyVaultAssignments = @($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser })
+    Assert-True ($acrPullAssignments.Count -eq 4 -and @($acrPullAssignments | Where-Object { $_.scope -notmatch 'Microsoft.ContainerRegistry/registries' }).Count -eq 0) 'API, web, migration, and deployment identities must receive AcrPull or AcrPush only at the registry scope'
+    Assert-True ($blobAssignments.Count -eq 2 -and @($blobAssignments | Where-Object { $_.scope -notmatch 'Microsoft.Storage/storageAccounts' }).Count -eq 0) 'API identity must receive Storage Blob Data Contributor only at the storage account scope'
+    Assert-True ($keyVaultAssignments.Count -eq 3 -and @($keyVaultAssignments | Where-Object { $_.scope -notmatch 'Microsoft.KeyVault/vaults' }).Count -eq 0) 'API and migration identities must receive Key Vault Secrets User only at the vault scope'
+    Assert-True ((@($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.Contributor }).Count) -eq 1) 'deployment identity must retain Contributor'
+    Assert-True ((@($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.RbacAdministrator }).Count) -eq 1) 'deployment identity must retain Role Based Access Control Administrator'
+    Assert-True ((@($roleAssignments | Where-Object { (Test-RoleDefinition $_ $roleDefinitions.AcrPush) -and $_.scope -match 'Microsoft.ContainerRegistry/registries' }).Count) -eq 1) 'deployment identity must retain AcrPush at the registry scope'
+    Assert-True ((@($roleAssignments | Where-Object { $_.properties.principalType -ne 'ServicePrincipal' }).Count) -eq 0) 'all identity role assignments must declare ServicePrincipal principals'
+    Assert-True ((@($roleAssignments | Where-Object { $_.name -notmatch 'guid\(' }).Count) -eq 0) 'all identity role assignment names must be deterministic GUID expressions'
+
     $requiredTypes = @(
         'Microsoft.Insights/actionGroups',
         'Microsoft.Consumption/budgets'

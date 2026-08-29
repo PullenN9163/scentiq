@@ -34,6 +34,9 @@ param keyVaultName string
 param postgresServerName string
 param identityName string
 param identityPrincipalId string
+param webIdentityName string
+param migrationIdentityName string
+param deploymentIdentityName string
 param containerEnvironmentName string
 param registryName string
 param applicationInsightsName string
@@ -105,6 +108,9 @@ module platform 'main.bicep' = {
     postgresServerName: postgresServerName
     identityName: identityName
     identityPrincipalId: identityPrincipalId
+    webIdentityName: webIdentityName
+    migrationIdentityName: migrationIdentityName
+    deploymentIdentityName: deploymentIdentityName
     actionGroupId: '${subscription().id}/resourceGroups/${resourceGroupName}/providers/Microsoft.Insights/actionGroups/scentiq-ag-${environmentName}-eus'
     containerEnvironmentName: containerEnvironmentName
     registryName: registryName
@@ -133,3 +139,7 @@ output commonTags object = commonTags
 output actionGroupId string = governance.outputs.actionGroupId
 output budgetName string = governance.outputs.budgetName
 output selectedDeploymentMode string = deploymentMode
+output apiIdentity object = platform.outputs.apiIdentity
+output webIdentity object = platform.outputs.webIdentity
+output migrationIdentity object = platform.outputs.migrationIdentity
+output deploymentIdentity object = platform.outputs.deploymentIdentity
