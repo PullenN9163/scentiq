@@ -4,6 +4,8 @@ param location string = resourceGroup().location
 param postgresLocation string = location
 param environmentName string = 'dev'
 param useExistingFoundation bool = true
+param enableStorageSharedKeyAccess bool = false
+param enableFoundationLocks bool = true
 param deployWorkloads bool = false
 param deployMigration bool = deployWorkloads
 param deployApplications bool = deployWorkloads
@@ -104,8 +106,10 @@ module storage 'modules/storage.bicep' = {
   params: {
     location: location
     storageName: storageName
-    useExisting: useExistingFoundation
     commonTags: commonTags
+    workspaceResourceId: workspaceResourceId
+    enableStorageSharedKeyAccess: enableStorageSharedKeyAccess
+    enableFoundationLocks: enableFoundationLocks
   }
 }
 
@@ -114,8 +118,9 @@ module keyVault 'modules/key-vault.bicep' = {
   params: {
     location: location
     vaultName: keyVaultName
-    useExisting: useExistingFoundation
     commonTags: commonTags
+    workspaceResourceId: workspaceResourceId
+    enableFoundationLocks: enableFoundationLocks
   }
 }
 
@@ -383,4 +388,13 @@ output deploymentIdentity object = {
   id: deploymentIdentity.outputs.id
   clientId: deploymentIdentity.outputs.clientId
   principalId: deploymentIdentity.outputs.principalId
+}
+output storage object = {
+  id: storage.outputs.id
+  blobEndpoint: storage.outputs.blobEndpoint
+  containerIds: storage.outputs.containerIds
+}
+output keyVault object = {
+  id: keyVault.outputs.id
+  uri: keyVault.outputs.uri
 }

@@ -1,33 +1,68 @@
 param location string
 param vaultName string
-param useExisting bool
 param commonTags object
+param workspaceResourceId string
+param enableFoundationLocks bool = true
 
-resource newVault 'Microsoft.KeyVault/vaults@2023-07-01' = if (!useExisting) {
+resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: vaultName
   location: location
-  tags: commonTags
   properties: {
     tenantId: tenant().tenantId
-    sku: { family: 'A', name: 'standard' }
+    sku: {
+      family: 'A'
+      name: 'standard'
+    }
+    enablePurgeProtection: true
     enableRbacAuthorization: true
     enableSoftDelete: true
-    softDeleteRetentionInDays: 7
+    networkAcls: {
+      bypass: 'None'
+      defaultAction: 'Allow'
+      ipRules: []
+      virtualNetworkRules: []
+    }
     publicNetworkAccess: 'Enabled'
+    softDeleteRetentionInDays: 7
   }
 }
 
-resource existingVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
-  name: vaultName
-}
-
-resource existingVaultTags 'Microsoft.Resources/tags@2025-04-01' = if (useExisting) {
+resource vaultTags 'Microsoft.Resources/tags@2025-04-01' = {
   name: 'default'
-  scope: existingVault
+  scope: vault
   properties: {
-    tags: union(existingVault.tags, commonTags)
+    tags: union(vault.tags, commonTags)
   }
 }
 
-output id string = useExisting ? existingVault!.id : newVault!.id
-output uri string = useExisting ? existingVault!.properties.vaultUri : newVault!.properties.vaultUri
+resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  scope: vault
+  name: 'scentiq-key-vault-audit'
+  properties: {
+    workspaceId: workspaceResourceId
+    logs: [
+      {
+        category: 'AuditEvent'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
+  }
+}
+
+resource keyVaultLock 'Microsoft.Authorization/locks@2020-05-01' = if (enableFoundationLocks) {
+  scope: vault
+  name: 'scentiq-key-vault-protection'
+  properties: {
+    level: 'CanNotDelete'
+    notes: 'Protects ScentIQ Key Vault. Follow the Azure recovery runbook before removing this lock.'
+  }
+}
+
+output id string = vault.id
+output uri string = vault.properties.vaultUri

@@ -13,6 +13,9 @@ param deploymentMode = 'dev'
 param networkMode = 'publicDev'
 param productionApproved = false
 param useExistingFoundation = true
+// Shared Key disablement and delete locks are enabled after identity and recovery rehearsals.
+param enableStorageSharedKeyAccess = true
+param enableFoundationLocks = false
 param workspaceName = 'scentiq-law-dev-us'
 param storageName = 'scentiqstrgdevus'
 param keyVaultName = 'scentiq-kv-dev-eus'

@@ -24,6 +24,8 @@ param networkMode string = 'publicDev'
 param productionApproved bool = false
 
 param useExistingFoundation bool = true
+param enableStorageSharedKeyAccess bool = false
+param enableFoundationLocks bool = true
 param deployWorkloads bool = false
 param deployMigration bool = deployWorkloads
 param deployApplications bool = deployWorkloads
@@ -105,6 +107,8 @@ module platform 'main.bicep' = {
     postgresLocation: postgresLocation
     environmentName: environmentName
     useExistingFoundation: useExistingFoundation
+    enableStorageSharedKeyAccess: enableStorageSharedKeyAccess
+    enableFoundationLocks: enableFoundationLocks
     deployWorkloads: deployWorkloads
     deployMigration: deployMigration
     deployApplications: deployApplications

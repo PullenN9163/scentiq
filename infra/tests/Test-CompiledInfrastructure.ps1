@@ -157,8 +157,6 @@ if ($Mode -eq 'dev') {
         'Microsoft.OperationalInsights/workspaces',
         'Microsoft.ManagedIdentity/userAssignedIdentities',
         'Microsoft.ContainerRegistry/registries',
-        'Microsoft.Storage/storageAccounts',
-        'Microsoft.KeyVault/vaults',
         'Microsoft.DBforPostgreSQL/flexibleServers',
         'Microsoft.App/managedEnvironments'
     )
@@ -220,8 +218,6 @@ if ($Mode -eq 'dev') {
         'Microsoft.Insights/components',
         'Microsoft.ManagedIdentity/userAssignedIdentities',
         'Microsoft.ContainerRegistry/registries',
-        'Microsoft.Storage/storageAccounts',
-        'Microsoft.KeyVault/vaults',
         'Microsoft.DBforPostgreSQL/flexibleServers',
         'Microsoft.App/managedEnvironments',
         'Microsoft.App/containerApps',
@@ -234,6 +230,64 @@ if ($Mode -eq 'dev') {
             Assert-True ($usesTagExpression -or ($null -ne $resource.tags -and $null -ne $resource.tags.$tag)) "resource $($resource.type) is missing required tag $tag"
         }
     }
+
+    $managedStorage = @($resources | Where-Object {
+        $_.type -eq 'Microsoft.Storage/storageAccounts' -and -not $_.existing -and $null -eq $_.condition
+    }) | Select-Object -First 1
+    Assert-True ($null -ne $managedStorage) 'the adopted storage account must be managed in place without a conditional create path'
+    $storageTagMerge = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/tags' -and $_.scope -match 'Microsoft.Storage/storageAccounts' -and $_.properties.tags -match '^\[union\(.+\)\]$' }) | Select-Object -First 1
+    Assert-True ($null -ne $storageTagMerge) 'the adopted storage account must preserve existing tags through a merge-safe tag update'
+    Assert-True ($null -ne $managedStorage -and $managedStorage.kind -eq 'StorageV2' -and $managedStorage.sku.name -eq 'Standard_LRS') 'the adopted storage account must preserve StorageV2 and Standard_LRS'
+    Assert-True ($null -ne $managedStorage -and $managedStorage.properties.allowBlobPublicAccess -eq $false) 'storage must disable anonymous blob access'
+    Assert-True ($null -ne $managedStorage -and $managedStorage.properties.minimumTlsVersion -eq 'TLS1_2' -and $managedStorage.properties.supportsHttpsTrafficOnly -eq $true -and $managedStorage.properties.publicNetworkAccess -eq 'Enabled' -and $managedStorage.properties.networkAcls.bypass -eq 'AzureServices') 'storage must preserve HTTPS, TLS 1.2, the approved dev public network access, and the existing service bypass'
+    Assert-True ($null -ne $managedStorage -and $managedStorage.properties.defaultToOAuthAuthentication -eq $true) 'storage must default clients to OAuth authentication'
+    Assert-True ($null -ne $managedStorage -and $managedStorage.properties.allowSharedKeyAccess -eq "[parameters('enableStorageSharedKeyAccess')]") 'storage Shared Key disablement must be modeled through the staged adoption control'
+
+    $blobService = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/blobServices' }) | Select-Object -First 1
+    Assert-True ($null -ne $blobService -and $blobService.properties.isVersioningEnabled -eq $true -and $blobService.properties.changeFeed.enabled -eq $true) 'the Blob service must enable versioning and change feed'
+    Assert-True ($null -ne $blobService -and $blobService.properties.deleteRetentionPolicy.enabled -eq $true -and $blobService.properties.deleteRetentionPolicy.days -eq 14) 'the Blob service must retain soft-deleted blobs for fourteen days'
+    Assert-True ($null -ne $blobService -and $blobService.properties.containerDeleteRetentionPolicy.enabled -eq $true -and $blobService.properties.containerDeleteRetentionPolicy.days -eq 14) 'the Blob service must retain soft-deleted containers for fourteen days'
+
+    $storageContainers = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/blobServices/containers' })
+    Assert-True ($storageContainers.Count -eq 3 -and @($storageContainers | Where-Object { $_.properties.publicAccess -ne 'None' }).Count -eq 0) 'storage must declare exactly three private Blob containers'
+    foreach ($containerName in @('uploads', 'exports', 'system')) {
+        Assert-True ((@($storageContainers | Where-Object { $_.name -match [regex]::Escape("'$containerName'") }).Count) -eq 1) "storage must declare the $containerName container"
+    }
+    Assert-True (@($storageContainers | Where-Object { $_.properties.defaultEncryptionScope -ne '$account-encryption-key' -or $_.properties.denyEncryptionScopeOverride -ne $false }).Count -eq 0) 'storage containers must preserve their account encryption scope settings'
+
+    $storagePolicy = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/managementPolicies' }) | Select-Object -First 1
+    Assert-True ($null -ne $storagePolicy -and $storagePolicy.properties.policy.rules.Count -eq 1) 'storage must use one scoped lifecycle policy rule and rely on Azure garbage collection for uncommitted blocks'
+    $temporaryExportsRule = $storagePolicy.properties.policy.rules | Where-Object { $_.name -eq 'delete-temporary-exports-after-seven-days' } | Select-Object -First 1
+    Assert-True ($null -ne $temporaryExportsRule -and $temporaryExportsRule.definition.filters.prefixMatch.Count -eq 1 -and $temporaryExportsRule.definition.filters.prefixMatch[0] -eq 'exports/temporary/' -and $temporaryExportsRule.definition.actions.baseBlob.delete.daysAfterModificationGreaterThan -eq 7) 'storage lifecycle deletion must be limited to temporary exports after seven days'
+
+    $managedKeyVault = @($resources | Where-Object {
+        $_.type -eq 'Microsoft.KeyVault/vaults' -and -not $_.existing -and $null -eq $_.condition
+    }) | Select-Object -First 1
+    Assert-True ($null -ne $managedKeyVault -and $managedKeyVault.properties.sku.name -eq 'standard') 'the adopted Key Vault must be managed in place with the standard SKU'
+    $keyVaultTagMerge = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/tags' -and $_.scope -match 'Microsoft.KeyVault/vaults' -and $_.properties.tags -match '^\[union\(.+\)\]$' }) | Select-Object -First 1
+    Assert-True ($null -ne $keyVaultTagMerge) 'the adopted Key Vault must preserve existing tags through a merge-safe tag update'
+    Assert-True ($null -ne $managedKeyVault -and $managedKeyVault.properties.enableRbacAuthorization -eq $true -and $managedKeyVault.properties.enablePurgeProtection -eq $true -and $managedKeyVault.properties.enableSoftDelete -eq $true -and $managedKeyVault.properties.softDeleteRetentionInDays -eq 7) 'Key Vault must use RBAC, purge protection, and seven-day soft delete retention'
+    Assert-True ($null -ne $managedKeyVault -and $managedKeyVault.properties.publicNetworkAccess -eq 'Enabled') 'Key Vault must preserve approved dev public network access'
+
+    $diagnosticSettings = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/diagnosticSettings' })
+    Assert-True ($diagnosticSettings.Count -eq 2 -and @($diagnosticSettings | Where-Object { $_.properties.workspaceId -ne "[parameters('workspaceResourceId')]" }).Count -eq 0) 'Storage and Key Vault diagnostics must target the Log Analytics workspace'
+    Assert-True (@($diagnosticSettings | Where-Object { $_.properties.logs.Count -lt 1 }).Count -eq 0) 'Storage and Key Vault diagnostics must enable audit logs'
+
+    $foundationLocks = @($resources | Where-Object { $_.type -eq 'Microsoft.Authorization/locks' })
+    Assert-True ($foundationLocks.Count -eq 2 -and @($foundationLocks | Where-Object { $_.properties.level -ne 'CanNotDelete' }).Count -eq 0) 'Storage and Key Vault must model CanNotDelete locks'
+    Assert-True (@($foundationLocks | Where-Object { $_.condition -ne "[parameters('enableFoundationLocks')]" }).Count -eq 0) 'foundation locks must be controlled by the staged adoption parameter'
+
+    $platformStorageOutput = $platformDeployment.properties.template.outputs.storage
+    Assert-True ($null -ne $platformStorageOutput -and $platformStorageOutput.type -eq 'object' -and @($platformStorageOutput.value.PSObject.Properties.Name | Where-Object { $_ -in @('id', 'blobEndpoint', 'containerIds') }).Count -eq 3) 'platform must expose storage ID, Blob endpoint, and container resource IDs'
+    $platformKeyVaultOutput = $platformDeployment.properties.template.outputs.keyVault
+    Assert-True ($null -ne $platformKeyVaultOutput -and $platformKeyVaultOutput.type -eq 'object' -and @($platformKeyVaultOutput.value.PSObject.Properties.Name | Where-Object { $_ -in @('id', 'uri') }).Count -eq 2) 'platform must expose Key Vault ID and URI'
+
+    $compiledTemplate = $template | ConvertTo-Json -Depth 100
+    Assert-True ((@($resources | Where-Object { $_.type -eq 'Microsoft.KeyVault/vaults/secrets' }).Count) -eq 0) 'Bicep must not declare a Key Vault secret or its value'
+    Assert-True ($compiledTemplate -notmatch '(?i)database-url.+value') 'Bicep must not declare a Key Vault secret value'
+    Assert-True ($platformDeployment.properties.template.parameters.enableStorageSharedKeyAccess.defaultValue -eq $false) 'the secure desired state must disable Storage Shared Key access by default in the platform model'
+    Assert-True ($platformDeployment.properties.template.parameters.enableFoundationLocks.defaultValue -eq $true) 'the secure desired state must enable foundation locks by default in the platform model'
+    Assert-True ($template.parameters.enableStorageSharedKeyAccess.defaultValue -eq $false -and $template.parameters.enableFoundationLocks.defaultValue -eq $true) 'the subscription template must retain secure staged-control defaults'
 }
 
 if ($failures.Count -gt 0) {
