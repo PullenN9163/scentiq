@@ -26,6 +26,7 @@ param productionApproved bool = false
 param useExistingFoundation bool = true
 param enableStorageSharedKeyAccess bool = false
 param enableFoundationLocks bool = true
+param enablePostgresLock bool = true
 param deployWorkloads bool = false
 param deployMigration bool = deployWorkloads
 param deployApplications bool = deployWorkloads
@@ -60,6 +61,7 @@ param databaseSecretUri string = ''
 param postgresAdministratorPassword string = ''
 param postgresAdministratorLogin string = 'scentiqadmin'
 param postgresSkuName string = 'Standard_B1ms'
+param postgresTenantId string = tenant().tenantId
 param apiMinReplicas int = 1
 param apiMaxReplicas int = 2
 param webMinReplicas int = 1
@@ -106,9 +108,11 @@ module platform 'main.bicep' = {
     location: location
     postgresLocation: postgresLocation
     environmentName: environmentName
+    deploymentMode: deploymentMode
     useExistingFoundation: useExistingFoundation
     enableStorageSharedKeyAccess: enableStorageSharedKeyAccess
     enableFoundationLocks: enableFoundationLocks
+    enablePostgresLock: enablePostgresLock
     deployWorkloads: deployWorkloads
     deployMigration: deployMigration
     deployApplications: deployApplications
@@ -140,6 +144,7 @@ module platform 'main.bicep' = {
     postgresAdministratorPassword: postgresAdministratorPassword
     postgresAdministratorLogin: postgresAdministratorLogin
     postgresSkuName: postgresSkuName
+    postgresTenantId: postgresTenantId
     apiMinReplicas: apiMinReplicas
     apiMaxReplicas: apiMaxReplicas
     webMinReplicas: webMinReplicas

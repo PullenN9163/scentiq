@@ -84,6 +84,20 @@ Assert-True ($resources.Count -gt 0) 'compiled template contains no resources'
 Assert-True (-not ($template | ConvertTo-Json -Depth 100 | Select-String -Quiet 'latest')) 'mutable latest image tag is forbidden'
 Assert-True (-not ($template | ConvertTo-Json -Depth 100 | Select-String -Quiet '0\.0\.0\.0/0')) 'unrestricted CIDR is forbidden'
 
+$restoreScriptPath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'scripts/azure/Test-PostgresRestore.ps1'
+if (-not (Test-Path -LiteralPath $restoreScriptPath)) {
+    $failures.Add('PostgreSQL restore drill script is missing')
+}
+else {
+    $invalidRestoreNameOutput = & $restoreScriptPath -ResourceGroupName 'scentiq-rg-dev-eus' -ServerName 'scentiq-pg-dev-eus' -RestoreServerName 'invalid-restore-target' -RestorePoint '2026-08-29T00:00:00Z' -ExpectedDatabaseName 'scentiq_dev' -TargetResourceGroupName 'scentiq-rg-test-eus' 2>&1
+    Assert-True ($LASTEXITCODE -eq 1 -and ($invalidRestoreNameOutput | Out-String) -match 'scentiq-pg-restore-') 'the PostgreSQL restore drill must reject a restore name outside the approved prefix before invoking Azure'
+    $global:LASTEXITCODE = 0
+
+    $invalidTargetGroupOutput = & $restoreScriptPath -ResourceGroupName 'scentiq-rg-dev-eus' -ServerName 'scentiq-pg-dev-eus' -RestoreServerName 'scentiq-pg-restore-guardrail' -RestorePoint '2026-08-29T00:00:00Z' -ExpectedDatabaseName 'scentiq_dev' -TargetResourceGroupName 'scentiq-rg-dev-eus' 2>&1
+    Assert-True ($LASTEXITCODE -eq 1 -and ($invalidTargetGroupOutput | Out-String) -match 'scentiq-rg-test-eus') 'the PostgreSQL restore drill must reject a restore resource group other than the explicit test resource group before invoking Azure'
+    $global:LASTEXITCODE = 0
+}
+
 if ($Mode -eq 'dev') {
     $createdWorkloadIdentities = @($resources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities' -and -not $_.existing })
     $adoptedWorkloadIdentities = @($resources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities' -and $_.existing })
@@ -197,6 +211,79 @@ if ($Mode -eq 'dev') {
         $_.type -eq 'Microsoft.Resources/tags' -and
         ($_.properties.tags -is [string] -and $_.properties.tags -match '^\[union\(.+\)\]$')
     })
+
+    $postgresDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'postgres-' }) | Select-Object -First 1
+    Assert-True ($null -ne $postgresDeployment -and $postgresDeployment.properties.parameters.serverName.value -eq "[parameters('postgresServerName')]") 'the PostgreSQL module must receive the exact adopted server name'
+    Assert-True ($null -ne $postgresDeployment -and $postgresDeployment.properties.parameters.location.value -eq "[parameters('postgresLocation')]") 'the PostgreSQL module must receive the exact adopted server location'
+    $postgresServers = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforPostgreSQL/flexibleServers' -and -not $_.existing })
+    $freshPostgresDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -eq 'postgres-fresh-server' }) | Select-Object -First 1
+    $freshPostgresServer = @($postgresServers | Where-Object { $_.condition -ne "[parameters('useExisting')]" }) | Select-Object -First 1
+    $adoptedPostgresServer = @($postgresServers | Where-Object { $_.condition -eq "[parameters('useExisting')]" }) | Select-Object -First 1
+    Assert-True ($postgresServers.Count -eq 2 -and $null -ne $freshPostgresDeployment -and $freshPostgresDeployment.condition -eq "[not(parameters('useExisting'))]" -and $null -ne $freshPostgresServer -and $null -ne $adoptedPostgresServer) 'PostgreSQL must model distinct fresh-create and adopted in-place paths without duplicate parent PUTs'
+    foreach ($postgresServer in @($freshPostgresServer, $adoptedPostgresServer)) {
+        Assert-True ($null -ne $postgresServer -and $postgresServer.name -eq "[parameters('serverName')]") 'PostgreSQL must retain the exact server resource path'
+        Assert-True ($null -ne $postgresServer -and $postgresServer.location -eq "[parameters('location')]") 'PostgreSQL must retain the exact server location'
+        Assert-PreservationBaseline $postgresServer @{
+            'sku.name' = "[parameters('skuName')]"
+            'sku.tier' = 'Burstable'
+            'properties.version' = '18'
+            'properties.storage.storageSizeGB' = 32
+            'properties.storage.autoGrow' = 'Enabled'
+            'properties.backup.backupRetentionDays' = 14
+            'properties.backup.geoRedundantBackup' = 'Disabled'
+            'properties.network.publicNetworkAccess' = 'Enabled'
+            'properties.highAvailability.mode' = 'Disabled'
+            'properties.maintenanceWindow.customWindow' = 'Enabled'
+            'properties.maintenanceWindow.dayOfWeek' = 0
+            'properties.maintenanceWindow.startHour' = 7
+            'properties.maintenanceWindow.startMinute' = 0
+            'properties.authConfig.activeDirectoryAuth' = 'Enabled'
+            'properties.authConfig.passwordAuth' = 'Enabled'
+            'properties.authConfig.tenantId' = "[parameters('tenantId')]"
+            'properties.dataEncryption.type' = 'SystemManaged'
+        } 'the PostgreSQL preservation baseline'
+    }
+    Assert-True ($null -ne $freshPostgresServer -and $freshPostgresServer.properties.PSObject.Properties['administratorLogin'] -and $freshPostgresServer.properties.PSObject.Properties['administratorLoginPassword']) 'the fresh PostgreSQL path must accept administrator credentials only during creation'
+    Assert-True ($null -ne $adoptedPostgresServer -and -not $adoptedPostgresServer.properties.PSObject.Properties['administratorLogin'] -and -not $adoptedPostgresServer.properties.PSObject.Properties['administratorLoginPassword'] -and -not $adoptedPostgresServer.PSObject.Properties['identity']) 'the adopted PostgreSQL path must not update administrator credentials or identity'
+    Assert-PreservationBaseline $adoptedPostgresServer @{
+        'properties.storage.iops' = 120
+        'properties.storage.tier' = 'P4'
+        'properties.storage.type' = 'Premium_LRS'
+        'properties.replica.role' = 'Primary'
+        'properties.replicationRole' = 'Primary'
+    } 'the adopted PostgreSQL preservation baseline'
+
+    $postgresDatabases = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforPostgreSQL/flexibleServers/databases' })
+    $scentiqDatabase = $postgresDatabases | Where-Object { $_.name -eq "[format('{0}/{1}', parameters('serverName'), 'scentiq_dev')]" } | Select-Object -First 1
+    Assert-True ($postgresDatabases.Count -eq 1 -and $null -ne $scentiqDatabase -and $scentiqDatabase.properties.charset -eq 'UTF8' -and $scentiqDatabase.properties.collation -eq 'en_US.utf8') 'PostgreSQL must manage only the scentiq_dev database with its observed collation'
+
+    $postgresConfigurations = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforPostgreSQL/flexibleServers/configurations' })
+    $tlsConfiguration = $postgresConfigurations | Where-Object { $_.name -eq "[format('{0}/{1}', parameters('serverName'), 'require_secure_transport')]" } | Select-Object -First 1
+    Assert-True ($postgresConfigurations.Count -eq 1 -and $null -ne $tlsConfiguration -and $tlsConfiguration.properties.value -eq 'on') 'PostgreSQL must require TLS without taking ownership of unrelated server configurations'
+
+    $postgresFirewallRules = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules' })
+    $azureServicesRule = $postgresFirewallRules | Where-Object { $_.name -match 'AllowAllAzureServicesAndResourcesWithinAzureIps' } | Select-Object -First 1
+    $allowAzureServicesRuleExpression = "[and(equals(parameters('deploymentMode'), 'dev'), equals(parameters('networkMode'), 'publicDev'))]"
+    if ($Mode -eq 'dev') {
+        Assert-True ($postgresFirewallRules.Count -eq 1 -and $null -ne $azureServicesRule -and $azureServicesRule.condition -eq "[parameters('allowAzureServicesFirewallRule')]" -and $postgresDeployment.properties.parameters.allowAzureServicesFirewallRule.value -eq $allowAzureServicesRuleExpression -and $azureServicesRule.properties.startIpAddress -eq '0.0.0.0' -and $azureServicesRule.properties.endIpAddress -eq '0.0.0.0') 'development PostgreSQL networking must declare only the exact Azure-services firewall rule'
+    }
+    else {
+        Assert-True ($postgresFirewallRules.Count -eq 1 -and $null -ne $azureServicesRule -and $azureServicesRule.condition -eq "[parameters('allowAzureServicesFirewallRule')]" -and $postgresDeployment.properties.parameters.allowAzureServicesFirewallRule.value -eq $allowAzureServicesRuleExpression -and $deploymentParameters.deploymentMode.value -ne 'dev') 'test and production-reference PostgreSQL networking must reject the Azure-services firewall rule'
+    }
+    Assert-True (@($postgresFirewallRules | Where-Object { $_.properties.startIpAddress -eq '0.0.0.0' -and $_.properties.endIpAddress -eq '255.255.255.255' }).Count -eq 0) 'PostgreSQL must not declare an unrestricted IPv4 firewall rule'
+
+    $postgresDiagnostic = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/diagnosticSettings' -and $_.name -eq 'scentiq-postgres-diagnostics' }) | Select-Object -First 1
+    Assert-True ($null -ne $postgresDiagnostic -and $postgresDiagnostic.scope -eq "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]" -and $postgresDiagnostic.properties.workspaceId -eq "[parameters('workspaceResourceId')]") 'PostgreSQL diagnostics must target the adopted server and Log Analytics workspace'
+    Assert-True ($null -ne $postgresDiagnostic -and $postgresDiagnostic.properties.logs.Count -eq 1 -and $postgresDiagnostic.properties.logs[0].categoryGroup -eq 'allLogs' -and $postgresDiagnostic.properties.logs[0].enabled -eq $true -and $postgresDiagnostic.properties.metrics.Count -eq 1 -and $postgresDiagnostic.properties.metrics[0].category -eq 'AllMetrics' -and $postgresDiagnostic.properties.metrics[0].enabled -eq $true) 'PostgreSQL diagnostics must send all supported logs and metrics'
+
+    $postgresLock = @($resources | Where-Object { $_.type -eq 'Microsoft.Authorization/locks' -and $_.name -eq 'scentiq-postgres-protection' }) | Select-Object -First 1
+    Assert-True ($null -ne $postgresLock -and $postgresLock.scope -eq "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]" -and $postgresLock.properties.level -eq 'CanNotDelete' -and $postgresLock.condition -eq "[parameters('enablePostgresLock')]") 'PostgreSQL must model a staged CanNotDelete lock on the exact adopted server'
+
+    $postgresOutput = $platformDeploymentForIdentityContracts.properties.template.outputs.postgres
+    Assert-True ($null -ne $postgresOutput -and $postgresOutput.type -eq 'object' -and @($postgresOutput.value.PSObject.Properties.Name | Where-Object { $_ -in @('id', 'fqdn', 'databaseName', 'alertScope') }).Count -eq 4) 'platform must expose the PostgreSQL ID, FQDN, database name, and alert scope only'
+    Assert-True ($null -ne $postgresOutput -and (@($postgresOutput.value.PSObject.Properties.Name | Where-Object { $_ -match '(?i)password|credential|secret|connection' }).Count -eq 0)) 'PostgreSQL outputs must not expose credentials or connection secrets'
+    $postgresLockEnabledOutput = $platformDeploymentForIdentityContracts.properties.template.outputs.postgresLockEnabled
+    Assert-True ($null -ne $postgresLockEnabledOutput -and $postgresLockEnabledOutput.type -eq 'bool' -and $postgresLockEnabledOutput.value -eq "[parameters('enablePostgresLock')]") 'platform must expose the staged PostgreSQL lock mode without exposing credentials'
     Assert-True ($adoptionTagMerges.Count -ge ($adoptedTaggableTypes.Count + 1)) 'every adopted taggable resource type must receive a merge-safe tag update'
     Assert-True ((@($adoptionTagMerges | Where-Object { $null -ne $_.scope }).Count) -ge $adoptedTaggableTypes.Count) 'every adopted resource tag update must target that resource scope'
 
@@ -255,7 +342,11 @@ if ($Mode -eq 'dev') {
         'Microsoft.App/jobs',
         'Microsoft.Insights/actionGroups'
     )
-    foreach ($resource in @($resources | Where-Object { $_.type -in $taggableTypes -and -not $_.existing })) {
+    foreach ($resource in @($resources | Where-Object {
+                $_.type -in $taggableTypes -and
+                -not $_.existing -and
+                -not ($_.type -eq 'Microsoft.DBforPostgreSQL/flexibleServers' -and $_.condition -eq "[parameters('useExisting')]")
+            })) {
         $usesTagExpression = $resource.tags -is [string] -and $resource.tags -match '^\[.+\]$'
         foreach ($tag in $requiredTags) {
             Assert-True ($usesTagExpression -or ($null -ne $resource.tags -and $null -ne $resource.tags.$tag)) "resource $($resource.type) is missing required tag $tag"
@@ -361,14 +452,14 @@ if ($Mode -eq 'dev') {
     Assert-True ($null -ne $newKeyVault -and $newKeyVault.properties.accessPolicies.Count -eq 0 -and $newKeyVault.properties.networkAcls.ipRules.Count -eq 0 -and $newKeyVault.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'the Key Vault preservation baseline must retain observed empty access-policy and ACL collections'
 
     $diagnosticSettings = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/diagnosticSettings' })
-    Assert-True ($diagnosticSettings.Count -eq 2 -and @($diagnosticSettings | Where-Object { $_.properties.workspaceId -ne "[parameters('workspaceResourceId')]" }).Count -eq 0) 'Storage and Key Vault diagnostics must target the Log Analytics workspace'
-    Assert-True (@($diagnosticSettings | Where-Object { $_.properties.logs.Count -lt 1 }).Count -eq 0) 'Storage and Key Vault diagnostics must enable audit logs'
+    Assert-True ($diagnosticSettings.Count -eq 3 -and @($diagnosticSettings | Where-Object { $_.properties.workspaceId -ne "[parameters('workspaceResourceId')]" }).Count -eq 0) 'Storage, Key Vault, and PostgreSQL diagnostics must target the Log Analytics workspace'
+    Assert-True (@($diagnosticSettings | Where-Object { $_.properties.logs.Count -lt 1 }).Count -eq 0) 'Storage, Key Vault, and PostgreSQL diagnostics must enable logs'
     $storageDiagnostic = $diagnosticSettings | Where-Object { $_.name -eq 'scentiq-storage-audit' } | Select-Object -First 1
     $keyVaultDiagnostic = $diagnosticSettings | Where-Object { $_.name -eq 'scentiq-key-vault-audit' } | Select-Object -First 1
     Assert-True ($null -ne $storageDiagnostic -and $storageDiagnostic.scope -eq "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageName'))]") 'storage diagnostics must target the adopted storage account scope'
     Assert-True ($null -ne $keyVaultDiagnostic -and $keyVaultDiagnostic.scope -eq "[resourceId('Microsoft.KeyVault/vaults', parameters('vaultName'))]") 'Key Vault diagnostics must target the adopted vault scope'
 
-    $foundationLocks = @($resources | Where-Object { $_.type -eq 'Microsoft.Authorization/locks' })
+    $foundationLocks = @($resources | Where-Object { $_.type -eq 'Microsoft.Authorization/locks' -and $_.name -in @('scentiq-storage-protection', 'scentiq-key-vault-protection') })
     Assert-True ($foundationLocks.Count -eq 2 -and @($foundationLocks | Where-Object { $_.properties.level -ne 'CanNotDelete' }).Count -eq 0) 'Storage and Key Vault must model CanNotDelete locks'
     Assert-True (@($foundationLocks | Where-Object { $_.condition -ne "[parameters('enableFoundationLocks')]" }).Count -eq 0) 'foundation locks must be controlled by the staged adoption parameter'
     $storageLock = $foundationLocks | Where-Object { $_.name -eq 'scentiq-storage-protection' } | Select-Object -First 1
@@ -392,9 +483,10 @@ if ($Mode -eq 'dev') {
     Assert-True ($compiledTemplate -notmatch '(?i)database-url.+value') 'Bicep must not declare a Key Vault secret value'
     Assert-True ($platformDeployment.properties.template.parameters.enableStorageSharedKeyAccess.defaultValue -eq $false) 'the secure desired state must disable Storage Shared Key access by default in the platform model'
     Assert-True ($platformDeployment.properties.template.parameters.enableFoundationLocks.defaultValue -eq $true) 'the secure desired state must enable foundation locks by default in the platform model'
-    Assert-True ($template.parameters.enableStorageSharedKeyAccess.defaultValue -eq $false -and $template.parameters.enableFoundationLocks.defaultValue -eq $true) 'the subscription template must retain secure staged-control defaults'
+    Assert-True ($platformDeployment.properties.template.parameters.enablePostgresLock.defaultValue -eq $true) 'the secure desired state must enable the PostgreSQL lock by default in the platform model'
+    Assert-True ($template.parameters.enableStorageSharedKeyAccess.defaultValue -eq $false -and $template.parameters.enableFoundationLocks.defaultValue -eq $true -and $template.parameters.enablePostgresLock.defaultValue -eq $true) 'the subscription template must retain secure staged-control defaults'
     Assert-True ($null -ne $deploymentParameters) 'dev verifier runs must receive compiled development parameters'
-    Assert-True ($null -ne $deploymentParameters -and $deploymentParameters.enableStorageSharedKeyAccess.value -eq $true -and $deploymentParameters.enableFoundationLocks.value -eq $false) 'development parameters must explicitly retain Shared Key access and defer foundation locks during staged adoption'
+    Assert-True ($null -ne $deploymentParameters -and $deploymentParameters.enableStorageSharedKeyAccess.value -eq $true -and $deploymentParameters.enableFoundationLocks.value -eq $false -and $deploymentParameters.enablePostgresLock.value -eq $false) 'development parameters must explicitly retain Shared Key access and defer foundation and PostgreSQL locks during staged adoption'
 }
 
 if ($failures.Count -gt 0) {

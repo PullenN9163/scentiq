@@ -16,10 +16,13 @@ param useExistingFoundation = true
 // Shared Key disablement and delete locks are enabled after identity and recovery rehearsals.
 param enableStorageSharedKeyAccess = true
 param enableFoundationLocks = false
+// PostgreSQL protection follows the same staged path: enable it only after its first successful in-place deployment and recovery rehearsal.
+param enablePostgresLock = false
 param workspaceName = 'scentiq-law-dev-us'
 param storageName = 'scentiqstrgdevus'
 param keyVaultName = 'scentiq-kv-dev-eus'
 param postgresServerName = 'scentiq-pg-dev-eus'
+param postgresTenantId = '8bf88c8e-62b5-49b1-a18a-296adc261f74'
 param identityName = 'scentiq-api-id-dev-eus'
 param identityPrincipalId = 'bf64241d-7973-47a1-9a2c-5f96b9b6ea86'
 param webIdentityName = 'scentiq-web-id-dev-eus'

@@ -1,6 +1,6 @@
-# Azure Storage and Key Vault Recovery Runbook
+# Azure Recovery Runbook
 
-This runbook covers recovery actions for the ScentIQ Azure Storage account and Key Vault. Run every command with an identity that has the required Azure RBAC permissions. Use explicit resource names, review the target before changing it, and do not use storage keys, connection strings, or secret values.
+This runbook covers recovery actions for ScentIQ Azure Storage, Key Vault, and PostgreSQL Flexible Server. Run every command with an identity that has the required Azure RBAC permissions. Use explicit resource names, review the target before changing it, and do not use storage keys, connection strings, database passwords, or secret values.
 
 ## Staged security adoption
 
@@ -89,6 +89,65 @@ Re-enable the version if the rollback needs to be reversed:
 az keyvault secret set-attributes --id $newerVersionId --enabled true --only-show-errors -o none
 ```
 
+## PostgreSQL point-in-time restore drill
+
+Use a point-in-time restore (PITR) to create a separate recovery server; it does not overwrite the source server. The production or development source resource group is allowed only as the source. Restore targets must be created in the explicit test resource group `scentiq-rg-test-eus` and must start with `scentiq-pg-restore-`.
+
+First select a UTC restore point within the source server's retention window. Inspect server metadata and database names without printing credentials:
+
+```powershell
+$sourceResourceGroupName = '<source-resource-group-name>'
+$sourceServerName = 'scentiq-pg-dev-eus'
+$targetResourceGroupName = 'scentiq-rg-test-eus'
+$restoreServerName = 'scentiq-pg-restore-<approved-drill-id>'
+$restorePoint = '<UTC ISO 8601 timestamp, for example 2026-08-29T00:00:00Z>'
+$expectedDatabaseName = 'scentiq_dev'
+
+az postgres flexible-server show --resource-group $sourceResourceGroupName --name $sourceServerName --query "{id:id,state:state,earliestRestoreDate:backup.earliestRestoreDate}" -o json
+az postgres flexible-server db list --resource-group $sourceResourceGroupName --server-name $sourceServerName --query "[].name" -o tsv
+```
+
+Use the guarded drill script for the restore, readiness wait, and database verification. It resolves source and resource-group IDs, rejects an unsafe target name or resource group before calling Azure, and does not retrieve a database password.
+
+```powershell
+.\scripts\azure\Test-PostgresRestore.ps1 `
+  -ResourceGroupName $sourceResourceGroupName `
+  -ServerName $sourceServerName `
+  -RestoreServerName $restoreServerName `
+  -RestorePoint $restorePoint `
+  -ExpectedDatabaseName $expectedDatabaseName `
+  -TargetResourceGroupName $targetResourceGroupName
+```
+
+For a controlled manual restore, use the current Azure CLI restore command with the source resource ID and the supplied UTC restore point. This creates a server and is therefore an approved recovery action, not a validation-only command.
+
+```powershell
+$sourceServerId = az postgres flexible-server show --resource-group $sourceResourceGroupName --name $sourceServerName --query id -o tsv
+az postgres flexible-server restore --resource-group $targetResourceGroupName --name $restoreServerName --source-server $sourceServerId --restore-time $restorePoint --yes
+```
+
+Validate the target reaches `Ready` and that the expected database is present. Do not point an application at the restored server until an incident owner has approved the data and access validation.
+
+```powershell
+az postgres flexible-server show --resource-group $targetResourceGroupName --name $restoreServerName --query state -o tsv
+az postgres flexible-server db list --resource-group $targetResourceGroupName --server-name $restoreServerName --query "[].name" -o tsv
+```
+
+After approval, delete only the named restore target. The script prints this exact cleanup command after successful verification; deletion requires the separate `-DeleteAfterVerification` switch.
+
+```powershell
+.\scripts\azure\Test-PostgresRestore.ps1 `
+  -ResourceGroupName $sourceResourceGroupName `
+  -ServerName $sourceServerName `
+  -RestoreServerName $restoreServerName `
+  -RestorePoint $restorePoint `
+  -ExpectedDatabaseName $expectedDatabaseName `
+  -TargetResourceGroupName $targetResourceGroupName `
+  -DeleteAfterVerification
+```
+
+Alternatively, after confirming the resource ID and name, use `az postgres flexible-server delete --resource-group $targetResourceGroupName --name $restoreServerName --yes`. Never delete the source server as part of a restore drill.
+
 ## Controlled lock removal and reapplication
 
 Only remove a `CanNotDelete` lock for a planned, approved recovery or maintenance operation. Record the resource, operator, change reference, and planned reapplication time before removal. Reapply the same lock immediately after the operation and verify it is present.
@@ -97,13 +156,17 @@ Only remove a `CanNotDelete` lock for a planned, approved recovery or maintenanc
 $resourceGroupName = '<resource-group-name>'
 $storageAccountName = '<storage-account-name>'
 $keyVaultName = '<key-vault-name>'
+$postgresServerName = 'scentiq-pg-dev-eus'
 
 az lock delete --name 'scentiq-storage-protection' --resource-group $resourceGroupName --resource-name $storageAccountName --resource-type 'Microsoft.Storage/storageAccounts'
 az lock delete --name 'scentiq-key-vault-protection' --resource-group $resourceGroupName --resource-name $keyVaultName --resource-type 'Microsoft.KeyVault/vaults'
+az lock delete --name 'scentiq-postgres-protection' --resource-group $resourceGroupName --resource-name $postgresServerName --resource-type 'Microsoft.DBforPostgreSQL/flexibleServers'
 
 az lock create --name 'scentiq-storage-protection' --lock-type CanNotDelete --resource-group $resourceGroupName --resource-name $storageAccountName --resource-type 'Microsoft.Storage/storageAccounts' --notes 'Protects ScentIQ storage data. Follow the Azure recovery runbook before removing this lock.'
 az lock create --name 'scentiq-key-vault-protection' --lock-type CanNotDelete --resource-group $resourceGroupName --resource-name $keyVaultName --resource-type 'Microsoft.KeyVault/vaults' --notes 'Protects ScentIQ Key Vault. Follow the Azure recovery runbook before removing this lock.'
+az lock create --name 'scentiq-postgres-protection' --lock-type CanNotDelete --resource-group $resourceGroupName --resource-name $postgresServerName --resource-type 'Microsoft.DBforPostgreSQL/flexibleServers' --notes 'Protects ScentIQ PostgreSQL data. Follow the Azure recovery runbook before removing this lock.'
 
 az lock list --resource-group $resourceGroupName --resource-name $storageAccountName --resource-type 'Microsoft.Storage/storageAccounts' --query "[].{name:name,level:level}" -o table
 az lock list --resource-group $resourceGroupName --resource-name $keyVaultName --resource-type 'Microsoft.KeyVault/vaults' --query "[].{name:name,level:level}" -o table
+az lock list --resource-group $resourceGroupName --resource-name $postgresServerName --resource-type 'Microsoft.DBforPostgreSQL/flexibleServers' --query "[].{name:name,level:level}" -o table
 ```

@@ -3,6 +3,12 @@ targetScope = 'resourceGroup'
 param location string = resourceGroup().location
 param postgresLocation string = location
 param environmentName string = 'dev'
+@allowed([
+  'dev'
+  'test'
+  'prod-reference'
+])
+param deploymentMode string = 'dev'
 param useExistingFoundation bool = true
 param enableStorageSharedKeyAccess bool = false
 param enableFoundationLocks bool = true
@@ -41,6 +47,8 @@ param databaseSecretUri string = ''
 param postgresAdministratorPassword string = ''
 param postgresAdministratorLogin string = 'scentiqadmin'
 param postgresSkuName string = 'Standard_B1ms'
+param postgresTenantId string = tenant().tenantId
+param enablePostgresLock bool = true
 param apiMinReplicas int = 1
 param apiMaxReplicas int = 2
 param webMinReplicas int = 1
@@ -282,6 +290,10 @@ module postgres 'modules/postgres.bicep' = {
     administratorLogin: postgresAdministratorLogin
     administratorPassword: postgresAdministratorPassword
     skuName: postgresSkuName
+    tenantId: postgresTenantId
+    workspaceResourceId: workspaceResourceId
+    enablePostgresLock: enablePostgresLock
+    allowAzureServicesFirewallRule: deploymentMode == 'dev' && networkMode == 'publicDev'
     commonTags: commonTags
   }
 }
@@ -370,6 +382,7 @@ output webFqdn string = deployApplications ? web!.outputs.fqdn : ''
 output migrationJob string = deployMigration ? migration!.outputs.name : ''
 output selectedNetworkMode string = networkMode
 output productionDeploymentApproved bool = productionApproved
+output postgresLockEnabled bool = enablePostgresLock
 output apiIdentity object = {
   id: useExistingFoundation ? adoptedIdentity!.outputs.id : identity!.outputs.id
   clientId: useExistingFoundation ? adoptedIdentity!.outputs.clientId : identity!.outputs.clientId
@@ -398,4 +411,10 @@ output storage object = {
 output keyVault object = {
   id: keyVault.outputs.id
   uri: keyVault.outputs.uri
+}
+output postgres object = {
+  id: postgres.outputs.id
+  fqdn: postgres.outputs.fqdn
+  databaseName: postgres.outputs.databaseName
+  alertScope: postgres.outputs.alertScope
 }
