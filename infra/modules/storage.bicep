@@ -18,8 +18,16 @@ resource newStorage 'Microsoft.Storage/storageAccounts@2023-05-01' = if (!useExi
   }
 }
 
-resource existingStorage 'Microsoft.Storage/storageAccounts@2023-05-01' existing = if (useExisting) {
+resource existingStorage 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageName
+}
+
+resource existingStorageTags 'Microsoft.Resources/tags@2025-04-01' = if (useExisting) {
+  name: 'default'
+  scope: existingStorage
+  properties: {
+    tags: union(existingStorage.tags, commonTags)
+  }
 }
 
 resource blobRoleNew 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!useExisting) {

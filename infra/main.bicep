@@ -13,6 +13,7 @@ param storageName string
 param keyVaultName string
 param postgresServerName string
 param identityName string
+param identityPrincipalId string
 param containerEnvironmentName string
 param registryName string
 param applicationInsightsName string
@@ -33,13 +34,14 @@ param apiMaxReplicas int = 2
 param webMinReplicas int = 1
 param webMaxReplicas int = 2
 param commonTags object
-param actionGroupId string
 @allowed([
   'publicDev'
   'private'
 ])
 param networkMode string = 'publicDev'
 param productionApproved bool = false
+
+var workspaceResourceId = resourceId('Microsoft.OperationalInsights/workspaces', workspaceName)
 
 module monitoring 'modules/monitoring.bicep' = {
   name: 'monitoring-${environmentName}'
@@ -59,27 +61,30 @@ module identity 'modules/identity.bicep' = {
 
 module registry 'modules/registry.bicep' = {
   name: 'registry-${environmentName}'
-  params: { location: location, registryName: registryName, principalId: identity.outputs.principalId, commonTags: commonTags }
+  dependsOn: [identity]
+  params: { location: location, registryName: registryName, useExisting: useExistingFoundation, principalId: identityPrincipalId, commonTags: commonTags }
 }
 
 module storage 'modules/storage.bicep' = {
   name: 'storage-${environmentName}'
+  dependsOn: [identity]
   params: {
     location: location
     storageName: storageName
     useExisting: useExistingFoundation
-    principalId: identity.outputs.principalId
+    principalId: identityPrincipalId
     commonTags: commonTags
   }
 }
 
 module keyVault 'modules/key-vault.bicep' = {
   name: 'key-vault-${environmentName}'
+  dependsOn: [identity]
   params: {
     location: location
     vaultName: keyVaultName
     useExisting: useExistingFoundation
-    principalId: identity.outputs.principalId
+    principalId: identityPrincipalId
     commonTags: commonTags
   }
 }
@@ -99,11 +104,12 @@ module postgres 'modules/postgres.bicep' = {
 
 module containerEnvironment 'modules/container-environment.bicep' = {
   name: 'container-environment-${environmentName}'
+  dependsOn: [monitoring]
   params: {
     location: location
     environmentName: containerEnvironmentName
     useExisting: useExistingFoundation
-    workspaceResourceId: monitoring.outputs.workspaceResourceId
+    workspaceResourceId: workspaceResourceId
     commonTags: commonTags
   }
 }
@@ -177,6 +183,5 @@ output registryLoginServer string = registry.outputs.loginServer
 output apiFqdn string = deployApplications ? api!.outputs.fqdn : ''
 output webFqdn string = deployApplications ? web!.outputs.fqdn : ''
 output migrationJob string = deployMigration ? migration!.outputs.name : ''
-output governanceActionGroupId string = actionGroupId
 output selectedNetworkMode string = networkMode
 output productionDeploymentApproved bool = productionApproved

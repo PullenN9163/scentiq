@@ -33,6 +33,7 @@ param storageName string
 param keyVaultName string
 param postgresServerName string
 param identityName string
+param identityPrincipalId string
 param containerEnvironmentName string
 param registryName string
 param applicationInsightsName string
@@ -64,9 +65,8 @@ var commonTags = {
   'data-classification': dataClassification
 }
 
-resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
+resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' existing = {
   name: resourceGroupName
-  location: location
 }
 
 module resourceGroupTags 'modules/resource-group-tags.bicep' = {
@@ -104,6 +104,7 @@ module platform 'main.bicep' = {
     keyVaultName: keyVaultName
     postgresServerName: postgresServerName
     identityName: identityName
+    identityPrincipalId: identityPrincipalId
     containerEnvironmentName: containerEnvironmentName
     registryName: registryName
     applicationInsightsName: applicationInsightsName
@@ -121,7 +122,6 @@ module platform 'main.bicep' = {
     webMinReplicas: webMinReplicas
     webMaxReplicas: webMaxReplicas
     commonTags: commonTags
-    actionGroupId: governance.outputs.actionGroupId
     networkMode: networkMode
     productionApproved: productionApproved
   }

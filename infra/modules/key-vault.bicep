@@ -18,8 +18,16 @@ resource newVault 'Microsoft.KeyVault/vaults@2023-07-01' = if (!useExisting) {
   }
 }
 
-resource existingVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = if (useExisting) {
+resource existingVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: vaultName
+}
+
+resource existingVaultTags 'Microsoft.Resources/tags@2025-04-01' = if (useExisting) {
+  name: 'default'
+  scope: existingVault
+  properties: {
+    tags: union(existingVault.tags, commonTags)
+  }
 }
 
 resource secretRoleNew 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!useExisting) {

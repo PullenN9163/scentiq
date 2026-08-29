@@ -23,8 +23,16 @@ resource newServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = if (
   }
 }
 
-resource existingServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' existing = if (useExisting) {
+resource existingServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' existing = {
   name: serverName
+}
+
+resource existingServerTags 'Microsoft.Resources/tags@2025-04-01' = if (useExisting) {
+  name: 'default'
+  scope: existingServer
+  properties: {
+    tags: union(existingServer.tags, commonTags)
+  }
 }
 
 output id string = useExisting ? existingServer!.id : newServer!.id

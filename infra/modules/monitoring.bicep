@@ -14,8 +14,16 @@ resource newWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = if
   }
 }
 
-resource existingWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = if (useExistingWorkspace) {
+resource existingWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
   name: workspaceName
+}
+
+resource existingWorkspaceTags 'Microsoft.Resources/tags@2025-04-01' = if (useExistingWorkspace) {
+  name: 'default'
+  scope: existingWorkspace
+  properties: {
+    tags: union(existingWorkspace.tags, commonTags)
+  }
 }
 
 var workspaceId = useExistingWorkspace ? existingWorkspace.id : newWorkspace.id

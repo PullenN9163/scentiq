@@ -9,8 +9,16 @@ resource newIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-3
   tags: commonTags
 }
 
-resource existingIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = if (useExisting) {
+resource existingIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: identityName
+}
+
+resource existingIdentityTags 'Microsoft.Resources/tags@2025-04-01' = if (useExisting) {
+  name: 'default'
+  scope: existingIdentity
+  properties: {
+    tags: union(existingIdentity.tags, commonTags)
+  }
 }
 
 output id string = useExisting ? existingIdentity!.id : newIdentity!.id

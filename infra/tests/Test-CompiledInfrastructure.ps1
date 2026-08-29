@@ -67,6 +67,44 @@ if ($Mode -eq 'dev') {
     }) | Select-Object -First 1
     Assert-True ($null -ne $resourceGroupTagUpdate) 'resource group tags must merge existing tags with the required common tags'
 
+    $resourceGroupDeclarations = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/resourceGroups' })
+    Assert-True ((@($resourceGroupDeclarations | Where-Object { $_.existing }).Count) -eq 1) 'the live development resource group must be declared as existing'
+    Assert-True ((@($resourceGroupDeclarations | Where-Object { -not $_.existing }).Count) -eq 0) 'the live development resource group must not be emitted as a tagless PUT'
+
+    $adoptedTaggableTypes = @(
+        'Microsoft.OperationalInsights/workspaces',
+        'Microsoft.ManagedIdentity/userAssignedIdentities',
+        'Microsoft.ContainerRegistry/registries',
+        'Microsoft.Storage/storageAccounts',
+        'Microsoft.KeyVault/vaults',
+        'Microsoft.DBforPostgreSQL/flexibleServers',
+        'Microsoft.App/managedEnvironments'
+    )
+    $adoptedResources = @($resources | Where-Object { $_.type -in $adoptedTaggableTypes -and $_.existing })
+    Assert-True ($adoptedResources.Count -eq $adoptedTaggableTypes.Count) 'every adopted taggable resource must be declared as existing'
+    $adoptionTagMerges = @($resources | Where-Object {
+        $_.type -eq 'Microsoft.Resources/tags' -and
+        ($_.properties.tags -is [string] -and $_.properties.tags -match '^\[union\(.+\)\]$')
+    })
+    Assert-True ($adoptionTagMerges.Count -ge ($adoptedResources.Count + 1)) 'every adopted taggable resource must receive a merge-safe tag update'
+    Assert-True ((@($adoptionTagMerges | Where-Object { $null -ne $_.scope }).Count) -eq $adoptedResources.Count) 'every adopted resource tag update must target that resource scope'
+
+    $registryDeclarations = @($resources | Where-Object { $_.type -eq 'Microsoft.ContainerRegistry/registries' })
+    $registryCreate = @($registryDeclarations | Where-Object { -not $_.existing }) | Select-Object -First 1
+    Assert-True ($null -ne $registryCreate -and $registryCreate.condition -match '^\[not\(parameters\(''useExisting''\)\)\]$') 'registry creation must be disabled for the adoption path'
+
+    $platformDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'platform-' }) | Select-Object -First 1
+    Assert-True ($null -ne $platformDeployment -and $null -eq $platformDeployment.properties.parameters.actionGroupId) 'platform deployment must not depend on an unused governance output'
+
+    $validationSensitiveDeployments = @($resources | Where-Object {
+        $_.type -eq 'Microsoft.Resources/deployments' -and
+        $_.name -match '(registry|storage|key-vault|container-environment)-'
+    })
+    foreach ($deployment in $validationSensitiveDeployments) {
+        $parameterValues = $deployment.properties.parameters | ConvertTo-Json -Depth 20 -Compress
+        Assert-True ($parameterValues -notmatch 'reference\(') "deployment $($deployment.name) must not receive runtime reference() values as parameters"
+    }
+
     $requiredTags = @(
         'application',
         'environment',

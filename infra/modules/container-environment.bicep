@@ -20,8 +20,16 @@ resource newEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = if (!us
   }
 }
 
-resource existingEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' existing = if (useExisting) {
+resource existingEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' existing = {
   name: environmentName
+}
+
+resource existingEnvironmentTags 'Microsoft.Resources/tags@2025-04-01' = if (useExisting) {
+  name: 'default'
+  scope: existingEnvironment
+  properties: {
+    tags: union(existingEnvironment.tags, commonTags)
+  }
 }
 
 output id string = useExisting ? existingEnvironment.id : newEnvironment.id
