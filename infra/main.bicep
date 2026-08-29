@@ -20,8 +20,8 @@ param apiAppName string
 param webAppName string
 param migrationJobName string
 
-param apiImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
-param webImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
+param apiImage string = 'scentiqacrdevus.azurecr.io/scentiq-api@sha256:63804207a705c4140ea2be122fc846a05a264beac35be55f29eac23f7d33ff7b'
+param webImage string = 'scentiqacrdevus.azurecr.io/scentiq-web@sha256:cd2bcadef061c1b9bf3933623a9de3aefd0b88868f1f6be09808296895ebb3d7'
 @secure()
 param databaseSecretUri string = ''
 @secure()
