@@ -92,7 +92,6 @@ if ($Mode -eq 'dev') {
     Assert-True ((@($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.RbacAdministrator }).Count) -eq 1) 'deployment identity must retain Role Based Access Control Administrator'
     Assert-True ((@($roleAssignments | Where-Object { (Test-RoleDefinition $_ $roleDefinitions.AcrPush) -and $_.scope -match 'Microsoft.ContainerRegistry/registries' }).Count) -eq 1) 'deployment identity must retain AcrPush at the registry scope'
     Assert-True ((@($roleAssignments | Where-Object { $_.properties.principalType -ne 'ServicePrincipal' }).Count) -eq 0) 'all identity role assignments must declare ServicePrincipal principals'
-    Assert-True ((@($roleAssignments | Where-Object { $_.condition -match "not\(parameters\('useExistingFoundation'\)\)" -and $_.name -notmatch 'guid\(' }).Count) -eq 0) 'fresh identity role assignment names must be deterministic GUID expressions'
 
     $apiAssignments = @($roleAssignments | Where-Object { $_.condition -match "parameters\('useExistingFoundation'\)" })
     $webAssignments = @($roleAssignments | Where-Object { $_.properties.principalId -match "reference\('webIdentity'\)\.outputs\.principalId\.value" })
@@ -108,6 +107,11 @@ if ($Mode -eq 'dev') {
     foreach ($assignmentNameParameter in $adoptedAssignmentNames) {
         Assert-True ((@($roleAssignments | Where-Object { $_.name -eq "[parameters('$assignmentNameParameter')]" }).Count) -eq 1) "adopted role assignment must use the explicit $assignmentNameParameter contract"
     }
+    $adoptedAssignmentExpressions = @($adoptedAssignmentNames | ForEach-Object { "[parameters('$_')]" })
+    $nonAdoptedAssignments = @($roleAssignments | Where-Object { $_.name -notin $adoptedAssignmentExpressions })
+    Assert-True ((@($nonAdoptedAssignments | Where-Object { $_.name -notmatch 'guid\(' }).Count) -eq 0) 'fresh API and new workload role assignment names must be deterministic GUID expressions'
+    Assert-True ($webAssignments.Count -eq 1 -and $webAssignments[0].name -match 'guid\(') 'web AcrPull assignment must use a deterministic GUID name'
+    Assert-True ($migrationAssignments.Count -eq 2 -and @($migrationAssignments | Where-Object { $_.name -notmatch 'guid\(' }).Count -eq 0) 'migration role assignments must use deterministic GUID names'
     Assert-True ($apiAssignments.Count -eq 6 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPull }).Count -eq 2 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.BlobContributor }).Count -eq 2 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser }).Count -eq 2) 'API identity must have exactly AcrPull, Storage Blob Data Contributor, and Key Vault Secrets User across fresh and adopted branches'
     Assert-True ($webAssignments.Count -eq 1 -and (Test-RoleDefinition $webAssignments[0] $roleDefinitions.AcrPull)) 'web identity must have only AcrPull'
     Assert-True ($migrationAssignments.Count -eq 2 -and @($migrationAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPull }).Count -eq 1 -and @($migrationAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser }).Count -eq 1) 'migration identity must have exactly AcrPull and Key Vault Secrets User'
