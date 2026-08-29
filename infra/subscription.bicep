@@ -105,6 +105,7 @@ module platform 'main.bicep' = {
     postgresServerName: postgresServerName
     identityName: identityName
     identityPrincipalId: identityPrincipalId
+    actionGroupId: '${subscription().id}/resourceGroups/${resourceGroupName}/providers/Microsoft.Insights/actionGroups/scentiq-ag-${environmentName}-eus'
     containerEnvironmentName: containerEnvironmentName
     registryName: registryName
     applicationInsightsName: applicationInsightsName

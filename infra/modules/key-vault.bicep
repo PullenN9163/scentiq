@@ -1,7 +1,6 @@
 param location string
 param vaultName string
 param useExisting bool
-param principalId string
 param commonTags object
 
 resource newVault 'Microsoft.KeyVault/vaults@2023-07-01' = if (!useExisting) {
@@ -27,16 +26,6 @@ resource existingVaultTags 'Microsoft.Resources/tags@2025-04-01' = if (useExisti
   scope: existingVault
   properties: {
     tags: union(existingVault.tags, commonTags)
-  }
-}
-
-resource secretRoleNew 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!useExisting) {
-  name: guid(newVault.id, principalId, 'Key Vault Secrets User')
-  scope: newVault
-  properties: {
-    principalId: principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
   }
 }
 

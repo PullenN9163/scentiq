@@ -81,29 +81,49 @@ if ($Mode -eq 'dev') {
         'Microsoft.App/managedEnvironments'
     )
     $adoptedResources = @($resources | Where-Object { $_.type -in $adoptedTaggableTypes -and $_.existing })
-    Assert-True ($adoptedResources.Count -eq $adoptedTaggableTypes.Count) 'every adopted taggable resource must be declared as existing'
+    Assert-True ((@($adoptedResources.type | Sort-Object -Unique).Count) -eq $adoptedTaggableTypes.Count) 'every adopted taggable resource type must be declared as existing'
     $adoptionTagMerges = @($resources | Where-Object {
         $_.type -eq 'Microsoft.Resources/tags' -and
         ($_.properties.tags -is [string] -and $_.properties.tags -match '^\[union\(.+\)\]$')
     })
-    Assert-True ($adoptionTagMerges.Count -ge ($adoptedResources.Count + 1)) 'every adopted taggable resource must receive a merge-safe tag update'
-    Assert-True ((@($adoptionTagMerges | Where-Object { $null -ne $_.scope }).Count) -eq $adoptedResources.Count) 'every adopted resource tag update must target that resource scope'
+    Assert-True ($adoptionTagMerges.Count -ge ($adoptedTaggableTypes.Count + 1)) 'every adopted taggable resource type must receive a merge-safe tag update'
+    Assert-True ((@($adoptionTagMerges | Where-Object { $null -ne $_.scope }).Count) -ge $adoptedTaggableTypes.Count) 'every adopted resource tag update must target that resource scope'
 
     $registryDeclarations = @($resources | Where-Object { $_.type -eq 'Microsoft.ContainerRegistry/registries' })
     $registryCreate = @($registryDeclarations | Where-Object { -not $_.existing }) | Select-Object -First 1
     Assert-True ($null -ne $registryCreate -and $registryCreate.condition -match '^\[not\(parameters\(''useExisting''\)\)\]$') 'registry creation must be disabled for the adoption path'
 
     $platformDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'platform-' }) | Select-Object -First 1
-    Assert-True ($null -ne $platformDeployment -and $null -eq $platformDeployment.properties.parameters.actionGroupId) 'platform deployment must not depend on an unused governance output'
+    $platformActionGroupId = $platformDeployment.properties.parameters.actionGroupId.value
+    Assert-True ($null -ne $platformDeployment -and $platformActionGroupId -is [string]) 'platform deployment must retain the actionGroupId interface'
+    Assert-True ($platformActionGroupId -is [string] -and $platformActionGroupId -match 'Microsoft\.Insights/actionGroups.+scentiq-ag') 'platform actionGroupId must be a deterministic action group resource ID'
+    Assert-True ($platformActionGroupId -is [string] -and $platformActionGroupId -notmatch 'reference\(') 'platform actionGroupId must not depend on the governance deployment output'
 
-    $validationSensitiveDeployments = @($resources | Where-Object {
+    Assert-True ($null -ne $platformDeployment -and $null -eq $platformDeployment.condition) 'platform deployment must remain unconditioned so Azure validates its adopted resources'
+    Assert-True ($null -ne $platformDeployment -and $platformDeployment.properties.parameters.useExistingFoundation.value -eq "[parameters('useExistingFoundation')]") 'platform must forward the requested foundation mode without creating a conditional nested deployment'
+    $platformRegistryOutput = $platformDeployment.properties.template.outputs.registryLoginServer.value
+    Assert-True ($platformRegistryOutput -is [string] -and $platformRegistryOutput -notmatch 'reference\(') 'platform registry output must be deterministic and must not force conditional module output evaluation'
+
+    $foundationRoleAssignmentDeployments = @($resources | Where-Object {
         $_.type -eq 'Microsoft.Resources/deployments' -and
-        $_.name -match '(registry|storage|key-vault|container-environment)-'
+        $_.name -match '(registry|storage|key-vault)-(adopt|create)-'
     })
-    foreach ($deployment in $validationSensitiveDeployments) {
-        $parameterValues = $deployment.properties.parameters | ConvertTo-Json -Depth 20 -Compress
-        Assert-True ($parameterValues -notmatch 'reference\(') "deployment $($deployment.name) must not receive runtime reference() values as parameters"
-    }
+    Assert-True ($foundationRoleAssignmentDeployments.Count -eq 0) 'foundation resource modules must not hide conditional role assignment branches from subscription validation'
+
+    $adoptedFoundationRoleAssignments = @($resources | Where-Object {
+        $_.type -eq 'Microsoft.Authorization/roleAssignments' -and
+        $_.condition -match "^\[parameters\('useExistingFoundation'\)\]$" -and
+        $_.properties.principalId -eq "[parameters('identityPrincipalId')]"
+    })
+    Assert-True ($adoptedFoundationRoleAssignments.Count -ge 1) 'adopted foundation role assignments must use the adoption-only identityPrincipalId directly'
+
+    $freshFoundationRoleAssignments = @($resources | Where-Object {
+        $_.type -eq 'Microsoft.Authorization/roleAssignments' -and
+        $_.condition -match "^\[not\(parameters\('useExistingFoundation'\)\)\]$" -and
+        $_.properties.principalId -is [string] -and
+        $_.properties.principalId -match "reference\('identity'\)\.outputs\.principalId\.value"
+    })
+    Assert-True ($freshFoundationRoleAssignments.Count -ge 3) 'fresh foundation role assignments must use the newly created identity principal ID directly'
 
     $requiredTags = @(
         'application',

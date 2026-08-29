@@ -1,7 +1,6 @@
 param location string
 param storageName string
 param useExisting bool
-param principalId string
 param commonTags object
 
 resource newStorage 'Microsoft.Storage/storageAccounts@2023-05-01' = if (!useExisting) {
@@ -27,16 +26,6 @@ resource existingStorageTags 'Microsoft.Resources/tags@2025-04-01' = if (useExis
   scope: existingStorage
   properties: {
     tags: union(existingStorage.tags, commonTags)
-  }
-}
-
-resource blobRoleNew 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!useExisting) {
-  name: guid(newStorage.id, principalId, 'Storage Blob Data Contributor')
-  scope: newStorage
-  properties: {
-    principalId: principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
   }
 }
 

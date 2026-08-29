@@ -14,6 +14,7 @@ param keyVaultName string
 param postgresServerName string
 param identityName string
 param identityPrincipalId string
+param actionGroupId string
 param containerEnvironmentName string
 param registryName string
 param applicationInsightsName string
@@ -61,31 +62,105 @@ module identity 'modules/identity.bicep' = {
 
 module registry 'modules/registry.bicep' = {
   name: 'registry-${environmentName}'
-  dependsOn: [identity]
-  params: { location: location, registryName: registryName, useExisting: useExistingFoundation, principalId: identityPrincipalId, commonTags: commonTags }
+  params: { location: location, registryName: registryName, useExisting: useExistingFoundation, commonTags: commonTags }
 }
 
 module storage 'modules/storage.bicep' = {
   name: 'storage-${environmentName}'
-  dependsOn: [identity]
   params: {
     location: location
     storageName: storageName
     useExisting: useExistingFoundation
-    principalId: identityPrincipalId
     commonTags: commonTags
   }
 }
 
 module keyVault 'modules/key-vault.bicep' = {
   name: 'key-vault-${environmentName}'
-  dependsOn: [identity]
   params: {
     location: location
     vaultName: keyVaultName
     useExisting: useExistingFoundation
-    principalId: identityPrincipalId
     commonTags: commonTags
+  }
+}
+
+var registryLoginServer = '${registryName}.azurecr.io'
+var storageBlobEndpoint = 'https://${storageName}.blob.${environment().suffixes.storage}/'
+var keyVaultUri = 'https://${keyVaultName}.${environment().suffixes.keyvaultDns}/'
+
+resource registryResource 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+  name: registryName
+}
+
+resource storageResource 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
+  name: storageName
+}
+
+resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVaultName
+}
+
+resource freshAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!useExistingFoundation) {
+  name: guid(registryResource.id, identityName, 'AcrPull')
+  scope: registryResource
+  dependsOn: [registry]
+  properties: {
+    principalId: identity.outputs.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+  }
+}
+
+resource freshBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!useExistingFoundation) {
+  name: guid(storageResource.id, identityName, 'Storage Blob Data Contributor')
+  scope: storageResource
+  dependsOn: [storage]
+  properties: {
+    principalId: identity.outputs.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  }
+}
+
+resource freshKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!useExistingFoundation) {
+  name: guid(keyVaultResource.id, identityName, 'Key Vault Secrets User')
+  scope: keyVaultResource
+  dependsOn: [keyVault]
+  properties: {
+    principalId: identity.outputs.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b')
+  }
+}
+
+resource adoptedAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (useExistingFoundation) {
+  name: guid(registryResource.id, identityPrincipalId, 'AcrPull')
+  scope: registryResource
+  properties: {
+    principalId: identityPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+  }
+}
+
+resource adoptedBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (useExistingFoundation) {
+  name: guid(storageResource.id, identityPrincipalId, 'Storage Blob Data Contributor')
+  scope: storageResource
+  properties: {
+    principalId: identityPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  }
+}
+
+resource adoptedKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (useExistingFoundation) {
+  name: guid(keyVaultResource.id, identityPrincipalId, 'Key Vault Secrets User')
+  scope: keyVaultResource
+  properties: {
+    principalId: identityPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
   }
 }
 
@@ -121,7 +196,7 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
     name: apiAppName
     environmentId: containerEnvironment.outputs.id
     identityId: identity.outputs.id
-    registryServer: registry.outputs.loginServer
+    registryServer: registryLoginServer
     image: apiImage
     targetPort: 8000
     externalIngress: false
@@ -137,8 +212,8 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
       { name: 'CORS_ORIGINS', value: 'https://${webAppName}' }
       { name: 'DEMO_USER_ID', value: '00000000-0000-4000-8000-000000000001' }
       { name: 'AZURE_CLIENT_ID', value: identity.outputs.clientId }
-      { name: 'AZURE_STORAGE_ACCOUNT_URL', value: storage.outputs.blobEndpoint }
-      { name: 'AZURE_KEY_VAULT_URL', value: keyVault.outputs.uri }
+      { name: 'AZURE_STORAGE_ACCOUNT_URL', value: storageBlobEndpoint }
+      { name: 'AZURE_KEY_VAULT_URL', value: keyVaultUri }
     ]
   }
 }
@@ -150,7 +225,7 @@ module web 'modules/container-app.bicep' = if (deployApplications) {
     name: webAppName
     environmentId: containerEnvironment.outputs.id
     identityId: identity.outputs.id
-    registryServer: registry.outputs.loginServer
+    registryServer: registryLoginServer
     image: webImage
     targetPort: 3000
     externalIngress: true
@@ -171,7 +246,7 @@ module migration 'modules/migration-job.bicep' = if (deployMigration) {
     name: migrationJobName
     environmentId: containerEnvironment.outputs.id
     identityId: identity.outputs.id
-    registryServer: registry.outputs.loginServer
+    registryServer: registryLoginServer
     image: apiImage
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
     databaseSecretUri: databaseSecretUri
@@ -179,7 +254,8 @@ module migration 'modules/migration-job.bicep' = if (deployMigration) {
   }
 }
 
-output registryLoginServer string = registry.outputs.loginServer
+output registryLoginServer string = registryLoginServer
+output governanceActionGroupId string = actionGroupId
 output apiFqdn string = deployApplications ? api!.outputs.fqdn : ''
 output webFqdn string = deployApplications ? web!.outputs.fqdn : ''
 output migrationJob string = deployMigration ? migration!.outputs.name : ''
