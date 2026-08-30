@@ -32,6 +32,7 @@ param deployMigration bool = deployWorkloads
 param deployApplications bool = deployWorkloads
 
 param workspaceName string
+param workspaceExistingTags object
 param storageName string
 param keyVaultName string
 param postgresServerName string
@@ -119,6 +120,7 @@ module platform 'main.bicep' = {
     deployMigration: deployMigration
     deployApplications: deployApplications
     workspaceName: workspaceName
+    workspaceExistingTags: workspaceExistingTags
     storageName: storageName
     keyVaultName: keyVaultName
     postgresServerName: postgresServerName

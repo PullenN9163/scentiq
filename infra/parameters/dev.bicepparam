@@ -19,6 +19,13 @@ param enableFoundationLocks = false
 // PostgreSQL protection follows the same staged path: enable it only after its first successful in-place deployment and recovery rehearsal.
 param enablePostgresLock = false
 param workspaceName = 'scentiq-law-dev-us'
+param workspaceExistingTags = {
+  Project: 'scentiq'
+  'cost-center': 'personal-project'
+  environment: 'development'
+  'managed-by': 'manual'
+  owner: 'nas'
+}
 param storageName = 'scentiqstrgdevus'
 param keyVaultName = 'scentiq-kv-dev-eus'
 param postgresServerName = 'scentiq-pg-dev-eus'

@@ -218,6 +218,128 @@ if ($Mode -eq 'dev') {
         Assert-True ($null -ne $notification -and $notification.thresholdType -eq $expectedBudgetNotifications[$notificationName].thresholdType) "budget notification $notificationName has an incorrect threshold type"
         Assert-True ($null -ne $notification -and $notification.contactGroups.Count -eq 1) "budget notification $notificationName must target the ScentIQ action group"
     }
+    Assert-True (@($budget.properties.notifications.PSObject.Properties | Where-Object { @($_.Value.contactGroups).Count -ne 1 -or $_.Value.contactGroups[0] -ne "[resourceId('Microsoft.Insights/actionGroups', format('scentiq-ag-{0}-eus', parameters('environmentName')))]" }).Count -eq 0) 'every budget notification must target the managed ScentIQ action group, not merely any action group'
+
+    # Task 6: observability is checked by exact resource identity and scope. Counts
+    # alone would allow a mismapped alert or diagnostic setting to false-pass.
+    $managedWorkspace = @($resources | Where-Object { $_.type -eq 'Microsoft.OperationalInsights/workspaces' -and -not $_.existing -and $_.name -eq "[parameters('workspaceName')]" }) | Select-Object -First 1
+    Assert-True ($null -ne $managedWorkspace -and $managedWorkspace.location -eq "[parameters('location')]" -and $managedWorkspace.properties.sku.name -eq 'PerGB2018' -and $managedWorkspace.properties.retentionInDays -eq 31) 'the adopted Log Analytics workspace must preserve PerGB2018 and the observed 31-day retention'
+    Assert-True ($null -ne $managedWorkspace -and $managedWorkspace.properties.features.enableLogAccessUsingOnlyResourcePermissions -eq $true -and $managedWorkspace.properties.workspaceCapping.dailyQuotaGb -eq "[json('0.5')]" -and $managedWorkspace.properties.publicNetworkAccessForIngestion -eq 'Enabled' -and $managedWorkspace.properties.publicNetworkAccessForQuery -eq 'Enabled') 'the adopted development workspace must enforce resource permissions, a positive 0.5 GiB cap, and public dev ingestion/query'
+    Assert-True ($null -ne $managedWorkspace -and $managedWorkspace.tags -match "union\(parameters\('workspaceExistingTags'\), parameters\('commonTags'\)\)") 'the adopted workspace parent PUT must merge the redacted live-tag contract before applying common tags'
+
+    $managedInsights = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/components' -and $_.name -eq "[parameters('applicationInsightsName')]" -and -not $_.existing }) | Select-Object -First 1
+    Assert-True ($null -ne $managedInsights -and $managedInsights.kind -eq 'web' -and $managedInsights.properties.Application_Type -eq 'web' -and $managedInsights.properties.WorkspaceResourceId -eq "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]" -and $managedInsights.properties.IngestionMode -eq 'LogAnalytics' -and $managedInsights.properties.RetentionInDays -eq 90) 'Application Insights must remain one workspace-based web component linked to the adopted workspace with its observed retention'
+    Assert-True ($null -ne $managedInsights -and $managedInsights.properties.DisableIpMasking -eq $false -and $managedInsights.properties.publicNetworkAccessForIngestion -eq 'Enabled' -and $managedInsights.properties.publicNetworkAccessForQuery -eq 'Enabled') 'Application Insights must retain IP masking and public development ingestion/query access'
+
+    $availabilityDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'availability-tests-' }) | Select-Object -First 1
+    $availabilityVariables = $availabilityDeployment.properties.template.variables
+    Assert-True ($null -ne $availabilityDeployment -and $availabilityVariables.rootTestName -eq "[format('scentiq-web-root-{0}', parameters('environmentName'))]" -and $availabilityVariables.apiStatusTestName -eq "[format('scentiq-web-api-status-{0}', parameters('environmentName'))]") 'availability tests must use deterministic environment-specific names'
+    Assert-True ($null -ne $availabilityDeployment -and @($availabilityVariables.testLocations).Count -eq 3 -and @($availabilityVariables.testLocations | ForEach-Object { $_.Id } | Sort-Object) -join ',' -eq 'us-ca-sjc-azr,us-il-ch1-azr,us-tx-sn1-azr') 'availability tests must retain the approved supported Azure locations'
+    $webTests = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/webtests' })
+    Assert-True ($webTests.Count -eq 2) 'exactly the root and API-status standard availability tests must be declared'
+    $expectedWebTests = @{
+        rootTestName = "[format('https://{0}/', parameters('webFqdn'))]"
+        apiStatusTestName = "[format('https://{0}/api/status', parameters('webFqdn'))]"
+    }
+    foreach ($webTestName in $expectedWebTests.Keys) {
+        $webTest = @($webTests | Where-Object { $_.name -eq "[variables('$webTestName')]" }) | Select-Object -First 1
+        Assert-True ($null -ne $webTest -and $webTest.kind -eq 'standard' -and $webTest.properties.Kind -eq 'standard' -and $webTest.properties.Enabled -eq $true -and $webTest.properties.Frequency -eq 300 -and $webTest.properties.Timeout -eq 30 -and $webTest.properties.RetryEnabled -eq $true) "$webTestName must be an enabled five-minute standard availability test"
+        Assert-True ($null -ne $webTest -and $webTest.properties.Request.HttpVerb -eq 'GET' -and $webTest.properties.Request.RequestUrl -eq $expectedWebTests[$webTestName] -and $webTest.properties.Request.ParseDependentRequests -eq $false -and $webTest.properties.ValidationRules.ExpectedHttpStatusCode -eq 200 -and $webTest.properties.ValidationRules.SSLCheck -eq $true -and $webTest.properties.ValidationRules.SSLCertRemainingLifetimeCheck -eq 7) "$webTestName must use the exact HTTPS endpoint, HTTP 200 expectation, and TLS validation"
+        Assert-True ($null -ne $webTest -and $webTest.properties.Locations -eq "[variables('testLocations')]") "$webTestName must run from the approved three supported Azure locations"
+        Assert-True ($null -ne $webTest -and $webTest.tags -match "hidden-link:.+applicationInsightsResourceId") "$webTestName must link to the managed Application Insights component"
+    }
+
+    $workbooks = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/workbooks' })
+    $workbook = $workbooks | Select-Object -First 1
+    Assert-True ($workbooks.Count -eq 1 -and $null -ne $workbook -and $workbook.kind -eq 'shared' -and $workbook.properties.displayName -eq 'ScentIQ development observability' -and $workbook.properties.sourceId -eq "[parameters('workspaceResourceId')]") 'one shared ScentIQ workbook must be linked to the adopted workspace'
+    $workbookDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'observability-workbook-' }) | Select-Object -First 1
+    $workbookData = $workbookDeployment.properties.template.variables | ConvertTo-Json -Depth 100
+    foreach ($requiredWorkbookQuery in @('AppAvailabilityResults', 'AppRequests', 'AppDependencies', 'AppExceptions', 'ContainerAppConsoleLogs_CL', 'ContainerAppSystemLogs_CL', 'AzureActivity', 'InsightsMetrics', 'percentile(DurationMs, 50)', 'percentile(DurationMs, 95)')) {
+        Assert-True ($workbookData -match [regex]::Escape($requiredWorkbookQuery)) "the workbook must contain the $requiredWorkbookQuery operational query content"
+    }
+    Assert-True ($workbookData -notmatch '(?i)requestbody|authorization|cookie|database-url|connectionstring') 'workbook queries must not project request bodies, credentials, cookies, or secret-valued fields'
+
+    $observabilityDiagnostics = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/diagnosticSettings' -and $_.name -in @('scentiq-container-environment-observability', 'scentiq-web-metrics', 'scentiq-api-metrics', 'scentiq-migration-job-logs') })
+    Assert-True ($observabilityDiagnostics.Count -eq 4 -and @($observabilityDiagnostics | Where-Object { $_.properties.workspaceId -ne "[parameters('workspaceResourceId')]" }).Count -eq 0) 'all new observability diagnostics must target the adopted Log Analytics workspace'
+    $environmentDiagnostic = $observabilityDiagnostics | Where-Object { $_.name -eq 'scentiq-container-environment-observability' } | Select-Object -First 1
+    Assert-True ($null -ne $environmentDiagnostic -and $environmentDiagnostic.scope -eq "[resourceId('Microsoft.App/managedEnvironments', parameters('containerEnvironmentName'))]" -and @($environmentDiagnostic.properties.logs | ForEach-Object { $_.category } | Sort-Object) -join ',' -eq 'ContainerAppConsoleLogs,ContainerAppHTTPLogs,ContainerAppSystemLogs' -and $environmentDiagnostic.properties.metrics[0].category -eq 'AllMetrics') 'Container Apps environment diagnostics must enable the inventoried console, system, HTTP, and metric categories at the exact environment scope'
+    foreach ($appDiagnosticName in @('scentiq-web-metrics', 'scentiq-api-metrics')) {
+        $appDiagnostic = $observabilityDiagnostics | Where-Object { $_.name -eq $appDiagnosticName } | Select-Object -First 1
+        $expectedAppParameter = $appDiagnosticName -eq 'scentiq-web-metrics' ? 'webAppName' : 'apiAppName'
+        Assert-True ($null -ne $appDiagnostic -and $appDiagnostic.scope -eq "[resourceId('Microsoft.App/containerApps', parameters('$expectedAppParameter'))]" -and $appDiagnostic.properties.logs.Count -eq 0 -and $appDiagnostic.properties.metrics.Count -eq 1 -and $appDiagnostic.properties.metrics[0].category -eq 'AllMetrics' -and $appDiagnostic.properties.metrics[0].enabled -eq $true) "$appDiagnosticName must send only the supported Container App metrics for its exact application scope"
+    }
+    $migrationDiagnostic = $observabilityDiagnostics | Where-Object { $_.name -eq 'scentiq-migration-job-logs' } | Select-Object -First 1
+    Assert-True ($null -ne $migrationDiagnostic -and $migrationDiagnostic.scope -eq "[resourceId('Microsoft.App/jobs', parameters('migrationJobName'))]" -and $migrationDiagnostic.properties.logs.Count -eq 1 -and $migrationDiagnostic.properties.logs[0].category -eq 'Basic' -and $migrationDiagnostic.properties.logs[0].enabled -eq $true -and $migrationDiagnostic.properties.metrics.Count -eq 0) 'migration diagnostics must send the inventoried Basic log category for the exact job scope'
+
+    $scheduledAlerts = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/scheduledQueryRules' })
+    $alertingDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'alerting-' }) | Select-Object -First 1
+    Assert-True ($null -ne $alertingDeployment -and $alertingDeployment.properties.parameters.workspaceResourceId.value -eq "[reference('monitoring').outputs.workspaceResourceId.value]" -and $alertingDeployment.properties.parameters.applicationInsightsResourceId.value -eq "[reference('monitoring').outputs.applicationInsightsResourceId.value]" -and $alertingDeployment.properties.parameters.actionGroupId.value -eq "[parameters('actionGroupId')]") 'alerting must receive the exact adopted workspace and Application Insights IDs plus the managed action group'
+    Assert-True ($null -ne $alertingDeployment -and $alertingDeployment.properties.template.variables.runbookPath -eq 'docs/runbooks/azure-deployment.md#monitoring-alerts') 'every observability alert must use the matching checked-in runbook path'
+    $expectedScheduledAlerts = @{
+        'scentiq-availability' = @{ severity = 1; window = 'PT5M'; frequency = 'PT5M'; threshold = 0; minimumPeriods = 2; evaluationPeriods = 2; scope = "[parameters('workspaceResourceId')]" }
+        'scentiq-http-failure-rate' = @{ severity = 2; window = 'PT15M'; frequency = 'PT5M'; threshold = 5; minimumPeriods = 3; evaluationPeriods = 3; scope = "[parameters('workspaceResourceId')]" }
+        'scentiq-http-p95-latency' = @{ severity = 2; window = 'PT15M'; frequency = 'PT5M'; threshold = 2000; minimumPeriods = 3; evaluationPeriods = 3; scope = "[parameters('workspaceResourceId')]" }
+        'scentiq-migration-failure' = @{ severity = 1; window = 'PT5M'; frequency = 'PT5M'; threshold = 0; minimumPeriods = 1; evaluationPeriods = 1; scope = "[parameters('workspaceResourceId')]" }
+    }
+    foreach ($alertName in $expectedScheduledAlerts.Keys) {
+        $alert = @($scheduledAlerts | Where-Object { $_.name -eq "[format('$alertName-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
+        $expected = $expectedScheduledAlerts[$alertName]
+        $criterion = if ($null -ne $alert) { $alert.properties.criteria.allOf[0] } else { $null }
+        Assert-True ($null -ne $alert -and $alert.kind -eq 'LogAlert' -and $alert.properties.enabled -eq $true -and $alert.properties.severity -eq $expected.severity -and $alert.properties.windowSize -eq $expected.window -and $alert.properties.evaluationFrequency -eq $expected.frequency -and $alert.properties.scopes.Count -eq 1 -and $alert.properties.scopes[0] -eq "[variables('workspaceScope')]") "$alertName must be enabled with its exact workspace scope, severity, window, and evaluation frequency"
+        Assert-True ($null -ne $criterion -and $criterion.operator -eq 'GreaterThan' -and $criterion.threshold -eq $expected.threshold -and $criterion.failingPeriods.minFailingPeriodsToAlert -eq $expected.minimumPeriods -and $criterion.failingPeriods.numberOfEvaluationPeriods -eq $expected.evaluationPeriods) "$alertName must retain its defensible threshold and failing-period contract"
+        Assert-True ($null -ne $alert -and $alert.properties.actions.actionGroups.Count -eq 1 -and $alert.properties.actions.actionGroups[0] -eq "[parameters('actionGroupId')]") "$alertName must use the managed action group"
+        Assert-True ($null -ne $alert -and $alert.properties.description -match 'runbookPath') "$alertName must link to an operational runbook path"
+    }
+    $httpFailureAlert = @($scheduledAlerts | Where-Object { $_.name -eq "[format('scentiq-http-failure-rate-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
+    $latencyAlert = @($scheduledAlerts | Where-Object { $_.name -eq "[format('scentiq-http-p95-latency-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
+    $httpFailureCriterion = if ($null -ne $httpFailureAlert) { $httpFailureAlert.properties.criteria.allOf[0] } else { $null }
+    $latencyCriterion = if ($null -ne $latencyAlert) { $latencyAlert.properties.criteria.allOf[0] } else { $null }
+    Assert-True ($null -ne $httpFailureCriterion -and $httpFailureCriterion.query -match 'RequestCount\s*>=\s*20' -and $httpFailureCriterion.query -match 'FailureRate') 'HTTP failure-rate alert must apply a minimum request-volume guard before evaluating the rate'
+    Assert-True ($null -ne $latencyCriterion -and $latencyCriterion.query -match 'RequestCount\s*>=\s*20' -and $latencyCriterion.query -match 'percentile\(DurationMs,\s*95\)') 'latency alert must apply a minimum request-volume guard and calculate p95 duration'
+
+    $metricAlerts = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/metricAlerts' })
+    $expectedMetricAlerts = @{
+        'scentiq-postgres-saturation' = @{ severity = 2; scope = "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('postgresServerName'))]"; metric = 'cpu_percent'; threshold = 80; region = "[parameters('postgresLocation')]" }
+        'scentiq-postgres-storage' = @{ severity = 3; scope = "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('postgresServerName'))]"; metric = 'storage_percent'; threshold = 80; region = "[parameters('postgresLocation')]" }
+    }
+    foreach ($alertName in $expectedMetricAlerts.Keys) {
+        $alert = @($metricAlerts | Where-Object { $_.name -eq "[format('$alertName-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
+        $expected = $expectedMetricAlerts[$alertName]
+        $criterion = if ($null -ne $alert) { $alert.properties.criteria.allOf[0] } else { $null }
+        Assert-True ($null -ne $alert -and $alert.properties.enabled -eq $true -and $alert.properties.severity -eq $expected.severity -and $alert.properties.scopes.Count -eq 1 -and $alert.properties.scopes[0] -eq "[variables('postgresScope')]" -and $alert.properties.targetResourceRegion -eq $expected.region -and $alert.properties.evaluationFrequency -eq 'PT5M' -and $alert.properties.windowSize -eq 'PT15M') "$alertName must be enabled for the exact PostgreSQL scope and its live PostgreSQL region with a sustained 15-minute evaluation"
+        Assert-True ($null -ne $criterion -and $criterion.metricNamespace -eq 'Microsoft.DBforPostgreSQL/flexibleServers' -and $criterion.metricName -eq $expected.metric -and $criterion.timeAggregation -eq 'Average' -and $criterion.operator -eq 'GreaterThan' -and $criterion.threshold -eq $expected.threshold) "$alertName must use the inventoried PostgreSQL metric and 80-percent threshold"
+        Assert-True ($null -ne $alert -and $alert.properties.actions.Count -eq 1 -and $alert.properties.actions[0].actionGroupId -eq "[parameters('actionGroupId')]" -and $alert.properties.description -match 'runbookPath') "$alertName must use the managed action group and link to a runbook"
+    }
+
+    $activityAlerts = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/activityLogAlerts' })
+    $expectedActivityAlerts = @{
+        'scentiq-resource-health' = @{ category = 'ResourceHealth'; scope = "[resourceGroup().id]"; severity = 2 }
+        'scentiq-service-health' = @{ category = 'ServiceHealth'; scope = "[subscription().id]"; severity = 2 }
+        'scentiq-deployment-failure' = @{ category = 'Administrative'; scope = "[resourceGroup().id]"; severity = 2 }
+    }
+    foreach ($alertName in $expectedActivityAlerts.Keys) {
+        $alert = @($activityAlerts | Where-Object { $_.name -eq "[format('$alertName-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
+        $expected = $expectedActivityAlerts[$alertName]
+        Assert-True ($null -ne $alert -and $alert.properties.enabled -eq $true -and $alert.properties.scopes.Count -eq 1 -and $alert.properties.scopes[0] -eq $expected.scope -and @($alert.properties.condition.allOf | Where-Object { $_.field -eq 'category' -and $_.equals -eq $expected.category }).Count -eq 1) "$alertName must be enabled for the exact $($expected.category) activity-log scope"
+        Assert-True ($null -ne $alert -and $alert.properties.actions.actionGroups.Count -eq 1 -and $alert.properties.actions.actionGroups[0].actionGroupId -eq "[parameters('actionGroupId')]" -and $alert.properties.description -match 'runbookPath') "$alertName must use the managed action group and link to a runbook"
+    }
+    $resourceHealthAlert = @($activityAlerts | Where-Object { $_.name -eq "[format('scentiq-resource-health-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
+    $serviceHealthAlert = @($activityAlerts | Where-Object { $_.name -eq "[format('scentiq-service-health-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
+    $deploymentFailureAlert = @($activityAlerts | Where-Object { $_.name -eq "[format('scentiq-deployment-failure-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
+    Assert-True ($null -ne $resourceHealthAlert -and @($resourceHealthAlert.properties.condition.allOf | Where-Object { $_.field -eq 'properties.currentHealthStatus' -and $_.containsAny -contains 'Unavailable' -and $_.containsAny -contains 'Degraded' }).Count -eq 1) 'Resource Health alert must distinguish unavailable or degraded resources from routine health events'
+    Assert-True ($null -ne $serviceHealthAlert -and @($serviceHealthAlert.properties.condition.allOf | Where-Object { $_.field -eq 'properties.incidentType' -and $_.containsAny -contains 'Incident' -and $_.containsAny -contains 'Maintenance' }).Count -eq 1) 'Service Health alert must cover incidents and planned maintenance affecting the subscription'
+    Assert-True ($null -ne $deploymentFailureAlert -and @($deploymentFailureAlert.properties.condition.allOf | Where-Object { $_.field -eq 'status' -and $_.equals -eq 'Failed' }).Count -eq 1 -and @($deploymentFailureAlert.properties.condition.allOf | Where-Object { $_.field -eq 'operationName' -and $_.containsAny -contains 'Microsoft.Resources/deployments/write' }).Count -eq 1) 'deployment-failure alert must detect failed ARM deployment writes rather than any administrative event'
+
+    $telemetryScriptPath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'scripts/azure/Test-AzureTelemetry.ps1'
+    Assert-True (Test-Path -LiteralPath $telemetryScriptPath) 'Azure telemetry verifier script is missing'
+    if (Test-Path -LiteralPath $telemetryScriptPath) {
+        $telemetryScript = Get-Content -Raw -LiteralPath $telemetryScriptPath
+        Assert-True ($telemetryScript -match 'az account get-access-token' -and $telemetryScript -match 'api\.loganalytics\.azure\.com/v1/workspaces' -and $telemetryScript -match 'Authorization\s*=\s*"Bearer') 'telemetry verifier must acquire a non-printed ARM token and query the Log Analytics REST endpoint'
+        Assert-True ($telemetryScript -match 'az resource show' -and $telemetryScript -notmatch 'az monitor log-analytics') 'telemetry verifier must obtain the workspace customer ID through Azure CLI core without depending on an optional Log Analytics extension'
+        Assert-True ($telemetryScript -match 'AppRequests' -and $telemetryScript -match 'OperationId' -and $telemetryScript -match 'ContainerAppConsoleLogs_CL' -and $telemetryScript -match 'ContainerAppSystemLogs_CL') 'telemetry verifier must check web/API trace correlation, both Container Apps, and migration logs'
+        Assert-True ($telemetryScript -match 'postgresql\+psycopg://' -and $telemetryScript -match 'Authorization' -and $telemetryScript -match 'Cookie' -and $telemetryScript -match 'database-url') 'telemetry verifier must reject the specified secret or PII-bearing telemetry markers'
+        Assert-True ($telemetryScript -match '\$maxAttempts\s*=\s*10' -and $telemetryScript -match 'Start-Sleep\s+-Seconds\s+30') 'telemetry verifier must use exactly ten bounded 30-second attempts'
+    }
 
     $resourceGroupTagUpdate = @($resources | Where-Object {
         $_.type -eq 'Microsoft.Resources/tags' -and
@@ -230,7 +352,6 @@ if ($Mode -eq 'dev') {
     Assert-True ((@($resourceGroupDeclarations | Where-Object { -not $_.existing }).Count) -eq 0) 'the live development resource group must not be emitted as a tagless PUT'
 
     $adoptedTaggableTypes = @(
-        'Microsoft.OperationalInsights/workspaces',
         'Microsoft.ManagedIdentity/userAssignedIdentities',
         'Microsoft.ContainerRegistry/registries',
         'Microsoft.DBforPostgreSQL/flexibleServers',
@@ -485,10 +606,11 @@ if ($Mode -eq 'dev') {
     Assert-True ($null -ne $newKeyVault -and $newKeyVault.properties.accessPolicies.Count -eq 0 -and $newKeyVault.properties.networkAcls.ipRules.Count -eq 0 -and $newKeyVault.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'the Key Vault preservation baseline must retain observed empty access-policy and ACL collections'
 
     $diagnosticSettings = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/diagnosticSettings' })
-    Assert-True ($diagnosticSettings.Count -eq 3 -and @($diagnosticSettings | Where-Object { $_.properties.workspaceId -ne "[parameters('workspaceResourceId')]" }).Count -eq 0) 'Storage, Key Vault, and PostgreSQL diagnostics must target the Log Analytics workspace'
-    Assert-True (@($diagnosticSettings | Where-Object { $_.properties.logs.Count -lt 1 }).Count -eq 0) 'Storage, Key Vault, and PostgreSQL diagnostics must enable logs'
-    $storageDiagnostic = $diagnosticSettings | Where-Object { $_.name -eq 'scentiq-storage-audit' } | Select-Object -First 1
-    $keyVaultDiagnostic = $diagnosticSettings | Where-Object { $_.name -eq 'scentiq-key-vault-audit' } | Select-Object -First 1
+    $foundationDiagnostics = @($diagnosticSettings | Where-Object { $_.name -in @('scentiq-storage-audit', 'scentiq-key-vault-audit', 'scentiq-postgres-diagnostics') })
+    Assert-True ($foundationDiagnostics.Count -eq 3 -and @($foundationDiagnostics | Where-Object { $_.properties.workspaceId -ne "[parameters('workspaceResourceId')]" }).Count -eq 0) 'Storage, Key Vault, and PostgreSQL diagnostics must target the Log Analytics workspace'
+    Assert-True (@($foundationDiagnostics | Where-Object { $_.properties.logs.Count -lt 1 }).Count -eq 0) 'Storage, Key Vault, and PostgreSQL diagnostics must enable logs'
+    $storageDiagnostic = $foundationDiagnostics | Where-Object { $_.name -eq 'scentiq-storage-audit' } | Select-Object -First 1
+    $keyVaultDiagnostic = $foundationDiagnostics | Where-Object { $_.name -eq 'scentiq-key-vault-audit' } | Select-Object -First 1
     Assert-True ($null -ne $storageDiagnostic -and $storageDiagnostic.scope -eq "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageName'))]") 'storage diagnostics must target the adopted storage account scope'
     Assert-True ($null -ne $keyVaultDiagnostic -and $keyVaultDiagnostic.scope -eq "[resourceId('Microsoft.KeyVault/vaults', parameters('vaultName'))]") 'Key Vault diagnostics must target the adopted vault scope'
 

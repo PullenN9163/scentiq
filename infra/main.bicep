@@ -17,6 +17,7 @@ param deployMigration bool = deployWorkloads
 param deployApplications bool = deployWorkloads
 
 param workspaceName string
+param workspaceExistingTags object
 param storageName string
 param keyVaultName string
 param postgresServerName string
@@ -71,7 +72,7 @@ module monitoring 'modules/monitoring.bicep' = {
     location: location
     workspaceName: workspaceName
     applicationInsightsName: applicationInsightsName
-    useExistingWorkspace: useExistingFoundation
+    workspaceExistingTags: workspaceExistingTags
     commonTags: commonTags
   }
 }
@@ -379,8 +380,73 @@ module migration 'modules/migration-job.bicep' = if (deployMigration) {
   }
 }
 
+// The adopted development web app already exists when workload deployment is
+// disabled. Referencing it lets synthetic monitoring be deployed without
+// mutating a workload revision.
+resource adoptedWebAppForMonitoring 'Microsoft.App/containerApps@2025-01-01' existing = if (!deployApplications) {
+  name: webAppName
+}
+
+var availabilityWebFqdn = deployApplications ? web!.outputs.fqdn : adoptedWebAppForMonitoring!.properties.configuration.ingress.fqdn
+
+module availabilityTests 'modules/availability-test.bicep' = {
+  name: 'availability-tests-${environmentName}'
+  params: {
+    location: location
+    environmentName: environmentName
+    webFqdn: availabilityWebFqdn
+    applicationInsightsResourceId: monitoring.outputs.applicationInsightsResourceId
+    commonTags: commonTags
+  }
+}
+
+module observabilityWorkbook 'modules/workbook.bicep' = {
+  name: 'observability-workbook-${environmentName}'
+  params: {
+    location: location
+    environmentName: environmentName
+    workspaceResourceId: monitoring.outputs.workspaceResourceId
+    applicationInsightsResourceId: monitoring.outputs.applicationInsightsResourceId
+    containerEnvironmentResourceId: containerEnvironment.outputs.id
+    webAppResourceId: resourceId('Microsoft.App/containerApps', webAppName)
+    apiAppResourceId: resourceId('Microsoft.App/containerApps', apiAppName)
+    migrationJobResourceId: resourceId('Microsoft.App/jobs', migrationJobName)
+    postgresResourceId: postgres.outputs.alertScope
+    commonTags: commonTags
+  }
+}
+
+module alerting 'modules/alerting.bicep' = {
+  name: 'alerting-${environmentName}'
+  params: {
+    location: location
+    environmentName: environmentName
+    workspaceResourceId: monitoring.outputs.workspaceResourceId
+    applicationInsightsResourceId: monitoring.outputs.applicationInsightsResourceId
+    actionGroupId: actionGroupId
+    containerEnvironmentName: containerEnvironmentName
+    webAppName: webAppName
+    apiAppName: apiAppName
+    migrationJobName: migrationJobName
+    postgresServerName: postgresServerName
+    postgresLocation: postgresLocation
+    commonTags: commonTags
+  }
+}
+
 output registryLoginServer string = registryLoginServer
 output governanceActionGroupId string = actionGroupId
+output workspaceResourceId string = monitoring.outputs.workspaceResourceId
+output applicationInsightsResourceId string = monitoring.outputs.applicationInsightsResourceId
+@secure()
+output applicationInsightsConnectionString string = monitoring.outputs.applicationInsightsConnectionString
+output availabilityTestIds array = [
+  availabilityTests.outputs.rootTestId
+  availabilityTests.outputs.apiStatusTestId
+]
+output observabilityWorkbookId string = observabilityWorkbook.outputs.workbookId
+output observabilityAlertIds array = alerting.outputs.alertIds
+output observabilityDiagnosticSettingIds array = alerting.outputs.diagnosticSettingIds
 output apiFqdn string = deployApplications ? api!.outputs.fqdn : ''
 output webFqdn string = deployApplications ? web!.outputs.fqdn : ''
 output migrationJob string = deployMigration ? migration!.outputs.name : ''

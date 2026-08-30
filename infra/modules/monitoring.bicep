@@ -1,32 +1,31 @@
 param location string
 param workspaceName string
 param applicationInsightsName string
-param useExistingWorkspace bool
+param workspaceExistingTags object
 param commonTags object
 
-resource newWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = if (!useExistingWorkspace) {
+// Read-only inventory (2026-08-30) established the only writable properties
+// below. The explicit tag contract prevents this adopted parent PUT from
+// clearing tags that predate Bicep management.
+resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: workspaceName
   location: location
-  tags: commonTags
+  tags: union(workspaceExistingTags, commonTags)
   properties: {
-    retentionInDays: 30
-    features: { enableLogAccessUsingOnlyResourcePermissions: true }
+    sku: {
+      name: 'PerGB2018'
+    }
+    retentionInDays: 31
+    features: {
+      enableLogAccessUsingOnlyResourcePermissions: true
+    }
+    workspaceCapping: {
+      dailyQuotaGb: json('0.5')
+    }
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
   }
 }
-
-resource existingWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
-  name: workspaceName
-}
-
-resource existingWorkspaceTags 'Microsoft.Resources/tags@2025-04-01' = if (useExistingWorkspace) {
-  name: 'default'
-  scope: existingWorkspace
-  properties: {
-    tags: union(existingWorkspace.tags, commonTags)
-  }
-}
-
-var workspaceId = useExistingWorkspace ? existingWorkspace.id : newWorkspace.id
 
 resource insights 'Microsoft.Insights/components@2020-02-02' = {
   name: applicationInsightsName
@@ -35,11 +34,16 @@ resource insights 'Microsoft.Insights/components@2020-02-02' = {
   kind: 'web'
   properties: {
     Application_Type: 'web'
-    WorkspaceResourceId: workspaceId
+    WorkspaceResourceId: workspace.id
     IngestionMode: 'LogAnalytics'
+    RetentionInDays: 90
+    DisableIpMasking: false
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
   }
 }
 
-output workspaceResourceId string = workspaceId
+output workspaceResourceId string = workspace.id
+output applicationInsightsResourceId string = insights.id
 @secure()
 output applicationInsightsConnectionString string = insights.properties.ConnectionString

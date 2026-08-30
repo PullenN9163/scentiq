@@ -38,3 +38,9 @@ az containerapp job execution list --name scentiq-migrate-dev-eus --resource-gro
 ```
 
 If migration fails, the workflow stops before application rollout. Correct the migration or connectivity issue and rerun the workflow. Do not bypass the gate. If a new application revision is unhealthy after a successful migration, reactivate the last known healthy immutable image, then inspect sanitized Application Insights traces and Container Apps logs. Database downgrades require a separately reviewed recovery decision; they are never automatic.
+
+## Monitoring alerts
+
+ScentIQ alert rules route availability, HTTP failure rate, p95 latency, migration failures, PostgreSQL saturation and storage, Resource Health, Service Health, and deployment failures to the managed operations action group. Treat a severity-1 alert as an immediate rollout or availability incident; severity 2 requires same-day investigation, and severity 3 capacity warnings require a planned response before the next deployment.
+
+Start by opening the ScentIQ development observability workbook and checking the affected resource ID, time range, availability result, request volume, error percentage, and p95 duration. Console and system logs must be inspected only for operational fields; do not copy request bodies, headers, cookies, connection strings, or database URLs into tickets or chat. For a migration failure, retain the failed execution status, correct the migration or connectivity issue, and rerun the gated deployment. For Resource Health or Service Health, confirm the Azure incident scope before changing ScentIQ resources. Cost-budget notifications use the same action group and should trigger a review of replica floors, retention, and other approved cost controls rather than an unreviewed service shutdown.
