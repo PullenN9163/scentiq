@@ -2,6 +2,7 @@ param serverName string
 param workspaceResourceId string
 param enablePostgresLock bool
 param allowAzureServicesFirewallRule bool
+param azureServicesFirewallRuleName string
 
 resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' existing = {
   name: serverName
@@ -26,7 +27,7 @@ resource requireSecureTransport 'Microsoft.DBforPostgreSQL/flexibleServers/confi
 
 resource azureServicesFirewallRule 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2024-08-01' = if (allowAzureServicesFirewallRule) {
   parent: server
-  name: 'AllowAllAzureServicesAndResourcesWithinAzureIps'
+  name: azureServicesFirewallRuleName
   properties: {
     startIpAddress: '0.0.0.0'
     endIpAddress: '0.0.0.0'

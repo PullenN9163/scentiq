@@ -262,8 +262,10 @@ if ($Mode -eq 'dev') {
     Assert-True ($postgresConfigurations.Count -eq 1 -and $null -ne $tlsConfiguration -and $tlsConfiguration.properties.value -eq 'on') 'PostgreSQL must require TLS without taking ownership of unrelated server configurations'
 
     $postgresFirewallRules = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules' })
-    $azureServicesRule = $postgresFirewallRules | Where-Object { $_.name -match 'AllowAllAzureServicesAndResourcesWithinAzureIps' } | Select-Object -First 1
+    $azureServicesRule = $postgresFirewallRules | Select-Object -First 1
     $allowAzureServicesRuleExpression = "[and(equals(parameters('deploymentMode'), 'dev'), equals(parameters('networkMode'), 'publicDev'))]"
+    Assert-True ($null -ne $postgresDeployment -and $postgresDeployment.properties.parameters.azureServicesFirewallRuleName.value -eq "[parameters('postgresAzureServicesFirewallRuleName')]") 'the PostgreSQL module must receive the exact adopted Azure-services firewall rule name'
+    Assert-True ($null -ne $azureServicesRule -and $azureServicesRule.name -eq "[format('{0}/{1}', parameters('serverName'), parameters('azureServicesFirewallRuleName'))]") 'PostgreSQL must preserve the exact adopted Azure-services firewall rule resource path'
     if ($Mode -eq 'dev') {
         Assert-True ($postgresFirewallRules.Count -eq 1 -and $null -ne $azureServicesRule -and $azureServicesRule.condition -eq "[parameters('allowAzureServicesFirewallRule')]" -and $postgresDeployment.properties.parameters.allowAzureServicesFirewallRule.value -eq $allowAzureServicesRuleExpression -and $azureServicesRule.properties.startIpAddress -eq '0.0.0.0' -and $azureServicesRule.properties.endIpAddress -eq '0.0.0.0') 'development PostgreSQL networking must declare only the exact Azure-services firewall rule'
     }

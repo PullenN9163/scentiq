@@ -9,6 +9,7 @@ param tenantId string
 param workspaceResourceId string
 param enablePostgresLock bool = true
 param allowAzureServicesFirewallRule bool = false
+param azureServicesFirewallRuleName string = 'AllowAllAzureServicesAndResourcesWithinAzureIps'
 param commonTags object
 
 module freshServer 'postgres-fresh-server.bicep' = if (!useExisting) {
@@ -91,6 +92,7 @@ module postgresSettings 'postgres-settings.bicep' = {
     workspaceResourceId: workspaceResourceId
     enablePostgresLock: enablePostgresLock
     allowAzureServicesFirewallRule: allowAzureServicesFirewallRule
+    azureServicesFirewallRuleName: azureServicesFirewallRuleName
   }
   dependsOn: [
     freshServer
