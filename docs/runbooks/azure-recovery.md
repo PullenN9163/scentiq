@@ -107,7 +107,22 @@ az postgres flexible-server show --resource-group $sourceResourceGroupName --nam
 az postgres flexible-server db list --resource-group $sourceResourceGroupName --server-name $sourceServerName --query "[].name" -o tsv
 ```
 
-Use the guarded drill script for the restore, readiness wait, and database verification. It resolves source and resource-group IDs, rejects an unsafe target name or resource group before calling Azure, and does not retrieve a database password.
+The guarded drill script is the only approved PostgreSQL restore and cleanup path. It resolves the source and resource-group IDs, requires the source to be `Ready`, reads `backup.earliestRestoreDate`, rejects future and out-of-window restore points, confirms that the target is absent, and does not retrieve a database password.
+
+Run the read-only preflight first. It performs every source, retention-window, and target-absence check but does not create or change a server:
+
+```powershell
+.\scripts\azure\Test-PostgresRestore.ps1 `
+  -ResourceGroupName $sourceResourceGroupName `
+  -ServerName $sourceServerName `
+  -RestoreServerName $restoreServerName `
+  -RestorePoint $restorePoint `
+  -ExpectedDatabaseName $expectedDatabaseName `
+  -TargetResourceGroupName $targetResourceGroupName `
+  -PreflightOnly
+```
+
+After the incident owner approves the preflight result, rerun the same guarded command without `-PreflightOnly`. The script creates the separate target, waits for `Ready`, and confirms that the expected database exists.
 
 ```powershell
 .\scripts\azure\Test-PostgresRestore.ps1 `
@@ -119,21 +134,7 @@ Use the guarded drill script for the restore, readiness wait, and database verif
   -TargetResourceGroupName $targetResourceGroupName
 ```
 
-For a controlled manual restore, use the current Azure CLI restore command with the source resource ID and the supplied UTC restore point. This creates a server and is therefore an approved recovery action, not a validation-only command.
-
-```powershell
-$sourceServerId = az postgres flexible-server show --resource-group $sourceResourceGroupName --name $sourceServerName --query id -o tsv
-az postgres flexible-server restore --resource-group $targetResourceGroupName --name $restoreServerName --source-server $sourceServerId --restore-time $restorePoint --yes
-```
-
-Validate the target reaches `Ready` and that the expected database is present. Do not point an application at the restored server until an incident owner has approved the data and access validation.
-
-```powershell
-az postgres flexible-server show --resource-group $targetResourceGroupName --name $restoreServerName --query state -o tsv
-az postgres flexible-server db list --resource-group $targetResourceGroupName --server-name $restoreServerName --query "[].name" -o tsv
-```
-
-After approval, delete only the named restore target. The script prints this exact cleanup command after successful verification; deletion requires the separate `-DeleteAfterVerification` switch.
+Do not point an application at the restored server until an incident owner has approved the data and access validation. After approval, use the guarded cleanup mode only for the named restore target. It rechecks `Ready` and the expected database before deletion; both `-CleanupOnly` and `-DeleteAfterVerification` are required confirmations.
 
 ```powershell
 .\scripts\azure\Test-PostgresRestore.ps1 `
@@ -143,10 +144,9 @@ After approval, delete only the named restore target. The script prints this exa
   -RestorePoint $restorePoint `
   -ExpectedDatabaseName $expectedDatabaseName `
   -TargetResourceGroupName $targetResourceGroupName `
+  -CleanupOnly `
   -DeleteAfterVerification
 ```
-
-Alternatively, after confirming the resource ID and name, use `az postgres flexible-server delete --resource-group $targetResourceGroupName --name $restoreServerName --yes`. Never delete the source server as part of a restore drill.
 
 ## Controlled lock removal and reapplication
 

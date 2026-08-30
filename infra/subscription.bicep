@@ -62,7 +62,8 @@ param postgresAdministratorPassword string = ''
 param postgresAdministratorLogin string = 'scentiqadmin'
 param postgresSkuName string = 'Standard_B1ms'
 param postgresTenantId string = tenant().tenantId
-param postgresAzureServicesFirewallRuleName string = 'AllowAllAzureServicesAndResourcesWithinAzureIps'
+param postgresAzureServicesFirewallRuleName string
+param postgresExistingTags object
 param apiMinReplicas int = 1
 param apiMaxReplicas int = 2
 param webMinReplicas int = 1
@@ -147,6 +148,7 @@ module platform 'main.bicep' = {
     postgresSkuName: postgresSkuName
     postgresTenantId: postgresTenantId
     postgresAzureServicesFirewallRuleName: postgresAzureServicesFirewallRuleName
+    postgresExistingTags: postgresExistingTags
     apiMinReplicas: apiMinReplicas
     apiMaxReplicas: apiMaxReplicas
     webMinReplicas: webMinReplicas

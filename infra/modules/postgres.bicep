@@ -9,7 +9,8 @@ param tenantId string
 param workspaceResourceId string
 param enablePostgresLock bool = true
 param allowAzureServicesFirewallRule bool = false
-param azureServicesFirewallRuleName string = 'AllowAllAzureServicesAndResourcesWithinAzureIps'
+param azureServicesFirewallRuleName string
+param existingTags object
 param commonTags object
 
 module freshServer 'postgres-fresh-server.bicep' = if (!useExisting) {
@@ -30,6 +31,10 @@ module freshServer 'postgres-fresh-server.bicep' = if (!useExisting) {
 resource adoptedServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = if (useExisting) {
   name: serverName
   location: location
+  // Bicep cannot evaluate an existing resource's tags before this parent PUT.
+  // The caller therefore supplies the redacted, read-only inventory as an
+  // explicit contract so the PUT cannot clear unrelated live tags.
+  tags: union(existingTags, commonTags)
   sku: {
     name: skuName
     tier: 'Burstable'
@@ -72,17 +77,6 @@ resource adoptedServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = 
       role: 'Primary'
     }
   }
-}
-
-module adoptedServerTags 'postgres-tags.bicep' = if (useExisting) {
-  name: 'postgres-adopted-tags'
-  params: {
-    serverName: serverName
-    commonTags: commonTags
-  }
-  dependsOn: [
-    adoptedServer
-  ]
 }
 
 module postgresSettings 'postgres-settings.bicep' = {

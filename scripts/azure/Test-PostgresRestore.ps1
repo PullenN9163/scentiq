@@ -6,6 +6,8 @@ param(
     [Parameter(Mandatory)] [ValidateNotNullOrEmpty()] [string] $RestorePoint,
     [Parameter(Mandatory)] [ValidateNotNullOrEmpty()] [string] $ExpectedDatabaseName,
     [string] $TargetResourceGroupName = 'scentiq-rg-test-eus',
+    [switch] $PreflightOnly,
+    [switch] $CleanupOnly,
     [switch] $DeleteAfterVerification
 )
 
@@ -22,9 +24,29 @@ if ($TargetResourceGroupName -ne $approvedTargetResourceGroup) {
     exit 1
 }
 
+if ($ResourceGroupName -eq $TargetResourceGroupName -and $ServerName -eq $RestoreServerName) {
+    Write-Error 'Source and target identify the same resource; a restore target must be distinct from its source.'
+    exit 1
+}
+
+if ($PreflightOnly -and ($CleanupOnly -or $DeleteAfterVerification)) {
+    Write-Error 'PreflightOnly cannot be combined with cleanup or deletion switches.'
+    exit 1
+}
+
+if ($CleanupOnly -and -not $DeleteAfterVerification) {
+    Write-Error 'CleanupOnly requires the explicit DeleteAfterVerification confirmation switch.'
+    exit 1
+}
+
 $parsedRestorePoint = [DateTimeOffset]::MinValue
 if (-not [DateTimeOffset]::TryParse($RestorePoint, [ref] $parsedRestorePoint) -or $parsedRestorePoint.Offset -ne [TimeSpan]::Zero) {
     Write-Error 'RestorePoint must be an ISO 8601 UTC timestamp, for example 2026-08-29T00:00:00Z.'
+    exit 1
+}
+
+if ($parsedRestorePoint -gt [DateTimeOffset]::UtcNow) {
+    Write-Error 'RestorePoint must not be in the future.'
     exit 1
 }
 
@@ -39,8 +61,55 @@ function Invoke-AzCli {
     return $result
 }
 
+function Assert-TargetServerAbsent {
+    $result = & az postgres flexible-server show --resource-group $TargetResourceGroupName --name $RestoreServerName --query id --output tsv --only-show-errors 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 0) {
+        throw "Restore target '$RestoreServerName' already exists in '$TargetResourceGroupName'. Use a new approved restore name; do not overwrite an existing server."
+    }
+
+    if (($result | Out-String) -match 'ResourceNotFound|was not found|could not be found') {
+        return
+    }
+
+    throw "Unable to confirm that restore target '$RestoreServerName' is absent. Azure CLI exit code: $exitCode"
+}
+
+function Assert-RestoreTargetReadyAndContainsExpectedDatabase {
+    $state = (Invoke-AzCli @('postgres', 'flexible-server', 'show', '--resource-group', $TargetResourceGroupName, '--name', $RestoreServerName, '--query', 'state', '--output', 'tsv')).Trim()
+    if ($state -ne 'Ready') {
+        throw "Restore target '$RestoreServerName' is not Ready; refusing cleanup. Current state: $state"
+    }
+
+    $databaseNames = @(Invoke-AzCli @('postgres', 'flexible-server', 'db', 'list', '--resource-group', $TargetResourceGroupName, '--server-name', $RestoreServerName, '--query', '[].name', '--output', 'tsv'))
+    if ($databaseNames -notcontains $ExpectedDatabaseName) {
+        throw "Restore target '$RestoreServerName' does not contain the expected database '$ExpectedDatabaseName'; refusing cleanup."
+    }
+}
+
 try {
-    $sourceServerId = (Invoke-AzCli @('postgres', 'flexible-server', 'show', '--resource-group', $ResourceGroupName, '--name', $ServerName, '--query', 'id', '--output', 'tsv')).Trim()
+    if ($CleanupOnly) {
+        Assert-RestoreTargetReadyAndContainsExpectedDatabase
+        Invoke-AzCli @('postgres', 'flexible-server', 'delete', '--resource-group', $TargetResourceGroupName, '--name', $RestoreServerName, '--yes', '--only-show-errors') | Out-Null
+        Write-Output "Deleted validated restore target '$RestoreServerName' from '$TargetResourceGroupName'."
+        return
+    }
+
+    $sourceMetadata = (Invoke-AzCli @('postgres', 'flexible-server', 'show', '--resource-group', $ResourceGroupName, '--name', $ServerName, '--query', '{id:id,state:state,earliestRestoreDate:backup.earliestRestoreDate}', '--output', 'json') | Out-String | ConvertFrom-Json)
+    $sourceServerId = [string] $sourceMetadata.id
+    if ($sourceMetadata.state -ne 'Ready') {
+        throw "Source server '$ServerName' is not Ready; refusing restore. Current state: $($sourceMetadata.state)"
+    }
+
+    $earliestRestoreDate = [DateTimeOffset]::MinValue
+    if ([string]::IsNullOrWhiteSpace([string] $sourceMetadata.earliestRestoreDate) -or -not [DateTimeOffset]::TryParse([string] $sourceMetadata.earliestRestoreDate, [ref] $earliestRestoreDate)) {
+        throw "Source server '$ServerName' did not return backup.earliestRestoreDate; refusing restore."
+    }
+
+    if ($parsedRestorePoint -lt $earliestRestoreDate.ToUniversalTime()) {
+        throw "RestorePoint is earlier than the source server backup.earliestRestoreDate ($($earliestRestoreDate.ToUniversalTime().ToString('o')))."
+    }
+
     $sourceResourceGroupId = (Invoke-AzCli @('group', 'show', '--name', $ResourceGroupName, '--query', 'id', '--output', 'tsv')).Trim()
     $targetResourceGroupId = (Invoke-AzCli @('group', 'show', '--name', $TargetResourceGroupName, '--query', 'id', '--output', 'tsv')).Trim()
 
@@ -51,6 +120,14 @@ try {
     Write-Output "Source server ID: $sourceServerId"
     Write-Output "Source resource group ID: $sourceResourceGroupId"
     Write-Output "Target resource group ID: $targetResourceGroupId"
+    Write-Output "Source earliest restore date: $($earliestRestoreDate.ToUniversalTime().ToString('o'))"
+
+    Assert-TargetServerAbsent
+
+    if ($PreflightOnly) {
+        Write-Output "Preflight succeeded: source is Ready, restore point is within retention, and target '$RestoreServerName' is absent. No restore was started."
+        return
+    }
 
     Invoke-AzCli @('postgres', 'flexible-server', 'restore', '--resource-group', $TargetResourceGroupName, '--name', $RestoreServerName, '--source-server', $sourceServerId, '--restore-time', $RestorePoint, '--yes', '--only-show-errors') | Out-Null
 
@@ -68,18 +145,12 @@ try {
         Start-Sleep -Seconds 15
     } while ($true)
 
-    $databaseNames = @(Invoke-AzCli @('postgres', 'flexible-server', 'db', 'list', '--resource-group', $TargetResourceGroupName, '--server-name', $RestoreServerName, '--query', '[].name', '--output', 'tsv'))
-    if ($databaseNames -notcontains $ExpectedDatabaseName) {
-        throw "Restored server does not contain the expected database '$ExpectedDatabaseName'."
-    }
+    Assert-RestoreTargetReadyAndContainsExpectedDatabase
 
     Write-Output "Restore verification succeeded: server is Ready and database '$ExpectedDatabaseName' exists."
-    $cleanupCommand = ".\scripts\azure\Test-PostgresRestore.ps1 -ResourceGroupName '$ResourceGroupName' -ServerName '$ServerName' -RestoreServerName '$RestoreServerName' -RestorePoint '$RestorePoint' -ExpectedDatabaseName '$ExpectedDatabaseName' -TargetResourceGroupName '$TargetResourceGroupName' -DeleteAfterVerification"
-    Write-Output "To delete this restore target after review, run exactly: $cleanupCommand"
-
     if ($DeleteAfterVerification) {
         Invoke-AzCli @('postgres', 'flexible-server', 'delete', '--resource-group', $TargetResourceGroupName, '--name', $RestoreServerName, '--yes', '--only-show-errors') | Out-Null
-        Write-Output "Deleted restore target '$RestoreServerName' from '$TargetResourceGroupName'."
+        Write-Output "Deleted validated restore target '$RestoreServerName' from '$TargetResourceGroupName'."
     }
 }
 catch {

@@ -49,7 +49,8 @@ param postgresAdministratorLogin string = 'scentiqadmin'
 param postgresSkuName string = 'Standard_B1ms'
 param postgresTenantId string = tenant().tenantId
 param enablePostgresLock bool = true
-param postgresAzureServicesFirewallRuleName string = 'AllowAllAzureServicesAndResourcesWithinAzureIps'
+param postgresAzureServicesFirewallRuleName string
+param postgresExistingTags object
 param apiMinReplicas int = 1
 param apiMaxReplicas int = 2
 param webMinReplicas int = 1
@@ -296,6 +297,7 @@ module postgres 'modules/postgres.bicep' = {
     enablePostgresLock: enablePostgresLock
     allowAzureServicesFirewallRule: deploymentMode == 'dev' && networkMode == 'publicDev'
     azureServicesFirewallRuleName: postgresAzureServicesFirewallRuleName
+    existingTags: postgresExistingTags
     commonTags: commonTags
   }
 }

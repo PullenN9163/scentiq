@@ -24,6 +24,13 @@ param keyVaultName = 'scentiq-kv-dev-eus'
 param postgresServerName = 'scentiq-pg-dev-eus'
 param postgresTenantId = '8bf88c8e-62b5-49b1-a18a-296adc261f74'
 param postgresAzureServicesFirewallRuleName = 'AllowAllAzureServicesAndResourcesWithinAzureIps_2026-8-6_22-2-8'
+param postgresExistingTags = {
+  Project: 'scentiq'
+  'cost-center': 'personal-project'
+  environment: 'development'
+  'managed-by': 'manual'
+  owner: 'nas'
+}
 param identityName = 'scentiq-api-id-dev-eus'
 param identityPrincipalId = 'bf64241d-7973-47a1-9a2c-5f96b9b6ea86'
 param webIdentityName = 'scentiq-web-id-dev-eus'
