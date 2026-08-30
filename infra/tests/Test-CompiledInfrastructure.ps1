@@ -109,8 +109,14 @@ else {
     Assert-True ($LASTEXITCODE -eq 1 -and ($unconfirmedCleanupOutput | Out-String) -match 'requires the explicit DeleteAfterVerification') 'the PostgreSQL restore drill must require an explicit deletion confirmation for cleanup'
     $global:LASTEXITCODE = 0
 
+    $loneDeleteConfirmationOutput = & $restoreScriptPath -ResourceGroupName 'scentiq-rg-dev-eus' -ServerName 'scentiq-pg-dev-eus' -RestoreServerName 'scentiq-pg-restore-lone-delete' -RestorePoint '2999-01-01T00:00:00Z' -ExpectedDatabaseName 'scentiq_dev' -TargetResourceGroupName 'scentiq-rg-test-eus' -DeleteAfterVerification 2>&1
+    Assert-True ($LASTEXITCODE -eq 1 -and ($loneDeleteConfirmationOutput | Out-String) -match 'requires CleanupOnly') 'the PostgreSQL restore drill must reject DeleteAfterVerification unless CleanupOnly is explicitly supplied before Azure is invoked'
+    $global:LASTEXITCODE = 0
+
     $restoreScriptContent = Get-Content -Raw -LiteralPath $restoreScriptPath
     Assert-True ($restoreScriptContent -match 'backup\.earliestRestoreDate' -and $restoreScriptContent -match 'Assert-TargetServerAbsent') 'the PostgreSQL restore drill must query the source retention boundary and require an absent target before restoring'
+    Assert-True (([regex]::Matches($restoreScriptContent, "'postgres', 'flexible-server', 'delete'")).Count -eq 1) 'the PostgreSQL restore drill must contain a delete invocation only in its cleanup-only path'
+    Assert-True ($restoreScriptContent -match "To delete this validated restore target, run exactly:" -and $restoreScriptContent -match '-CleanupOnly -DeleteAfterVerification') 'the PostgreSQL restore drill must print the exact separate guarded cleanup invocation after validation'
 }
 
 $recoveryRunbookPath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'docs/runbooks/azure-recovery.md'

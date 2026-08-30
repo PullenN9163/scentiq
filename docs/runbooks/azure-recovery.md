@@ -134,7 +134,7 @@ After the incident owner approves the preflight result, rerun the same guarded c
   -TargetResourceGroupName $targetResourceGroupName
 ```
 
-Do not point an application at the restored server until an incident owner has approved the data and access validation. After approval, use the guarded cleanup mode only for the named restore target. It rechecks `Ready` and the expected database before deletion; both `-CleanupOnly` and `-DeleteAfterVerification` are required confirmations.
+Do not point an application at the restored server until an incident owner has approved the data and access validation. After successful normal verification, the script prints this exact guarded cleanup command. Run it separately only after approval. Cleanup rechecks `Ready` and the expected database before deletion; both `-CleanupOnly` and `-DeleteAfterVerification` are required confirmations.
 
 ```powershell
 .\scripts\azure\Test-PostgresRestore.ps1 `

@@ -39,6 +39,11 @@ if ($CleanupOnly -and -not $DeleteAfterVerification) {
     exit 1
 }
 
+if ($DeleteAfterVerification -and -not $CleanupOnly) {
+    Write-Error 'DeleteAfterVerification requires CleanupOnly so deletion cannot occur in the normal restore path.'
+    exit 1
+}
+
 $parsedRestorePoint = [DateTimeOffset]::MinValue
 if (-not [DateTimeOffset]::TryParse($RestorePoint, [ref] $parsedRestorePoint) -or $parsedRestorePoint.Offset -ne [TimeSpan]::Zero) {
     Write-Error 'RestorePoint must be an ISO 8601 UTC timestamp, for example 2026-08-29T00:00:00Z.'
@@ -148,10 +153,8 @@ try {
     Assert-RestoreTargetReadyAndContainsExpectedDatabase
 
     Write-Output "Restore verification succeeded: server is Ready and database '$ExpectedDatabaseName' exists."
-    if ($DeleteAfterVerification) {
-        Invoke-AzCli @('postgres', 'flexible-server', 'delete', '--resource-group', $TargetResourceGroupName, '--name', $RestoreServerName, '--yes', '--only-show-errors') | Out-Null
-        Write-Output "Deleted validated restore target '$RestoreServerName' from '$TargetResourceGroupName'."
-    }
+    $cleanupCommand = ".\scripts\azure\Test-PostgresRestore.ps1 -ResourceGroupName '$ResourceGroupName' -ServerName '$ServerName' -RestoreServerName '$RestoreServerName' -RestorePoint '$RestorePoint' -ExpectedDatabaseName '$ExpectedDatabaseName' -TargetResourceGroupName '$TargetResourceGroupName' -CleanupOnly -DeleteAfterVerification"
+    Write-Output "To delete this validated restore target, run exactly: $cleanupCommand"
 }
 catch {
     Write-Error $_
