@@ -78,10 +78,10 @@ resource migrationDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-
   scope: migrationJob
   properties: {
     workspaceId: workspaceResourceId
-    logs: [
+    logs: []
+    metrics: [
       { category: 'Basic', enabled: true }
     ]
-    metrics: []
   }
 }
 
@@ -102,9 +102,10 @@ resource availabilityAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pr
 AppAvailabilityResults
 | where _ResourceId == '__applicationInsightsResourceId__'
 | where Success == false
-| summarize FailureCount = count()
+| summarize FailureCount = count() by bin(TimeGenerated, 5m)
+| project TimeGenerated, FailureCount
 ''', '__applicationInsightsResourceId__', applicationInsightsResourceId)
-          timeAggregation: 'Count'
+          timeAggregation: 'Maximum'
           operator: 'GreaterThan'
           threshold: 0
           metricMeasureColumn: 'FailureCount'
@@ -119,7 +120,6 @@ AppAvailabilityResults
     displayName: 'ScentIQ availability failures (${environmentName})'
     enabled: true
     evaluationFrequency: 'PT5M'
-    muteActionsDuration: 'PT30M'
     scopes: [workspaceScope]
     severity: 1
     skipQueryValidation: true
@@ -143,9 +143,9 @@ resource httpFailureRateAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15
           query: replace('''
 AppRequests
 | where _ResourceId == '__applicationInsightsResourceId__'
-| summarize RequestCount = count(), FailureRate = 100.0 * countif(Success == false) / count()
+| summarize RequestCount = count(), FailureRate = 100.0 * countif(Success == false) / count() by bin(TimeGenerated, 5m)
 | where RequestCount >= 20
-| project FailureRate
+| project TimeGenerated, FailureRate
 ''', '__applicationInsightsResourceId__', applicationInsightsResourceId)
           timeAggregation: 'Maximum'
           operator: 'GreaterThan'
@@ -162,7 +162,6 @@ AppRequests
     displayName: 'ScentIQ HTTP failure rate (${environmentName})'
     enabled: true
     evaluationFrequency: 'PT5M'
-    muteActionsDuration: 'PT30M'
     scopes: [workspaceScope]
     severity: 2
     skipQueryValidation: true
@@ -186,9 +185,9 @@ resource latencyAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview
           query: replace('''
 AppRequests
 | where _ResourceId == '__applicationInsightsResourceId__'
-| summarize RequestCount = count(), P95DurationMs = percentile(DurationMs, 95)
+| summarize RequestCount = count(), P95DurationMs = percentile(DurationMs, 95) by bin(TimeGenerated, 5m)
 | where RequestCount >= 20
-| project P95DurationMs
+| project TimeGenerated, P95DurationMs
 ''', '__applicationInsightsResourceId__', applicationInsightsResourceId)
           timeAggregation: 'Maximum'
           operator: 'GreaterThan'
@@ -205,7 +204,6 @@ AppRequests
     displayName: 'ScentIQ HTTP p95 latency (${environmentName})'
     enabled: true
     evaluationFrequency: 'PT5M'
-    muteActionsDuration: 'PT30M'
     scopes: [workspaceScope]
     severity: 2
     skipQueryValidation: true
@@ -232,7 +230,7 @@ union isfuzzy=true ContainerAppSystemLogs_CL, AzureDiagnostics
 | where tostring(Log_s) has_any ('Failed', 'TimedOut', 'Timeout')
 | summarize MigrationFailureCount = count()
 ''', '__migrationJobResourceId__', migrationJob.id)
-          timeAggregation: 'Count'
+          timeAggregation: 'Maximum'
           operator: 'GreaterThan'
           threshold: 0
           metricMeasureColumn: 'MigrationFailureCount'
@@ -247,7 +245,6 @@ union isfuzzy=true ContainerAppSystemLogs_CL, AzureDiagnostics
     displayName: 'ScentIQ migration job failure (${environmentName})'
     enabled: true
     evaluationFrequency: 'PT5M'
-    muteActionsDuration: 'PT30M'
     scopes: [workspaceScope]
     severity: 1
     skipQueryValidation: true
@@ -379,7 +376,7 @@ resource deploymentFailureAlert 'Microsoft.Insights/activityLogAlerts@2023-01-01
       allOf: [
         { field: 'category', equals: 'Administrative' }
         { field: 'status', equals: 'Failed' }
-        { field: 'operationName', containsAny: ['Microsoft.Resources/deployments/write'] }
+        { field: 'operationName', equals: 'Microsoft.Resources/deployments/write' }
       ]
     }
     description: 'Azure Resource Manager deployment failed for the ScentIQ resource group. Runbook: ${runbookPath}'

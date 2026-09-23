@@ -150,6 +150,17 @@ if ($Mode -eq 'dev') {
     }
 
     $roleAssignments = @($resources | Where-Object { $_.type -eq 'Microsoft.Authorization/roleAssignments' })
+    $customRoleDefinitions = @($resources | Where-Object { $_.type -eq 'Microsoft.Authorization/roleDefinitions' })
+    $subscriptionDeploymentRole = $customRoleDefinitions | Where-Object { $_.properties.roleName -eq 'ScentIQ Subscription Deployment Runner' } | Select-Object -First 1
+    $expectedSubscriptionDeploymentActions = @(
+        'Microsoft.Resources/deployments/*'
+        'Microsoft.Resources/subscriptions/resourceGroups/read'
+    )
+    Assert-True ($customRoleDefinitions.Count -eq 1 -and $null -ne $subscriptionDeploymentRole) 'development must declare exactly one narrow subscription deployment custom role'
+    Assert-True ($null -ne $subscriptionDeploymentRole -and (@($subscriptionDeploymentRole.properties.permissions[0].actions | Sort-Object) -join ',') -eq (@($expectedSubscriptionDeploymentActions | Sort-Object) -join ',')) 'subscription deployment custom role must grant only deployment operations and resource-group read'
+    Assert-True ($null -ne $subscriptionDeploymentRole -and $subscriptionDeploymentRole.properties.assignableScopes.Count -eq 1 -and $subscriptionDeploymentRole.properties.assignableScopes[0] -eq "[subscription().id]") 'subscription deployment custom role must be assignable only in the current subscription'
+    $subscriptionDeploymentAssignment = $roleAssignments | Where-Object { $_.properties.roleDefinitionId -match 'subscriptionDeploymentRoleDefinitionName' } | Select-Object -First 1
+    Assert-True ($null -ne $subscriptionDeploymentAssignment -and $subscriptionDeploymentAssignment.properties.principalId -eq "[parameters('deploymentIdentityPrincipalId')]" -and $subscriptionDeploymentAssignment.properties.principalType -eq 'ServicePrincipal') 'GitHub deployment identity must receive the narrow subscription deployment role'
     $roleDefinitions = @{
         AcrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
         BlobContributor = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
@@ -191,7 +202,7 @@ if ($Mode -eq 'dev') {
     Assert-True ($apiAssignments.Count -eq 6 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPull }).Count -eq 2 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.BlobContributor }).Count -eq 2 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser }).Count -eq 2) 'API identity must have exactly AcrPull, Storage Blob Data Contributor, and Key Vault Secrets User across fresh and adopted branches'
     Assert-True ($webAssignments.Count -eq 1 -and (Test-RoleDefinition $webAssignments[0] $roleDefinitions.AcrPull)) 'web identity must have only AcrPull'
     Assert-True ($migrationAssignments.Count -eq 2 -and @($migrationAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPull }).Count -eq 1 -and @($migrationAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser }).Count -eq 1) 'migration identity must have exactly AcrPull and Key Vault Secrets User'
-    Assert-True ($deploymentAssignments.Count -eq 3 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.Contributor }).Count -eq 1 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.RbacAdministrator }).Count -eq 1 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPush }).Count -eq 1) 'deployment identity must retain exactly Contributor, Role Based Access Control Administrator, and AcrPush'
+    Assert-True ($deploymentAssignments.Count -eq 4 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.Contributor }).Count -eq 1 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.RbacAdministrator }).Count -eq 1 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPush }).Count -eq 1 -and @($deploymentAssignments | Where-Object { $_.properties.roleDefinitionId -match 'subscriptionDeploymentRoleDefinitionName' }).Count -eq 1) 'deployment identity must retain its resource-group roles plus exactly one narrow subscription deployment role'
 
     $requiredTypes = @(
         'Microsoft.Insights/actionGroups',
@@ -269,7 +280,7 @@ if ($Mode -eq 'dev') {
         Assert-True ($null -ne $appDiagnostic -and $appDiagnostic.scope -eq "[resourceId('Microsoft.App/containerApps', parameters('$expectedAppParameter'))]" -and $appDiagnostic.properties.logs.Count -eq 0 -and $appDiagnostic.properties.metrics.Count -eq 1 -and $appDiagnostic.properties.metrics[0].category -eq 'AllMetrics' -and $appDiagnostic.properties.metrics[0].enabled -eq $true) "$appDiagnosticName must send only the supported Container App metrics for its exact application scope"
     }
     $migrationDiagnostic = $observabilityDiagnostics | Where-Object { $_.name -eq 'scentiq-migration-job-logs' } | Select-Object -First 1
-    Assert-True ($null -ne $migrationDiagnostic -and $migrationDiagnostic.scope -eq "[resourceId('Microsoft.App/jobs', parameters('migrationJobName'))]" -and $migrationDiagnostic.properties.logs.Count -eq 1 -and $migrationDiagnostic.properties.logs[0].category -eq 'Basic' -and $migrationDiagnostic.properties.logs[0].enabled -eq $true -and $migrationDiagnostic.properties.metrics.Count -eq 0) 'migration diagnostics must send the inventoried Basic log category for the exact job scope'
+    Assert-True ($null -ne $migrationDiagnostic -and $migrationDiagnostic.scope -eq "[resourceId('Microsoft.App/jobs', parameters('migrationJobName'))]" -and $migrationDiagnostic.properties.logs.Count -eq 0 -and $migrationDiagnostic.properties.metrics.Count -eq 1 -and $migrationDiagnostic.properties.metrics[0].category -eq 'Basic' -and $migrationDiagnostic.properties.metrics[0].enabled -eq $true) 'migration diagnostics must send the provider-inventoried Basic metric category for the exact job scope'
 
     $scheduledAlerts = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/scheduledQueryRules' })
     $alertingDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'alerting-' }) | Select-Object -First 1
@@ -289,6 +300,10 @@ if ($Mode -eq 'dev') {
         Assert-True ($null -ne $criterion -and $criterion.operator -eq 'GreaterThan' -and $criterion.threshold -eq $expected.threshold -and $criterion.failingPeriods.minFailingPeriodsToAlert -eq $expected.minimumPeriods -and $criterion.failingPeriods.numberOfEvaluationPeriods -eq $expected.evaluationPeriods) "$alertName must retain its defensible threshold and failing-period contract"
         Assert-True ($null -ne $alert -and $alert.properties.actions.actionGroups.Count -eq 1 -and $alert.properties.actions.actionGroups[0] -eq "[parameters('actionGroupId')]") "$alertName must use the managed action group"
         Assert-True ($null -ne $alert -and $alert.properties.description -match 'runbookPath') "$alertName must link to an operational runbook path"
+        Assert-True ($null -ne $alert -and $alert.properties.autoMitigate -eq $true -and $null -eq $alert.properties.PSObject.Properties['muteActionsDuration']) "$alertName must remain stateful without provider-incompatible action suppression"
+        if ($expected.evaluationPeriods -gt 1) {
+            Assert-True ($null -ne $criterion -and $criterion.query -match 'bin\(TimeGenerated,\s*5m\)' -and $criterion.query -match 'project\s+TimeGenerated') "$alertName must project a five-minute TimeGenerated bin when evaluating multiple periods"
+        }
     }
     $httpFailureAlert = @($scheduledAlerts | Where-Object { $_.name -eq "[format('scentiq-http-failure-rate-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
     $latencyAlert = @($scheduledAlerts | Where-Object { $_.name -eq "[format('scentiq-http-p95-latency-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
@@ -296,6 +311,11 @@ if ($Mode -eq 'dev') {
     $latencyCriterion = if ($null -ne $latencyAlert) { $latencyAlert.properties.criteria.allOf[0] } else { $null }
     Assert-True ($null -ne $httpFailureCriterion -and $httpFailureCriterion.query -match 'RequestCount\s*>=\s*20' -and $httpFailureCriterion.query -match 'FailureRate') 'HTTP failure-rate alert must apply a minimum request-volume guard before evaluating the rate'
     Assert-True ($null -ne $latencyCriterion -and $latencyCriterion.query -match 'RequestCount\s*>=\s*20' -and $latencyCriterion.query -match 'percentile\(DurationMs,\s*95\)') 'latency alert must apply a minimum request-volume guard and calculate p95 duration'
+    foreach ($countResultAlertName in @('scentiq-availability', 'scentiq-migration-failure')) {
+        $countResultAlert = @($scheduledAlerts | Where-Object { $_.name -eq "[format('$countResultAlertName-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
+        $countResultCriterion = if ($null -ne $countResultAlert) { $countResultAlert.properties.criteria.allOf[0] } else { $null }
+        Assert-True ($null -ne $countResultCriterion -and $countResultCriterion.timeAggregation -eq 'Maximum' -and $null -ne $countResultCriterion.metricMeasureColumn) "$countResultAlertName must aggregate its projected count column with Maximum rather than the provider-invalid Count plus metricMeasureColumn combination"
+    }
 
     $metricAlerts = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/metricAlerts' })
     $expectedMetricAlerts = @{
@@ -328,7 +348,7 @@ if ($Mode -eq 'dev') {
     $deploymentFailureAlert = @($activityAlerts | Where-Object { $_.name -eq "[format('scentiq-deployment-failure-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
     Assert-True ($null -ne $resourceHealthAlert -and @($resourceHealthAlert.properties.condition.allOf | Where-Object { $_.field -eq 'properties.currentHealthStatus' -and $_.containsAny -contains 'Unavailable' -and $_.containsAny -contains 'Degraded' }).Count -eq 1) 'Resource Health alert must distinguish unavailable or degraded resources from routine health events'
     Assert-True ($null -ne $serviceHealthAlert -and @($serviceHealthAlert.properties.condition.allOf | Where-Object { $_.field -eq 'properties.incidentType' -and $_.containsAny -contains 'Incident' -and $_.containsAny -contains 'Maintenance' }).Count -eq 1) 'Service Health alert must cover incidents and planned maintenance affecting the subscription'
-    Assert-True ($null -ne $deploymentFailureAlert -and @($deploymentFailureAlert.properties.condition.allOf | Where-Object { $_.field -eq 'status' -and $_.equals -eq 'Failed' }).Count -eq 1 -and @($deploymentFailureAlert.properties.condition.allOf | Where-Object { $_.field -eq 'operationName' -and $_.containsAny -contains 'Microsoft.Resources/deployments/write' }).Count -eq 1) 'deployment-failure alert must detect failed ARM deployment writes rather than any administrative event'
+    Assert-True ($null -ne $deploymentFailureAlert -and @($deploymentFailureAlert.properties.condition.allOf | Where-Object { $_.field -eq 'status' -and $_.equals -eq 'Failed' }).Count -eq 1 -and @($deploymentFailureAlert.properties.condition.allOf | Where-Object { $_.field -eq 'operationName' -and $_.equals -eq 'Microsoft.Resources/deployments/write' }).Count -eq 1) 'deployment-failure alert must detect the exact failed ARM deployment write operation rather than any administrative event'
 
     $telemetryScriptPath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'scripts/azure/Test-AzureTelemetry.ps1'
     Assert-True (Test-Path -LiteralPath $telemetryScriptPath) 'Azure telemetry verifier script is missing'
@@ -446,10 +466,13 @@ if ($Mode -eq 'dev') {
     Assert-True ($null -ne $registryCreate -and $registryCreate.condition -match '^\[not\(parameters\(''useExisting''\)\)\]$') 'registry creation must be disabled for the adoption path'
 
     $platformDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'platform-' }) | Select-Object -First 1
+    $governanceDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'governance-' }) | Select-Object -First 1
+    Assert-True ($null -ne $governanceDeployment -and $governanceDeployment.properties.parameters.alertEmails.value -eq "[split(parameters('alertEmails'), ',')]") 'subscription deployment must pass shell-safe comma-separated alert recipients to governance without runtime JSON parsing'
     $platformActionGroupId = $platformDeployment.properties.parameters.actionGroupId.value
     Assert-True ($null -ne $platformDeployment -and $platformActionGroupId -is [string]) 'platform deployment must retain the actionGroupId interface'
     Assert-True ($platformActionGroupId -is [string] -and $platformActionGroupId -match 'Microsoft\.Insights/actionGroups.+scentiq-ag') 'platform actionGroupId must be a deterministic action group resource ID'
-    Assert-True ($platformActionGroupId -is [string] -and $platformActionGroupId -notmatch 'reference\(') 'platform actionGroupId must not depend on the governance deployment output'
+    Assert-True ($platformActionGroupId -is [string] -and $platformActionGroupId -notmatch 'reference\(') 'platform actionGroupId must remain deterministic without runtime output evaluation'
+    Assert-True ($null -ne $platformDeployment.dependsOn -and @($platformDeployment.dependsOn | Where-Object { $_ -match 'governance' }).Count -eq 1) 'platform deployment must wait for governance so alert resources cannot race the action group'
 
     Assert-True ($null -ne $platformDeployment -and $null -eq $platformDeployment.condition) 'platform deployment must remain unconditioned so Azure validates its adopted resources'
     Assert-True ($null -ne $platformDeployment -and $platformDeployment.properties.parameters.useExistingFoundation.value -eq "[parameters('useExistingFoundation')]") 'platform must forward the requested foundation mode without creating a conditional nested deployment'
@@ -611,7 +634,7 @@ if ($Mode -eq 'dev') {
     Assert-True (@($foundationDiagnostics | Where-Object { $_.properties.logs.Count -lt 1 }).Count -eq 0) 'Storage, Key Vault, and PostgreSQL diagnostics must enable logs'
     $storageDiagnostic = $foundationDiagnostics | Where-Object { $_.name -eq 'scentiq-storage-audit' } | Select-Object -First 1
     $keyVaultDiagnostic = $foundationDiagnostics | Where-Object { $_.name -eq 'scentiq-key-vault-audit' } | Select-Object -First 1
-    Assert-True ($null -ne $storageDiagnostic -and $storageDiagnostic.scope -eq "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageName'))]") 'storage diagnostics must target the adopted storage account scope'
+    Assert-True ($null -ne $storageDiagnostic -and $storageDiagnostic.scope -eq "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('storageName'), 'default')]") 'storage audit logs must target the Blob service where the provider exposes StorageRead, StorageWrite, and StorageDelete'
     Assert-True ($null -ne $keyVaultDiagnostic -and $keyVaultDiagnostic.scope -eq "[resourceId('Microsoft.KeyVault/vaults', parameters('vaultName'))]") 'Key Vault diagnostics must target the adopted vault scope'
 
     $foundationLocks = @($resources | Where-Object { $_.type -eq 'Microsoft.Authorization/locks' -and $_.name -in @('scentiq-storage-protection', 'scentiq-key-vault-protection') })
@@ -636,6 +659,9 @@ if ($Mode -eq 'dev') {
     $compiledTemplate = $template | ConvertTo-Json -Depth 100
     Assert-True ((@($resources | Where-Object { $_.type -eq 'Microsoft.KeyVault/vaults/secrets' }).Count) -eq 0) 'Bicep must not declare a Key Vault secret or its value'
     Assert-True ($compiledTemplate -notmatch '(?i)database-url.+value') 'Bicep must not declare a Key Vault secret value'
+    Assert-True ($compiledTemplate -match 'defaultDomain') 'API CORS must derive the web origin from the Container Apps environment default domain'
+    Assert-True ($compiledTemplate -notmatch "format\('https://\{0\}', parameters\('webAppName'\)\)") 'API CORS must not use a bare resource name as an origin'
+    Assert-True ($compiledTemplate -match "format\('https://\{0\}\{1\}/', parameters\('keyVaultName'\), environment\(\)\.suffixes\.keyvaultDns\)") 'API Key Vault URL must join the vault name to the dot-prefixed Azure DNS suffix without introducing a double dot'
     Assert-True ($platformDeployment.properties.template.parameters.enableStorageSharedKeyAccess.defaultValue -eq $false) 'the secure desired state must disable Storage Shared Key access by default in the platform model'
     Assert-True ($platformDeployment.properties.template.parameters.enableFoundationLocks.defaultValue -eq $true) 'the secure desired state must enable foundation locks by default in the platform model'
     Assert-True ($platformDeployment.properties.template.parameters.enablePostgresLock.defaultValue -eq $true) 'the secure desired state must enable the PostgreSQL lock by default in the platform model'
@@ -700,7 +726,7 @@ $postgresDatabases = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforP
 $scentiqDatabase = $postgresDatabases | Where-Object { $_.name -eq "[format('{0}/{1}', parameters('serverName'), 'scentiq_dev')]" } | Select-Object -First 1
 Assert-True ($postgresDatabases.Count -eq 1 -and $null -ne $scentiqDatabase -and $scentiqDatabase.properties.charset -eq 'UTF8' -and $scentiqDatabase.properties.collation -eq 'en_US.utf8') 'PostgreSQL must manage only the scentiq_dev database with its observed collation'
 $tlsConfiguration = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforPostgreSQL/flexibleServers/configurations' -and $_.name -eq "[format('{0}/{1}', parameters('serverName'), 'require_secure_transport')]" }) | Select-Object -First 1
-Assert-True ($null -ne $tlsConfiguration -and $tlsConfiguration.properties.value -eq 'on') 'PostgreSQL must require TLS without taking ownership of unrelated server configurations'
+Assert-True ($null -ne $tlsConfiguration -and $tlsConfiguration.properties.value -eq 'on' -and $tlsConfiguration.properties.source -eq 'user-override') 'PostgreSQL must require TLS with the provider-required user-override source without taking ownership of unrelated server configurations'
 
 $allowAzureServicesRuleExpression = "[and(equals(parameters('deploymentMode'), 'dev'), equals(parameters('networkMode'), 'publicDev'))]"
 Assert-True ($null -ne $azureServicesRule -and $azureServicesRule.name -eq "[format('{0}/{1}', parameters('serverName'), parameters('azureServicesFirewallRuleName'))]" -and $azureServicesRule.condition -eq "[parameters('allowAzureServicesFirewallRule')]") 'PostgreSQL must retain the exact conditional Azure-services firewall rule path'

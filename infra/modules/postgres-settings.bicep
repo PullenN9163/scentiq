@@ -22,6 +22,7 @@ resource requireSecureTransport 'Microsoft.DBforPostgreSQL/flexibleServers/confi
   name: 'require_secure_transport'
   properties: {
     value: 'on'
+    source: 'user-override'
   }
 }
 

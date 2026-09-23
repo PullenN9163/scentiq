@@ -33,3 +33,6 @@ resource existingEnvironmentTags 'Microsoft.Resources/tags@2025-04-01' = if (use
 }
 
 output id string = useExisting ? existingEnvironment.id : newEnvironment.id
+output defaultDomain string = useExisting
+  ? existingEnvironment.properties.defaultDomain
+  : newEnvironment!.properties.defaultDomain

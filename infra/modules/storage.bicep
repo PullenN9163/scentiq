@@ -132,7 +132,7 @@ resource managementPolicy 'Microsoft.Storage/storageAccounts/managementPolicies@
 }
 
 resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  scope: storage
+  scope: blobService
   name: 'scentiq-storage-audit'
   properties: {
     workspaceId: workspaceResourceId

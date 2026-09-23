@@ -4,28 +4,39 @@ ScentIQ deploys to `scentiq-rg-dev-eus` through modular Bicep and GitHub Actions
 
 ## Required GitHub environment configuration
 
-Create a protected `development` environment with the non-secret variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID`. Add `DATABASE_SECRET_URI` as an environment secret. Its value is the versionless Key Vault secret URI for the API PostgreSQL URL, such as `https://<vault>.vault.azure.net/secrets/database-url`. The referenced secret value must be a SQLAlchemy `postgresql+psycopg://` URL with TLS required. Do not store the URL itself in GitHub or the repository.
+Create a protected `development` environment with the non-secret variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID`. Add `AZURE_ALERT_EMAILS` as a GitHub environment variable containing a comma-separated list of operational email receivers, such as `owner@example.com,oncall@example.com`; keep personal addresses out of the repository. Add `DATABASE_SECRET_URI` as an environment secret. Its value is the versionless Key Vault secret URI for the API PostgreSQL URL, such as `https://<vault>.vault.azure.net/secrets/database-url`. The referenced secret value must be a SQLAlchemy `postgresql+psycopg://` URL with TLS required. Do not store the URL itself in GitHub or the repository.
 
-Configure a GitHub federated credential on the deployment identity for the protected environment. Grant that identity only the resource-group deployment and role-assignment permissions required by the template. No client secret is used.
+Configure a GitHub federated credential on the deployment identity for the protected environment. The subscription template bootstraps the custom `ScentIQ Subscription Deployment Runner` role for that identity. It grants only `Microsoft.Resources/deployments/*` and resource-group read at subscription scope; resource mutations remain limited by the identity's ScentIQ resource-group assignments. An owner must perform the initial subscription deployment. No client secret is used.
 
 ## Validate locally
 
 ```powershell
-az bicep build --file infra/main.bicep
+az bicep build --file infra/subscription.bicep
 az bicep build-params --file infra/parameters/dev.bicepparam
-az deployment group validate `
-  --resource-group scentiq-rg-dev-eus `
-  --template-file infra/main.bicep `
+if ([string]::IsNullOrWhiteSpace($env:SCENTIQ_ALERT_EMAIL)) {
+  throw 'Set SCENTIQ_ALERT_EMAIL before Azure validation.'
+}
+$alertEmails = (@($env:SCENTIQ_ALERT_EMAIL) -join ',')
+az deployment sub validate `
+  --location eastus `
+  --template-file infra/subscription.bicep `
   --parameters infra/parameters/dev.bicepparam `
-  --parameters deployWorkloads=false `
+  --parameters deployWorkloads=false alertEmails="$alertEmails" `
   --only-show-errors
+
+az deployment sub what-if `
+  --location eastus `
+  --template-file infra/subscription.bicep `
+  --parameters infra/parameters/dev.bicepparam `
+  --parameters deployWorkloads=true alertEmails="$alertEmails" `
+  --parameters databaseSecretUri='https://scentiq-kv-dev-eus.vault.azure.net/secrets/database-url'
 ```
 
-Validation is read-only. Review `az deployment group what-if` before manually creating resources. The adoption parameter file must continue to name the known development resources exactly.
+Validation and What-If are read-only. Review the subscription-scope What-If before manually creating resources. The adoption parameter file must continue to name the known development resources exactly.
 
 ## Deployment sequence
 
-The `Deploy development` workflow runs on `main` and manual dispatch. It authenticates with OIDC, validates and deploys shared infrastructure, builds API and web images tagged with the immutable Git commit SHA, and pushes them to ACR. It then deploys and executes the manual migration job. Application revisions are deployed only after that execution reports `Succeeded`.
+The `Deploy development` workflow runs on `dev` and manual dispatch. It authenticates with OIDC, validates and deploys shared infrastructure through the subscription-scope entry point, builds API and web images tagged with the immutable Git commit SHA, and pushes them to ACR. It then deploys and executes the manual migration job. Application revisions are deployed only after that execution reports `Succeeded`. Completed development work is promoted from `dev` to protected `main` through a pull request.
 
 The API has internal ingress. The public web app calls it over the Container Apps environment, so the deployment smoke test uses the web root and same-origin `/api/status` route. Routine application startup never applies migrations.
 

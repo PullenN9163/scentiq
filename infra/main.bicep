@@ -138,7 +138,7 @@ module keyVault 'modules/key-vault.bicep' = {
 
 var registryLoginServer = '${registryName}.azurecr.io'
 var storageBlobEndpoint = 'https://${storageName}.blob.${environment().suffixes.storage}/'
-var keyVaultUri = 'https://${keyVaultName}.${environment().suffixes.keyvaultDns}/'
+var keyVaultUri = 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/'
 
 resource registryResource 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
   name: registryName
@@ -335,7 +335,7 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
     commonTags: commonTags
     environmentVariables: [
       { name: 'SCENTIQ_ENV', value: environmentName }
-      { name: 'CORS_ORIGINS', value: 'https://${webAppName}' }
+      { name: 'CORS_ORIGINS', value: 'https://${webAppName}.${containerEnvironment.outputs.defaultDomain}' }
       { name: 'DEMO_USER_ID', value: '00000000-0000-4000-8000-000000000001' }
       { name: 'AZURE_CLIENT_ID', value: useExistingFoundation ? adoptedIdentity!.outputs.clientId : identity!.outputs.clientId }
       { name: 'AZURE_STORAGE_ACCOUNT_URL', value: storageBlobEndpoint }

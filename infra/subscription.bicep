@@ -81,6 +81,40 @@ var commonTags = {
   'data-classification': dataClassification
 }
 
+var subscriptionDeploymentRoleDefinitionName = guid(subscription().id, 'scentiq-subscription-deployment-runner')
+
+resource subscriptionDeploymentRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+  name: subscriptionDeploymentRoleDefinitionName
+  properties: {
+    roleName: 'ScentIQ Subscription Deployment Runner'
+    description: 'Allows the ScentIQ deployment identity to create and inspect subscription deployment records without granting resource mutation outside its resource-group assignments.'
+    type: 'CustomRole'
+    permissions: [
+      {
+        actions: [
+          'Microsoft.Resources/deployments/*'
+          'Microsoft.Resources/subscriptions/resourceGroups/read'
+        ]
+        notActions: []
+        dataActions: []
+        notDataActions: []
+      }
+    ]
+    assignableScopes: [
+      subscription().id
+    ]
+  }
+}
+
+resource subscriptionDeploymentRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, deploymentIdentityPrincipalId, subscriptionDeploymentRoleDefinition.id)
+  properties: {
+    roleDefinitionId: subscriptionDeploymentRoleDefinition.id
+    principalId: deploymentIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' existing = {
   name: resourceGroupName
 }
@@ -98,7 +132,7 @@ module governance 'modules/governance.bicep' = {
   scope: resourceGroup
   params: {
     environmentName: environmentName
-    alertEmails: json(alertEmails)
+    alertEmails: split(alertEmails, ',')
     budgetAmount: budgetAmount
     commonTags: commonTags
   }
@@ -159,6 +193,9 @@ module platform 'main.bicep' = {
     networkMode: networkMode
     productionApproved: productionApproved
   }
+  dependsOn: [
+    governance
+  ]
 }
 
 output resourceGroupId string = resourceGroup.id
