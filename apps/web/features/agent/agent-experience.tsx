@@ -19,7 +19,7 @@ function answerFor(prompt: string) {
     [prompts[2]]: { text: "Cedar After Rain and Paper Musk are your best quiet office choices in this demo rotation.", href: "/collection/cedar-after-rain", link: "View Cedar After Rain" },
     [prompts[3]]: { text: "Amber Index fits the cooler evening and has enough warmth for a date without becoming overly sweet.", href: "/collection/amber-index", link: "View Amber Index" },
     [prompts[4]]: { text: "Mint Condition adds a crisp gym-and-travel role at a low overlap with your current wardrobe.", href: "/discover", link: "Open Discover" },
-    [prompts[5]]: { text: "Warm-weather formality is better covered than winter versatility; consider an elegant cool-weather aromatic before another dense amber.", href: "/insights", link: "See coverage" },
+    [prompts[5]]: { text: "Warm-weather formality is the clearest use-case gap; consider a polished citrus or airy floral before another clean woody office scent.", href: "/insights", link: "See coverage" },
     [prompts[6]]: { text: `${getDemoFragranceById(insights.leastWornId)!.name} has the fewest demo wears. Try it for your next evening plan.`, href: `/collection/${insights.leastWornId}`, link: "View fragrance" },
     [prompts[7]]: { text: `${getDemoFragranceById(layer.fragranceAId)!.name} + ${getDemoFragranceById(layer.fragranceBId)!.name} is a ${layer.score}% demo match.`, href: `/layering?a=${layer.fragranceAId}`, link: "Open Layering Lab" },
     [prompts[8]]: { text: `${getDemoFragranceById(insights.mostWornId)!.name} leads your demo wear history.`, href: "/insights", link: "See wear insights" },

@@ -39,7 +39,7 @@ export function TodayDashboard() {
               <p><strong>{selected.sprays} sprays</strong> recommended</p>
               <div className="cluster">
                 <Button onClick={() => setWorn(true)}><Check size={17} />{worn ? "Marked worn" : "Wear this"}</Button>
-                <Button variant="secondary" onClick={() => setCandidateIndex((index) => (index + 1) % candidates.length)}><RefreshCw size={17} />Another option</Button>
+                <Button variant="secondary" onClick={() => { setCandidateIndex((index) => (index + 1) % candidates.length); setWorn(false); }}><RefreshCw size={17} />Another option</Button>
                 <Button asChild variant="ghost"><Link href={`/collection/${fragrance.id}`}>View details</Link></Button>
                 <Button asChild variant="ghost"><Link href={`/layering?a=${fragrance.id}`}><Layers3 size={17} />Layer it</Link></Button>
                 <Button variant="ghost" onClick={() => setDismissed(true)}><X size={17} />Dismiss</Button>
@@ -52,6 +52,10 @@ export function TodayDashboard() {
           </aside>
         </div>
       )}
+      <div className="grid grid-2 detail-sections">
+        <Card><CardContent><p className="eyebrow">Rotation context</p><h2 className="serif">Recently worn</h2>{today.recentWears.map((wear) => <p key={wear.id}><strong>{getDemoFragranceById(wear.fragranceId)!.name}</strong> · {wear.date} · {wear.sprays} sprays</p>)}</CardContent></Card>
+        <Card><CardContent><p className="eyebrow">Demo state library</p><h2 className="serif">Graceful when context is missing</h2><details><summary>Preview empty states</summary><ul><li>No collection — add a first fragrance to begin.</li><li>No event — recommendation uses weather and rotation.</li><li>No weather — recommendation uses schedule and preferences.</li><li>No recommendation — explore the collection while ScentIQ waits for context.</li></ul></details></CardContent></Card>
+      </div>
     </section>
   );
 }

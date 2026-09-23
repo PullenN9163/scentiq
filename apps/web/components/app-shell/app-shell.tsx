@@ -1,12 +1,13 @@
 "use client";
 
-import { BarChart3, Beaker, CalendarDays, Compass, Home, Menu, Settings, Sparkles, UserRound, X } from "lucide-react";
+import { BarChart3, Beaker, CalendarDays, Compass, Home, Menu, Settings, Sparkles, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { demoUser } from "@/lib/demo";
 
 const primary = [
@@ -23,10 +24,10 @@ const primary = [
 const mobile = primary.filter(({ href }) => ["/dashboard", "/week", "/collection", "/discover"].includes(href));
 const more = primary.filter(({ href }) => ["/layering", "/insights", "/agent", "/settings"].includes(href));
 
-function NavLink({ href, label, icon: Icon, pathname, compact = false }: (typeof primary)[number] & { pathname: string; compact?: boolean }) {
+function NavLink({ href, label, icon: Icon, pathname, compact = false, onNavigate }: (typeof primary)[number] & { pathname: string; compact?: boolean; onNavigate?: () => void }) {
   const active = pathname === href || (href === "/collection" && pathname.startsWith("/collection/"));
   return (
-    <Link className={compact ? "bottom-nav__link" : "side-nav__link"} href={href} aria-current={active ? "page" : undefined}>
+    <Link className={compact ? "bottom-nav__link" : "side-nav__link"} href={href} aria-current={active ? "page" : undefined} onClick={onNavigate}>
       <Icon size={compact ? 20 : 18} aria-hidden="true" />
       <span>{label === "My Week" && compact ? "Week" : label}</span>
     </Link>
@@ -37,6 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   return (
+    <Dialog open={moreOpen} onOpenChange={setMoreOpen}>
     <div className="app-frame">
       <aside className="sidebar">
         <Link href="/" className="brand"><span className="brand__mark">S</span><span>ScentIQ</span></Link>
@@ -51,18 +53,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Badge>Demo</Badge>
       </header>
       <main className="app-main">{children}</main>
-      {moreOpen && (
-        <div className="more-panel" role="dialog" aria-label="More destinations">
-          <div className="more-panel__header"><strong>More</strong><button type="button" onClick={() => setMoreOpen(false)} aria-label="Close more destinations"><X size={20} /></button></div>
+      <DialogContent title="More destinations" className="more-panel">
           <nav className="more-panel__grid" aria-label="Secondary navigation">
-            {more.map((item) => <NavLink key={item.href} {...item} pathname={pathname} />)}
+            {more.map((item) => <NavLink key={item.href} {...item} pathname={pathname} onNavigate={() => setMoreOpen(false)} />)}
           </nav>
-        </div>
-      )}
+      </DialogContent>
       <nav className="bottom-nav" aria-label="Mobile navigation">
         {mobile.map((item) => <NavLink key={item.href} {...item} pathname={pathname} compact />)}
-        <button type="button" className="bottom-nav__link" onClick={() => setMoreOpen((open) => !open)} aria-expanded={moreOpen} aria-label="More destinations"><Menu size={20} /><span>More</span></button>
+        <DialogTrigger asChild><button type="button" className="bottom-nav__link" aria-expanded={moreOpen} aria-label="More destinations"><Menu size={20} /><span>More</span></button></DialogTrigger>
       </nav>
     </div>
+    </Dialog>
   );
 }

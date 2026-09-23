@@ -19,8 +19,10 @@ test("landing enters the demo dashboard", async ({ page }) => {
 });
 
 test("every primary route renders its product heading", async ({ page }) => {
-  for (const [route, heading] of primaryRoutes) {
-    await page.goto(route);
+  await page.goto("/dashboard");
+  for (const [route, heading] of primaryRoutes.slice(1)) {
+    await page.locator("aside").getByRole("link", { name: heading === "Ask ScentIQ" ? "Agent" : heading }).click();
+    await expect(page).toHaveURL(new RegExp(`${route}$`));
     await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
   }
 });
@@ -35,15 +37,21 @@ test("dashboard opens a fragrance detail", async ({ page }) => {
 test("week recommendation can be replaced", async ({ page }) => {
   await page.goto("/week");
   await page.getByRole("button", { name: /replace recommendation/i }).first().click();
-  const dialog = page.getByRole("dialog", { name: /replace recommendation/i });
+  const dialog = page.getByRole("dialog", { name: /choose another direction/i });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: /^choose /i }).first().click();
+  await expect(dialog.locator(":focus")).toHaveCount(1);
+  const replacement = dialog.getByRole("button", { name: /^choose /i }).first();
+  const name = (await replacement.getAttribute("aria-label"))!.replace("Choose ", "");
+  await replacement.click();
   await expect(dialog).toBeHidden();
+  await expect(page.getByTestId("week-day").first().getByRole("heading", { name })).toBeVisible();
 });
 
 test("collection search leads to a detail page", async ({ page }) => {
   await page.goto("/collection");
   await page.getByRole("searchbox", { name: /search collection/i }).fill("Cedar");
+  await page.getByLabel("Ownership").selectOption("Bottle");
+  await expect(page.getByTestId("fragrance-card")).toHaveCount(1);
   await page.getByRole("link", { name: /cedar after rain/i }).click();
   await expect(page).toHaveURL(/cedar-after-rain/);
 });
@@ -53,20 +61,24 @@ test("collection add form reports required fields", async ({ page }) => {
   await page.getByRole("button", { name: /add fragrance/i }).click();
   const dialog = page.getByRole("dialog", { name: /add fragrance/i });
   await dialog.getByRole("button", { name: /add to collection/i }).click();
-  await expect(dialog.locator(".field-error")).toHaveText(/choose a fragrance/i);
+  await expect(dialog.locator("#add-fragrance-error")).toHaveText(/choose a fragrance/i);
 });
 
 test("layering selections update the result", async ({ page }) => {
   await page.goto("/layering");
-  await page.getByLabel("Fragrance B").selectOption({ index: 3 });
-  await page.getByRole("button", { name: "Experimental" }).click();
-  await expect(page.getByText(/experimental guidance/i)).toBeVisible();
+  await page.getByLabel("Fragrance B").selectOption("amber-index");
+  await expect(page.getByText(/no curated safe pairing/i)).toBeVisible();
+  await page.getByRole("button", { name: /show a curated pair/i }).click();
+  await expect(page.getByRole("progressbar", { name: /compatibility score/i })).toBeVisible();
 });
 
 test("discover mode filters recommendations", async ({ page }) => {
   await page.goto("/discover");
+  const before = await page.getByTestId("discovery-card").count();
   await page.getByRole("button", { name: "Office" }).click();
-  await expect(page.getByText(/office/i).first()).toBeVisible();
+  await page.getByLabel("Redundancy tolerance").selectOption("High");
+  const after = await page.getByTestId("discovery-card").count();
+  expect(after).toBeLessThan(before);
 });
 
 test("agent quick action produces a response", async ({ page }) => {
@@ -83,6 +95,7 @@ test("mobile navigation exposes secondary destinations", async ({ page }) => {
   await expect(dialog).toBeVisible();
   await dialog.getByRole("link", { name: "Settings" }).click();
   await expect(page).toHaveURL(/\/settings$/);
+  await expect(dialog).toBeHidden();
 });
 
 for (const width of [375, 430, 768, 1024, 1440]) {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getDemoCollection,
   getDemoFragranceById,
+  getDemoInsights,
   getDemoLayeringSuggestions,
   getDemoToday,
   getDemoWeek,
@@ -39,5 +40,10 @@ describe("ScentIQ demo domain", () => {
     const today = getDemoToday();
     expect(today.weather.date).toBe(today.recommendation.date);
     expect(today.events.every((event) => event.date === today.weather.date)).toBe(true);
+  });
+
+  it("keeps curated insight claims consistent with collection ratings", () => {
+    const highest = [...getDemoCollection()].sort((a, b) => b.rating - a.rating)[0];
+    expect(getDemoInsights().highestRatedId).toBe(highest.fragranceId);
   });
 });

@@ -13,7 +13,10 @@ describe("AppShell", () => {
 
     expect(screen.getAllByRole("link", { name: /collection/i })[0]).toHaveAttribute("aria-current", "page");
     await user.click(screen.getByRole("button", { name: /more destinations/i }));
-    expect(within(screen.getByRole("dialog", { name: /more destinations/i })).getByRole("link", { name: /layering lab/i })).toBeVisible();
+    const dialog = screen.getByRole("dialog", { name: /more destinations/i });
+    expect(within(dialog).getByRole("link", { name: /layering lab/i })).toBeVisible();
     expect(screen.getByText("Page content")).toBeVisible();
+    await user.click(within(dialog).getByRole("link", { name: /settings/i }));
+    expect(screen.queryByRole("dialog", { name: /more destinations/i })).not.toBeInTheDocument();
   });
 });

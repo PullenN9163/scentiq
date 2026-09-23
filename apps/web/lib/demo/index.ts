@@ -45,7 +45,7 @@ export const recommendations: Recommendation[] = weather.map((day, index) => ({
     { fragranceId: fragrances[(index + 3) % fragrances.length].id, score: 88 - index, sprays: 3, reason: "A brighter direction with similar occasion coverage." },
     { fragranceId: fragrances[(index + 7) % fragrances.length].id, score: 84 - index, sprays: 2, reason: "A quieter option that stays close to the skin." },
   ],
-  reasons: [day.condition, "Fits your next event", "Not worn in the last five days"], warning: index === 2 ? "Apply lightly in close indoor settings." : undefined, status: "Planned",
+  reasons: [day.condition, "Fits your next event", "Balances your recent rotation"], warning: index === 2 ? "Apply lightly in close indoor settings." : undefined, status: "Planned",
 }));
 
 export const wearHistory: WearLog[] = Array.from({ length: 13 }, (_, index) => ({ id: `wear-${index + 1}`, fragranceId: fragrances[index % 9].id, date: `2026-09-${String(21 - index).padStart(2, "0")}`, occasion: fragrances[index % 9].occasions[0], sprays: 2 + (index % 3) }));
@@ -60,7 +60,7 @@ export const layeringSuggestions: LayeringSuggestion[] = [
 
 export const insights: CollectionInsightSummary = {
   totalOwned: collection.length, totalCost: collection.reduce((sum, item) => sum + item.purchasePrice, 0), totalWears: 47,
-  mostWornId: "cedar-after-rain", leastWornId: "night-orchard", highestRatedId: "fig-circuit", bestCostPerWearId: "linen-neroli",
+  mostWornId: "cedar-after-rain", leastWornId: "night-orchard", highestRatedId: "tobacco-velvet", bestCostPerWearId: "linen-neroli",
   accordDistribution: [{ name: "Woody", value: 28 }, { name: "Fresh", value: 22 }, { name: "Floral", value: 18 }, { name: "Amber", value: 15 }, { name: "Other", value: 17 }],
   noteFrequency: [{ name: "Cedar", value: 7 }, { name: "Musk", value: 6 }, { name: "Citrus", value: 6 }, { name: "Tea", value: 4 }, { name: "Amber", value: 3 }],
   coverage: ["Spring", "Summer", "Fall", "Winter", "Office", "Casual", "Date", "Formal", "Gym", "Travel", "Nightlife"].map((name, index) => ({ name, score: 42 + ((index * 13) % 55), label: index % 4 === 0 ? "Moderate" : index % 3 === 0 ? "Excellent" : "Good" })) as CollectionInsightSummary["coverage"],

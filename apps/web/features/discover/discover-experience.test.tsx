@@ -12,8 +12,12 @@ describe("DiscoverExperience", () => {
     render(<DiscoverExperience />);
     await user.click(screen.getByRole("button", { name: "Challenge My Taste" }));
     expect(screen.getByText(/challenge mode/i)).toBeVisible();
+    expect(screen.getByText("Night Orchard")).toBeVisible();
+    await user.selectOptions(screen.getByLabelText(/redundancy tolerance/i), "High");
     await user.selectOptions(screen.getByLabelText(/budget/i), "100");
-    expect(screen.getAllByTestId("discovery-card")).toHaveLength(2);
+    expect(screen.getAllByTestId("discovery-card")).toHaveLength(1);
+    await user.selectOptions(screen.getByLabelText(/fragrance family/i), "Leather");
+    expect(screen.getByText(/no demo matches/i)).toBeVisible();
   });
 
   it("adds a candidate to the frontend-only wishlist", async () => {
