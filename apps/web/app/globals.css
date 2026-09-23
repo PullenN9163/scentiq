@@ -197,3 +197,35 @@ h1, h2, h3 { text-wrap: balance; }
 .field--full { grid-column: 1 / -1; }
 .field-error { margin: 0.25rem 0 0; color: var(--destructive); font-size: 0.82rem; }
 @media (max-width: 760px) { .page-header { flex-direction: column; } .day-card { grid-template-columns: 1fr; } .day-card__date, .day-card__events { border-right: 0; border-bottom: 1px solid var(--border); } .day-card__date { display: grid; grid-template-columns: 1fr auto; } .day-card__date span:last-child { grid-column: 1 / -1; margin-top: 0.5rem; } .form-grid { grid-template-columns: 1fr; } .field, .field--full { grid-column: 1; } }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.collection-tools { display: grid; grid-template-columns: minmax(15rem, 1fr) 11rem 11rem; gap: 0.75rem; margin-bottom: 1.2rem; }
+.collection-tools > label > span { display: block; margin-bottom: 0.3rem; color: var(--muted-foreground); font-size: 0.75rem; font-weight: 700; }
+.search-field { display: flex; min-height: 3rem; align-self: end; align-items: center; gap: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); padding: 0 0.8rem; }
+.search-field input { width: 100%; border: 0; outline: 0; background: transparent; }
+.fragrance-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.fragrance-card__art { display: grid; min-height: 13rem; place-items: end center; padding: 1.5rem; background: linear-gradient(145deg, color-mix(in srgb, var(--scent-tone) 66%, white), var(--scent-tone)); }
+.fragrance-card__art span { width: 7rem; min-height: 7.5rem; padding: 2.2rem 0.5rem 0; border: 0.4rem solid rgba(255,255,255,0.35); border-radius: 2.5rem 2.5rem 0.8rem 0.8rem; color: white; text-align: center; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.fragrance-card .cluster { justify-content: space-between; }
+.fragrance-card h2 { margin: 0.8rem 0 0.2rem; font-size: 1.6rem; }
+.fragrance-card p, .fragrance-card small { color: var(--muted-foreground); }
+.rating { font-size: 0.82rem; font-weight: 800; }
+.accord-list { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.8rem 0; }
+.accord-list span { border-radius: 99px; background: var(--secondary); padding: 0.2rem 0.5rem; font-size: 0.72rem; }
+.back-link { display: inline-block; margin-bottom: 1.5rem; color: var(--muted-foreground); font-weight: 700; }
+.detail-hero { display: grid; grid-template-columns: minmax(16rem, 0.85fr) minmax(0, 1.15fr); align-items: center; gap: clamp(2rem, 6vw, 5rem); }
+.detail-art { display: flex; min-height: 35rem; flex-direction: column; align-items: center; justify-content: center; border-radius: 2rem; background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--scent-tone) 66%, white), var(--scent-tone)); color: white; text-align: center; }
+.detail-art strong { max-width: 16rem; font-family: Georgia, "Times New Roman", serif; font-size: 2.4rem; }
+.detail-art span { letter-spacing: 0.15em; text-transform: uppercase; }
+.detail-hero h1 { margin-bottom: 1rem; font-size: clamp(3.3rem, 7vw, 6.5rem); font-weight: 500; letter-spacing: -0.055em; line-height: 0.9; }
+.detail-description { max-width: 35rem; font-size: 1.2rem; }
+.detail-facts { display: grid; grid-template-columns: repeat(2, 1fr); margin: 2rem 0; }
+.detail-facts div { padding: 0.8rem 0; border-top: 1px solid var(--border); }
+.detail-facts dt { color: var(--muted-foreground); font-size: 0.78rem; }
+.detail-facts dd { margin: 0; font-weight: 750; }
+.detail-sections { margin-top: 1rem; }
+.detail-sections h2 { font-size: 2rem; }
+.note-row { display: grid; gap: 0.7rem; }
+.note-row > * { display: flex; justify-content: space-between; gap: 1rem; padding: 0.7rem 0; border-top: 1px solid var(--border); }
+@media (max-width: 1050px) { .fragrance-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 700px) { .collection-tools { grid-template-columns: 1fr 1fr; } .search-field { grid-column: 1 / -1; } .fragrance-grid { grid-template-columns: 1fr; } .detail-hero { grid-template-columns: 1fr; } .detail-art { min-height: 24rem; } }
