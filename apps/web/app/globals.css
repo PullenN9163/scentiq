@@ -250,3 +250,25 @@ h1, h2, h3 { text-wrap: balance; }
 .pair-card { display: grid; gap: 0.6rem; min-height: 9rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); padding: 1rem; text-align: left; }
 .pair-card > span:last-child { color: var(--muted-foreground); }
 @media (max-width: 700px) { .layer-selectors { grid-template-columns: 1fr; } .layer-selectors .button { width: 100%; } .result-grid { grid-template-columns: 1fr 1fr; } .mode-tabs { overflow-x: auto; } }
+
+.discover-modes { display: flex; gap: 0.4rem; margin-bottom: 1rem; overflow-x: auto; padding-bottom: 0.25rem; }
+.discover-modes .button { flex: 0 0 auto; }
+.discover-intro { margin-bottom: 1rem; background: #e8dcc5; }
+.discover-intro .card__content { display: flex; align-items: flex-start; gap: 1rem; }
+.discover-intro h2 { margin-bottom: 0.4rem; font-size: 2rem; }
+.discover-filters { display: grid; grid-template-columns: auto repeat(3, minmax(9rem, 12rem)); align-items: end; gap: 0.75rem; margin: 1rem 0; }
+.discover-filters label { font-size: 0.78rem; font-weight: 750; }
+.discover-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.discovery-card__art { display: flex; min-height: 12rem; flex-direction: column; align-items: flex-start; justify-content: space-between; padding: 1rem; background: linear-gradient(145deg, color-mix(in srgb, var(--scent-tone) 55%, white), var(--scent-tone)); color: white; }
+.discovery-card__art .badge { border-color: rgba(255,255,255,0.35); background: rgba(0,0,0,0.18); color: white; }
+.discovery-card__art > span { font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; }
+.discovery-card h2 { margin-bottom: 0.4rem; font-size: 2rem; }
+.score-list { margin: 1rem 0; }
+.score-list div { display: flex; justify-content: space-between; padding: 0.45rem 0; border-top: 1px solid var(--border); }
+.score-list dt { color: var(--muted-foreground); }
+.score-list dd { margin: 0; font-weight: 800; }
+.upcoming { margin-top: 1rem; background: #18231f; color: #f7f3e9; }
+.upcoming h2 { margin: 0.8rem 0 0.2rem; font-size: 2.4rem; }
+.upcoming .cluster span { border: 1px solid #42504c; border-radius: 999px; padding: 0.45rem 0.7rem; }
+@media (max-width: 1100px) { .discover-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 700px) { .discover-filters { grid-template-columns: 1fr; align-items: start; } .discover-grid { grid-template-columns: 1fr; } }

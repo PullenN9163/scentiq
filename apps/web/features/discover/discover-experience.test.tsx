@@ -1,0 +1,25 @@
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { DiscoverExperience } from "./discover-experience";
+
+afterEach(cleanup);
+
+describe("DiscoverExperience", () => {
+  it("switches editorial discovery modes and filters by budget", async () => {
+    const user = userEvent.setup();
+    render(<DiscoverExperience />);
+    await user.click(screen.getByRole("button", { name: "Challenge My Taste" }));
+    expect(screen.getByText(/challenge mode/i)).toBeVisible();
+    await user.selectOptions(screen.getByLabelText(/budget/i), "100");
+    expect(screen.getAllByTestId("discovery-card")).toHaveLength(2);
+  });
+
+  it("adds a candidate to the frontend-only wishlist", async () => {
+    const user = userEvent.setup();
+    render(<DiscoverExperience />);
+    await user.click(screen.getAllByRole("button", { name: /add to wishlist/i })[0]);
+    expect(screen.getAllByRole("button", { name: /wishlisted/i })[0]).toBeDisabled();
+  });
+});
