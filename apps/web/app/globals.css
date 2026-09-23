@@ -170,3 +170,30 @@ h1, h2, h3 { text-wrap: balance; }
 .empty-panel { display: grid; min-height: 24rem; place-items: center; align-content: center; text-align: center; }
 @media (max-width: 1100px) { .today-layout { grid-template-columns: 1fr; } .today-rail { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 700px) { .recommendation-card { grid-template-columns: 1fr; } .recommendation-art { min-height: 22rem; } .today-rail { grid-template-columns: 1fr; } }
+
+.week-list { display: grid; gap: 0.75rem; }
+.day-card { display: grid; grid-template-columns: 9rem minmax(10rem, 0.8fr) minmax(17rem, 1.4fr); align-items: stretch; overflow: visible; }
+.day-card__date, .day-card__events, .day-card__scent { padding: 1.1rem; }
+.day-card__date, .day-card__events { border-right: 1px solid var(--border); }
+.day-card__date strong, .day-card__date span { display: block; }
+.day-card__date span:last-child { display: flex; align-items: center; gap: 0.3rem; margin-top: 1.4rem; color: var(--muted-foreground); font-size: 0.78rem; }
+.day-card__events { display: grid; align-content: center; gap: 0.6rem; font-size: 0.85rem; }
+.day-card__events > span { display: grid; grid-template-columns: 3.2rem 1fr; }
+.day-card__events small { grid-column: 2; color: var(--muted-foreground); }
+.day-card__scent { display: flex; align-items: center; gap: 1rem; }
+.scent-swatch { display: block; width: 3rem; height: 4rem; flex: 0 0 auto; border: 0.35rem solid rgba(255,255,255,0.35); border-radius: 1.2rem 1.2rem 0.55rem 0.55rem; background: var(--scent-tone); box-shadow: 0 0.4rem 1rem rgba(0,0,0,0.12); }
+.day-card__scent h2 { margin: 0.4rem 0 0; font-size: 1.55rem; }
+.day-card__scent p, .day-card__scent small { margin: 0; color: var(--muted-foreground); }
+.day-card__actions { display: flex; grid-column: 1 / -1; flex-wrap: wrap; gap: 0.35rem; padding: 0.65rem 1rem; border-top: 1px solid var(--border); }
+.success-note { padding: 0.75rem 1rem; border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--success) 8%, var(--surface)); }
+.modal-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 1rem; background: rgba(15,18,17,0.62); }
+.modal { width: min(100%, 37rem); max-height: min(85vh, 50rem); overflow-y: auto; border-radius: var(--radius-lg); background: var(--surface); padding: 1.25rem; box-shadow: 0 2rem 5rem rgba(0,0,0,0.35); }
+.modal__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.modal__header h2 { margin-bottom: 1rem; font-size: 2.1rem; }
+.modal__header button { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border: 0; border-radius: 50%; background: var(--secondary); }
+.option-row { display: grid; width: 100%; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.8rem; border: 0; border-top: 1px solid var(--border); background: transparent; padding: 1rem 0; text-align: left; }
+.option-row small { display: block; color: var(--muted-foreground); }
+.form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+.field--full { grid-column: 1 / -1; }
+.field-error { margin: 0.25rem 0 0; color: var(--destructive); font-size: 0.82rem; }
+@media (max-width: 760px) { .page-header { flex-direction: column; } .day-card { grid-template-columns: 1fr; } .day-card__date, .day-card__events { border-right: 0; border-bottom: 1px solid var(--border); } .day-card__date { display: grid; grid-template-columns: 1fr auto; } .day-card__date span:last-child { grid-column: 1 / -1; margin-top: 0.5rem; } .form-grid { grid-template-columns: 1fr; } .field, .field--full { grid-column: 1; } }
