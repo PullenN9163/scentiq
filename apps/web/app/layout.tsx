@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ScentIQ",
-  description: "ScentIQ application foundation",
+  description: "Personal fragrance intelligence for every day and occasion.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
