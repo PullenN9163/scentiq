@@ -158,3 +158,42 @@ def test_settings_reject_empty_cors_origin_list() -> None:
         )
     assert "must not be empty" in str(error.value).lower()
     assert "secret" not in str(error.value)
+
+
+def test_blank_clerk_settings_are_treated_as_unset() -> None:
+    """A deployment template supplies every variable, so unset arrives as "".
+
+    An empty audience previously read as a real audience of "", which switched
+    audience verification on and rejected every token.
+    """
+    settings = Settings(
+        SCENTIQ_ENV="test",
+        DATABASE_URL="postgresql+psycopg://user:password@localhost/scentiq",
+        CORS_ORIGINS="http://localhost:3000",
+        CLERK_ISSUER="https://clerk.example.dev",
+        CLERK_AUDIENCE="",
+        CLERK_JWKS_URL="",
+        CLERK_AUTHORIZED_PARTIES="   ",
+        INTERNAL_SERVICE_TOKEN="",
+    )
+
+    assert settings.clerk_audience is None
+    assert settings.clerk_jwks_url is None
+    assert settings.clerk_authorized_parties is None
+    assert settings.internal_service_token is None
+    assert settings.clerk_authorized_party_list == []
+    # A blank JWKS URL still falls back to the issuer's well-known location.
+    assert settings.resolved_clerk_jwks_url == "https://clerk.example.dev/.well-known/jwks.json"
+    assert settings.authentication_is_configured is True
+
+
+def test_blank_issuer_leaves_authentication_unconfigured() -> None:
+    settings = Settings(
+        SCENTIQ_ENV="test",
+        DATABASE_URL="postgresql+psycopg://user:password@localhost/scentiq",
+        CORS_ORIGINS="http://localhost:3000",
+        CLERK_ISSUER="",
+    )
+
+    assert settings.clerk_issuer is None
+    assert settings.authentication_is_configured is False

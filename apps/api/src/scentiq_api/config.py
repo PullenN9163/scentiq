@@ -42,6 +42,27 @@ class Settings(BaseSettings):
         validation_alias="INTERNAL_SERVICE_TOKEN",
     )
 
+    @field_validator(
+        "clerk_issuer",
+        "clerk_jwks_url",
+        "clerk_audience",
+        "clerk_authorized_parties",
+        "internal_service_token",
+        mode="before",
+    )
+    @classmethod
+    def treat_blank_as_unset(cls, value: object) -> object:
+        """Read a blank optional setting as absent rather than as a value.
+
+        Deployment templates supply every declared variable, so an unconfigured
+        setting arrives as an empty string instead of being omitted. Without
+        this, an empty CLERK_AUDIENCE reads as a real audience of "", which
+        turns audience verification on and rejects every token.
+        """
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     @field_validator("clerk_issuer")
     @classmethod
     def validate_clerk_issuer(cls, value: str | None) -> str | None:
