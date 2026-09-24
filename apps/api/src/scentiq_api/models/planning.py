@@ -23,7 +23,7 @@ class CalendarEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("user_id", "external_reference", name="calendar_user_external_reference"),
     )
 
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     external_reference: Mapped[str | None] = mapped_column(String(255))
     title: Mapped[str] = mapped_column(String(200))
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
@@ -44,7 +44,7 @@ class WeatherSnapshot(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         ),
     )
 
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     location_label: Mapped[str] = mapped_column(String(160))
     forecast_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     temperature_celsius: Mapped[Decimal] = mapped_column(Numeric(5, 2))
@@ -61,10 +61,10 @@ class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint("recommended_sprays BETWEEN 1 AND 30", name="recommended_sprays_range"),
     )
 
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     recommended_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     context: Mapped[str] = mapped_column(String(40))
-    fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id"))
+    fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id", ondelete="CASCADE"))
     score: Mapped[Decimal] = mapped_column(Numeric(5, 2))
     recommended_sprays: Mapped[int]
     reasons: Mapped[list[str]] = mapped_column(JSON)
@@ -86,7 +86,7 @@ class RecommendationCandidate(UUIDPrimaryKeyMixin, Base):
     recommendation_id: Mapped[UUID] = mapped_column(
         ForeignKey("recommendations.id", ondelete="CASCADE"), index=True
     )
-    fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id"))
+    fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id", ondelete="CASCADE"))
     rank: Mapped[int]
     score: Mapped[Decimal] = mapped_column(Numeric(5, 2))
     score_components: Mapped[dict[str, float]] = mapped_column(JSON)
@@ -101,9 +101,13 @@ class LayeringLog(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         CheckConstraint("rating IS NULL OR rating BETWEEN 1 AND 5", name="rating_range"),
     )
 
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
-    primary_fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id"))
-    secondary_fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id"))
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    primary_fragrance_id: Mapped[UUID] = mapped_column(
+        ForeignKey("fragrances.id", ondelete="CASCADE")
+    )
+    secondary_fragrance_id: Mapped[UUID] = mapped_column(
+        ForeignKey("fragrances.id", ondelete="CASCADE")
+    )
     worn_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     rating: Mapped[int | None]
     notes: Mapped[str | None]

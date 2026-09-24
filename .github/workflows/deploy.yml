@@ -1,0 +1,143 @@
+name: Deploy development
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: scentiq-development
+  cancel-in-progress: false
+
+env:
+  ALERT_EMAILS: ${{ vars.AZURE_ALERT_EMAILS }}
+  DEPLOYMENT_LOCATION: eastus
+  RESOURCE_GROUP: scentiq-rg-dev-eus
+  REGISTRY_NAME: scentiqacrdevus
+  MIGRATION_JOB: scentiq-migrate-dev-eus
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: development
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Authenticate with Azure OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate infrastructure
+        run: >-
+          az deployment sub validate
+          --location "$DEPLOYMENT_LOCATION"
+          --template-file infra/subscription.bicep
+          --parameters infra/parameters/dev.bicepparam
+          --parameters deployWorkloads=false alertEmails="$ALERT_EMAILS"
+          --only-show-errors
+
+      - name: Deploy shared infrastructure
+        run: >-
+          az deployment sub create
+          --name "scentiq-bootstrap-${GITHUB_SHA::8}"
+          --location "$DEPLOYMENT_LOCATION"
+          --template-file infra/subscription.bicep
+          --parameters infra/parameters/dev.bicepparam
+          --parameters deployWorkloads=false alertEmails="$ALERT_EMAILS"
+          --only-show-errors
+
+      - name: Sign in to Azure Container Registry
+        run: az acr login --name "$REGISTRY_NAME"
+
+      - name: Build and push immutable images
+        env:
+          # Public by design: Clerk inlines it into the client bundle, so it is a
+          # repository variable rather than a secret. `next build` fails without it.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ]; then
+            echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY repository variable is not set." >&2
+            echo "The web image cannot be built without it." >&2
+            exit 1
+          fi
+          registry="${REGISTRY_NAME}.azurecr.io"
+          docker build --pull --tag "${registry}/scentiq-api:${GITHUB_SHA}" apps/api
+          docker build --pull \
+            --build-arg "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}" \
+            --tag "${registry}/scentiq-web:${GITHUB_SHA}" --file apps/web/Dockerfile .
+          docker push "${registry}/scentiq-api:${GITHUB_SHA}"
+          docker push "${registry}/scentiq-web:${GITHUB_SHA}"
+
+      - name: Deploy migration job definition
+        env:
+          DATABASE_SECRET_URI: ${{ secrets.DATABASE_SECRET_URI }}
+        run: >-
+          az deployment sub create
+          --name "scentiq-migration-${GITHUB_SHA::8}"
+          --location "$DEPLOYMENT_LOCATION"
+          --template-file infra/subscription.bicep
+          --parameters infra/parameters/dev.bicepparam
+          --parameters deployMigration=true deployApplications=false
+          apiImage="${REGISTRY_NAME}.azurecr.io/scentiq-api:${GITHUB_SHA}"
+          databaseSecretUri="$DATABASE_SECRET_URI"
+          alertEmails="$ALERT_EMAILS"
+          --only-show-errors
+
+      - name: Run migration gate
+        run: |
+          execution_name=$(az containerapp job start --name "$MIGRATION_JOB" --resource-group "$RESOURCE_GROUP" --query name --output tsv)
+          for _ in {1..60}; do
+            status=$(az containerapp job execution show --name "$MIGRATION_JOB" --resource-group "$RESOURCE_GROUP" --job-execution-name "$execution_name" --query properties.status --output tsv)
+            if [ "$status" = "Succeeded" ]; then exit 0; fi
+            if [ "$status" = "Failed" ]; then exit 1; fi
+            sleep 10
+          done
+          echo "Migration did not finish within ten minutes." >&2
+          exit 1
+
+      - name: Deploy application revisions
+        env:
+          DATABASE_SECRET_URI: ${{ secrets.DATABASE_SECRET_URI }}
+          CLERK_SECRET_KEY_SECRET_URI: ${{ secrets.CLERK_SECRET_KEY_SECRET_URI }}
+          CLERK_WEBHOOK_SECRET_URI: ${{ secrets.CLERK_WEBHOOK_SECRET_URI }}
+          INTERNAL_SERVICE_TOKEN_SECRET_URI: ${{ secrets.INTERNAL_SERVICE_TOKEN_SECRET_URI }}
+          CLERK_ISSUER: ${{ vars.CLERK_ISSUER }}
+          CLERK_AUDIENCE: ${{ vars.CLERK_AUDIENCE }}
+          CLERK_AUTHORIZED_PARTIES: ${{ vars.CLERK_AUTHORIZED_PARTIES }}
+        run: >-
+          az deployment sub create
+          --name "scentiq-apps-${GITHUB_SHA::8}"
+          --location "$DEPLOYMENT_LOCATION"
+          --template-file infra/subscription.bicep
+          --parameters infra/parameters/dev.bicepparam
+          --parameters deployMigration=true deployApplications=true
+          apiImage="${REGISTRY_NAME}.azurecr.io/scentiq-api:${GITHUB_SHA}"
+          webImage="${REGISTRY_NAME}.azurecr.io/scentiq-web:${GITHUB_SHA}"
+          databaseSecretUri="$DATABASE_SECRET_URI"
+          clerkIssuer="$CLERK_ISSUER"
+          clerkAudience="$CLERK_AUDIENCE"
+          clerkAuthorizedParties="$CLERK_AUTHORIZED_PARTIES"
+          clerkSecretKeySecretUri="$CLERK_SECRET_KEY_SECRET_URI"
+          clerkWebhookSecretUri="$CLERK_WEBHOOK_SECRET_URI"
+          internalServiceTokenSecretUri="$INTERNAL_SERVICE_TOKEN_SECRET_URI"
+          alertEmails="$ALERT_EMAILS"
+          --only-show-errors
+
+      - name: Smoke-test public web and API status
+        run: |
+          web_fqdn=$(az containerapp show --name scentiq-web-dev-eus --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn --output tsv)
+          curl --fail --retry 12 --retry-delay 10 --retry-all-errors "https://${web_fqdn}/"
+          curl --fail --retry 12 --retry-delay 10 --retry-all-errors "https://${web_fqdn}/api/status"

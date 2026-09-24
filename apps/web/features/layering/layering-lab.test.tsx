@@ -15,12 +15,13 @@ describe("LayeringLab", () => {
     expect(screen.getByLabelText("Fragrance B")).toHaveValue("cedar-after-rain");
   });
 
-  it("changes guidance mode and saves with demo feedback", async () => {
+  it("changes guidance mode and keeps the pair in the preview only", async () => {
     const user = userEvent.setup();
     render(<LayeringLab />);
     await user.click(screen.getByRole("button", { name: "Experimental" }));
     expect(screen.getByText(/experimental guidance/i)).toBeVisible();
-    await user.click(screen.getByRole("button", { name: /save combination/i }));
-    expect(screen.getByRole("status")).toHaveTextContent(/saved for this demo session/i);
+    await user.click(screen.getByRole("button", { name: /keep in this preview/i }));
+    // The preview must not claim the combination was saved.
+    expect(screen.getByRole("status")).toHaveTextContent(/was not saved/i);
   });
 });

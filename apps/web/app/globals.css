@@ -321,3 +321,20 @@ h1, h2, h3 { text-wrap: balance; }
 .settings-system { grid-column: 1 / -1; background: #18231f; color: #f7f3e9; }
 .settings-system .muted { color: #aebbb6; }
 @media (max-width: 700px) { .settings-grid { grid-template-columns: 1fr; } .settings-system { grid-column: 1; } .agent-input { grid-template-columns: 1fr; } .agent-input input { min-height: 3rem; } }
+
+/* Empty, loading, error and preview states for connected screens. */
+.state-block { display: grid; gap: 0.75rem; }
+.state-block__title { margin: 0; font-weight: 800; }
+.state-block__body { max-width: 38rem; margin: 0; color: var(--muted-foreground); }
+.state-block__skeleton { height: 3.25rem; border-radius: var(--radius-sm); }
+.preview-notice { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 1rem; color: var(--muted-foreground); font-size: 0.88rem; }
+.preview-notice__tag { border: 1px solid var(--warning); border-radius: 999px; padding: 0.2rem 0.6rem; color: var(--warning); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* Form feedback for persisted forms. */
+.field-hint { display: block; margin-top: 0.25rem; color: var(--muted-foreground); font-size: 0.82rem; }
+.field [aria-invalid="true"] { border-color: var(--destructive); }
+.form-message { margin: 0 0 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.7rem 0.9rem; font-size: 0.9rem; font-weight: 700; }
+.form-message--success { border-color: var(--success); color: var(--success); }
+.form-message--error { border-color: var(--destructive); color: var(--destructive); }
+.data-note { margin: 0.75rem 0 0; color: var(--muted-foreground); font-size: 0.85rem; }
+.auth-page { display: grid; min-height: 100vh; place-items: center; padding: 2rem 1rem; background: var(--background); }

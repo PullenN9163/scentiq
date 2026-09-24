@@ -30,6 +30,36 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="APPLICATIONINSIGHTS_CONNECTION_STRING",
     )
+    clerk_issuer: str | None = Field(default=None, validation_alias="CLERK_ISSUER")
+    clerk_jwks_url: str | None = Field(default=None, validation_alias="CLERK_JWKS_URL")
+    clerk_audience: str | None = Field(default=None, validation_alias="CLERK_AUDIENCE")
+    clerk_authorized_parties: str | None = Field(
+        default=None,
+        validation_alias="CLERK_AUTHORIZED_PARTIES",
+    )
+    internal_service_token: SecretStr | None = Field(
+        default=None,
+        validation_alias="INTERNAL_SERVICE_TOKEN",
+    )
+
+    @field_validator("clerk_issuer")
+    @classmethod
+    def validate_clerk_issuer(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        issuer = value.rstrip("/")
+        if not issuer.startswith("https://"):
+            raise ValueError("CLERK_ISSUER must be an https URL")
+        return issuer
+
+    @field_validator("clerk_jwks_url")
+    @classmethod
+    def validate_clerk_jwks_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not value.startswith("https://"):
+            raise ValueError("CLERK_JWKS_URL must be an https URL")
+        return value
 
     @field_validator("environment", mode="before")
     @classmethod
@@ -81,3 +111,31 @@ class Settings(BaseSettings):
         if self.applicationinsights_connection_string is None:
             return None
         return self.applicationinsights_connection_string.get_secret_value()
+
+    @property
+    def resolved_clerk_jwks_url(self) -> str | None:
+        """Explicit JWKS URL, otherwise the issuer's well-known location."""
+        if self.clerk_jwks_url is not None:
+            return self.clerk_jwks_url
+        if self.clerk_issuer is not None:
+            return f"{self.clerk_issuer}/.well-known/jwks.json"
+        return None
+
+    @property
+    def clerk_authorized_party_list(self) -> list[str]:
+        if self.clerk_authorized_parties is None:
+            return []
+        return [
+            party.strip() for party in self.clerk_authorized_parties.split(",") if party.strip()
+        ]
+
+    @property
+    def authentication_is_configured(self) -> bool:
+        """Authentication fails closed until an issuer and JWKS source exist."""
+        return self.clerk_issuer is not None and self.resolved_clerk_jwks_url is not None
+
+    @property
+    def internal_service_token_value(self) -> str | None:
+        if self.internal_service_token is None:
+            return None
+        return self.internal_service_token.get_secret_value()

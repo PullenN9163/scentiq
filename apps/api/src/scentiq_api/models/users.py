@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import (
@@ -19,14 +20,33 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from scentiq_api.models.base import Base, CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin
 from scentiq_api.models.catalog import Fragrance
 
+if TYPE_CHECKING:
+    from scentiq_api.models.identity import UserIdentity
+
+
+LIFECYCLE_STATES = ("active", "deletion_pending")
+
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "lifecycle_state IN ('active', 'deletion_pending')",
+            name="lifecycle_state_value",
+        ),
+    )
 
     email: Mapped[str] = mapped_column(String(320), unique=True)
     display_name: Mapped[str] = mapped_column(String(120))
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+    lifecycle_state: Mapped[str] = mapped_column(
+        String(20), default="active", server_default="active"
+    )
+    deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    identity: Mapped[UserIdentity | None] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     preferences: Mapped[UserPreference | None] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -59,6 +79,7 @@ class UserPreference(TimestampMixin, Base):
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
+    location: Mapped[str | None] = mapped_column(String(120))
     preferred_season: Mapped[str | None] = mapped_column(String(10))
     preferred_occasion: Mapped[str | None] = mapped_column(String(20))
     preferred_projection: Mapped[str | None] = mapped_column(String(20))
@@ -97,8 +118,10 @@ class UserCollectionItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
     )
 
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
-    fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id"), index=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    fragrance_id: Mapped[UUID] = mapped_column(
+        ForeignKey("fragrances.id", ondelete="CASCADE"), index=True
+    )
     ownership_type: Mapped[str] = mapped_column(String(10))
     bottle_size_ml: Mapped[Decimal | None] = mapped_column(Numeric(7, 2))
     remaining_ml: Mapped[Decimal | None] = mapped_column(Numeric(7, 2))
@@ -119,8 +142,10 @@ class WearLog(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         CheckConstraint("sprays IS NULL OR sprays BETWEEN 1 AND 30", name="sprays_range"),
     )
 
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
-    collection_item_id: Mapped[UUID] = mapped_column(ForeignKey("user_collection.id"))
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    collection_item_id: Mapped[UUID] = mapped_column(
+        ForeignKey("user_collection.id", ondelete="CASCADE")
+    )
     worn_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     sprays: Mapped[int | None]
     occasion: Mapped[str | None] = mapped_column(String(20))
@@ -139,8 +164,10 @@ class WearFeedback(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         ),
     )
 
-    wear_log_id: Mapped[UUID] = mapped_column(ForeignKey("wear_logs.id"), unique=True)
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    wear_log_id: Mapped[UUID] = mapped_column(
+        ForeignKey("wear_logs.id", ondelete="CASCADE"), unique=True
+    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     rating: Mapped[int | None]
     longevity: Mapped[Decimal | None] = mapped_column(Numeric(3, 1))
     projection: Mapped[str | None] = mapped_column(String(20))
@@ -154,7 +181,9 @@ class Wishlist(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("user_id", "fragrance_id", name="wishlist_user_fragrance"),
     )
 
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), primary_key=False)
-    fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id"), primary_key=False)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    fragrance_id: Mapped[UUID] = mapped_column(
+        ForeignKey("fragrances.id", ondelete="CASCADE"), index=True
+    )
     priority: Mapped[int]
     reason: Mapped[str | None]

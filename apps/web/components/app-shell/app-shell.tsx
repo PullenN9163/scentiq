@@ -1,5 +1,6 @@
 "use client";
 
+import { UserButton, useUser } from "@clerk/nextjs";
 import { BarChart3, Beaker, CalendarDays, Compass, Home, Menu, Settings, Sparkles, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -8,7 +9,6 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { demoUser } from "@/lib/demo";
 
 const primary = [
   { href: "/dashboard", label: "Today", icon: Home },
@@ -36,21 +36,24 @@ function NavLink({ href, label, icon: Icon, pathname, compact = false, onNavigat
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { user } = useUser();
   const [moreOpen, setMoreOpen] = useState(false);
+  // Clerk is the source of truth for who is signed in.
+  const displayName = user?.fullName ?? user?.username ?? "Your account";
   return (
     <Dialog open={moreOpen} onOpenChange={setMoreOpen}>
     <div className="app-frame">
       <aside className="sidebar">
         <Link href="/" className="brand"><span className="brand__mark">S</span><span>ScentIQ</span></Link>
-        <Badge className="sidebar__demo">Demo mode</Badge>
+        <Badge className="sidebar__demo">Private beta</Badge>
         <nav className="side-nav" aria-label="Primary navigation">
           {primary.map((item) => <NavLink key={item.href} {...item} pathname={pathname} />)}
         </nav>
-        <div className="sidebar__profile"><span className="avatar">{demoUser.initials}</span><span><strong>{demoUser.name}</strong><small>{demoUser.location}</small></span></div>
+        <div className="sidebar__profile"><UserButton showName={false} /><span><strong>{displayName}</strong><small>{user?.primaryEmailAddress?.emailAddress ?? ""}</small></span></div>
       </aside>
       <header className="mobile-header">
         <Link href="/" className="brand"><span className="brand__mark">S</span><span>ScentIQ</span></Link>
-        <Badge>Demo</Badge>
+        <Badge>Beta</Badge>
       </header>
       <main className="app-main">{children}</main>
       <DialogContent title="More destinations" className="more-panel">

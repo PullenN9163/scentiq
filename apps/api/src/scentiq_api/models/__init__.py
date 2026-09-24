@@ -9,6 +9,7 @@ from scentiq_api.models.catalog import (
     FragranceSeason,
     Note,
 )
+from scentiq_api.models.identity import IdentityEvent, UserIdentity
 from scentiq_api.models.planning import (
     CalendarEvent,
     LayeringLog,
@@ -35,12 +36,14 @@ __all__ = [
     "FragranceNote",
     "FragranceOccasion",
     "FragranceSeason",
+    "IdentityEvent",
     "LayeringLog",
     "Note",
     "Recommendation",
     "RecommendationCandidate",
     "User",
     "UserCollectionItem",
+    "UserIdentity",
     "UserPreference",
     "WearFeedback",
     "WearLog",

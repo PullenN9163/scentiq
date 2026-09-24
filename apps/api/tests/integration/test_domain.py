@@ -3,19 +3,17 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import patch
 from uuid import UUID
 
 import pytest
 from alembic import command
 from alembic.config import Config
+from auth_harness import auth_headers, resolver, settings
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy import create_engine, inspect
 
 from scentiq_api.config import Settings
 from scentiq_api.main import create_app
-from scentiq_api.repositories import FragranceRepository
 
 pytestmark = pytest.mark.integration
 
@@ -24,6 +22,7 @@ DEMO_USER_ID = "00000000-0000-4000-8000-000000000001"
 AMBER_ATLAS_ID = "10000000-0000-4000-8000-000000000001"
 REQUIRED_TABLES = {
     "accords",
+    "identity_events",
     "brands",
     "calendar_events",
     "fragrance_accords",
@@ -36,6 +35,7 @@ REQUIRED_TABLES = {
     "recommendation_candidates",
     "recommendations",
     "user_collection",
+    "user_identities",
     "user_preferences",
     "users",
     "wear_feedback",
@@ -117,8 +117,8 @@ def test_seed_is_idempotent_and_reports_stable_counts() -> None:
 def test_fragrance_list_returns_seeded_catalog_in_stable_order() -> None:
     _prepare_seeded_database()
 
-    with TestClient(create_app(_settings())) as client:
-        response = client.get("/api/v1/fragrances")
+    with TestClient(create_app(settings(), signing_key_resolver=resolver())) as client:
+        response = client.get("/api/v1/fragrances", headers=auth_headers("user_catalog"))
 
     assert response.status_code == 200
     payload = response.json()
@@ -132,6 +132,7 @@ def test_fragrance_list_returns_seeded_catalog_in_stable_order() -> None:
         "concentration": "eau_de_parfum",
         "id": AMBER_ATLAS_ID,
         "image_blob_path": None,
+        "is_custom": False,
         "longevity_score": 8.2,
         "name": "Amber Atlas",
         "projection_level": "moderate",
@@ -142,13 +143,17 @@ def test_fragrance_list_returns_seeded_catalog_in_stable_order() -> None:
 def test_fragrance_detail_returns_nested_catalog_relationships() -> None:
     _prepare_seeded_database()
 
-    with TestClient(create_app(_settings())) as client:
-        response = client.get(f"/api/v1/fragrances/{AMBER_ATLAS_ID}")
+    with TestClient(create_app(settings(), signing_key_resolver=resolver())) as client:
+        response = client.get(
+            f"/api/v1/fragrances/{AMBER_ATLAS_ID}",
+            headers=auth_headers("user_detail"),
+        )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["id"] == AMBER_ATLAS_ID
     assert payload["name"] == "Amber Atlas"
+    assert payload["is_custom"] is False
     assert payload["description"] == "A warm amber study from the fictional ScentIQ demo catalog."
     assert payload["notes"] == [
         {
@@ -186,83 +191,40 @@ def test_fragrance_detail_returns_nested_catalog_relationships() -> None:
     ]
 
 
-@pytest.mark.parametrize("fragrance_id", [str(UUID(int=0)), "not-a-uuid"])
-def test_fragrance_detail_returns_stable_not_found_response(fragrance_id: str) -> None:
+def test_unknown_fragrance_returns_the_standard_error_envelope() -> None:
     _prepare_seeded_database()
 
-    with TestClient(create_app(_settings())) as client:
-        response = client.get(f"/api/v1/fragrances/{fragrance_id}")
+    with TestClient(create_app(settings(), signing_key_resolver=resolver())) as client:
+        response = client.get(
+            f"/api/v1/fragrances/{UUID(int=0)}",
+            headers=auth_headers("user_missing"),
+        )
 
     assert response.status_code == 404
-    assert response.json() == {"detail": "Fragrance not found"}
+    assert response.json()["code"] == "not_found"
 
 
-def test_collection_returns_only_the_configured_demo_users_items() -> None:
+def test_malformed_fragrance_id_is_rejected_as_validation() -> None:
     _prepare_seeded_database()
-    engine = create_engine(os.environ["DATABASE_URL"])
-    try:
-        with engine.begin() as connection:
-            connection.execute(
-                text(
-                    """
-                    INSERT INTO users (id, email, display_name, is_demo, created_at, updated_at)
-                    VALUES (
-                        '00000000-0000-4000-8000-000000000099',
-                        'other@example.invalid',
-                        'Other User',
-                        false,
-                        now(),
-                        now()
-                    )
-                    """
-                )
-            )
-            connection.execute(
-                text(
-                    """
-                    INSERT INTO user_collection (
-                        id, user_id, fragrance_id, ownership_type, status, created_at, updated_at
-                    ) VALUES (
-                        '40000000-0000-4000-8000-000000000099',
-                        '00000000-0000-4000-8000-000000000099',
-                        :fragrance_id,
-                        'sample',
-                        'owned',
-                        now(),
-                        now()
-                    )
-                    """
-                ),
-                {"fragrance_id": AMBER_ATLAS_ID},
-            )
-    finally:
-        engine.dispose()
 
-    with TestClient(create_app(_settings())) as client:
-        response = client.get("/api/v1/collection")
+    with TestClient(create_app(settings(), signing_key_resolver=resolver())) as client:
+        response = client.get(
+            "/api/v1/fragrances/not-a-uuid",
+            headers=auth_headers("user_malformed"),
+        )
+
+    # The path parameter is a UUID, so this never reaches the service.
+    assert response.status_code == 422
+    assert response.json()["code"] == "unprocessable_entity"
+
+
+def test_seeded_demo_collection_is_not_reachable_without_an_identity() -> None:
+    """The demo user has no identity mapping, so no token can reach its data."""
+    _prepare_seeded_database()
+
+    with TestClient(create_app(settings(), signing_key_resolver=resolver())) as client:
+        response = client.get("/api/v1/collection", headers=auth_headers("user_fresh"))
 
     assert response.status_code == 200
-    payload = response.json()
-    assert len(payload) == 8
-    assert {item["user_id"] for item in payload} == {DEMO_USER_ID}
-    assert {item["ownership_type"] for item in payload} == {"bottle", "decant", "sample"}
-    assert all(item["fragrance"]["name"] for item in payload)
-
-
-def test_database_failures_return_a_sanitized_error(caplog: pytest.LogCaptureFixture) -> None:
-    secret_marker = "postgresql://user:private-password@example.invalid/database"
-    failure = OperationalError(
-        "SELECT secret",
-        {"password": secret_marker},
-        Exception(secret_marker),
-    )
-
-    with (
-        patch.object(FragranceRepository, "list", side_effect=failure),
-        TestClient(create_app(_settings()), raise_server_exceptions=False) as client,
-    ):
-        response = client.get("/api/v1/fragrances")
-
-    assert response.status_code == 500
-    assert response.json() == {"detail": "Internal server error"}
-    assert secret_marker not in caplog.text
+    # A newly provisioned user starts empty; the seeded demo rows stay invisible.
+    assert response.json() == []

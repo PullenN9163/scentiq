@@ -1,21 +1,72 @@
 from scentiq_api.schemas.catalog import (
     AccordResponse,
     BrandResponse,
+    FragranceCreateRequest,
     FragranceDetail,
     FragranceSummary,
     NoteResponse,
     OccasionResponse,
     SeasonResponse,
 )
-from scentiq_api.schemas.collection import CollectionItemResponse
+from scentiq_api.schemas.collection import (
+    CollectionItemCreateRequest,
+    CollectionItemResponse,
+    CollectionItemUpdateRequest,
+)
+from scentiq_api.schemas.enums import (
+    RETIRED_STATUSES,
+    CollectionStatus,
+    LifecycleState,
+    NoteStage,
+    Occasion,
+    OwnershipType,
+    Projection,
+    Season,
+)
+from scentiq_api.schemas.identity import (
+    DeletionResponse,
+    MeResponse,
+    MeUpdateRequest,
+    PreferencesResponse,
+    PreferencesUpdateRequest,
+)
+from scentiq_api.schemas.insights import (
+    CollectionInsightsResponse,
+    CountSlice,
+    MostWornEntry,
+    WeightedSlice,
+)
+from scentiq_api.schemas.wear import WearLogCreateRequest, WearLogResponse
 
 __all__ = [
+    "RETIRED_STATUSES",
     "AccordResponse",
     "BrandResponse",
+    "CollectionInsightsResponse",
+    "CollectionItemCreateRequest",
     "CollectionItemResponse",
+    "CollectionItemUpdateRequest",
+    "CollectionStatus",
+    "CountSlice",
+    "DeletionResponse",
+    "FragranceCreateRequest",
     "FragranceDetail",
     "FragranceSummary",
+    "LifecycleState",
+    "MeResponse",
+    "MeUpdateRequest",
+    "MostWornEntry",
     "NoteResponse",
+    "NoteStage",
+    "Occasion",
     "OccasionResponse",
+    "OwnershipType",
+    "PreferencesResponse",
+    "PreferencesUpdateRequest",
+    "Projection",
+    "Season",
     "SeasonResponse",
+    "WearLogCreateRequest",
+    "WearLogResponse",
+    "WeightedSlice",
 ]

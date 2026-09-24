@@ -24,6 +24,11 @@
     "build": "pnpm --filter @scentiq/web build",
     "api:migrate": "uv run --directory apps/api alembic upgrade head",
     "api:seed": "uv run --directory apps/api python -m scentiq_api.seed",
+    "api:reconcile-deletions": "uv run --directory apps/api python -m scentiq_api.reconcile_deletions",
+    "contracts:openapi": "uv run --directory apps/api python -m scentiq_api.export_openapi > apps/api/openapi.json",
+    "contracts:types": "pnpm --filter @scentiq/web contracts:types",
+    "contracts": "pnpm contracts:openapi && pnpm contracts:types",
+    "contracts:check": "node scripts/check-contract-drift.mjs",
     "compose:config": "docker compose --env-file .env.example config --quiet",
     "verify": "pnpm test && pnpm lint && pnpm typecheck && pnpm build && pnpm compose:config"
   },

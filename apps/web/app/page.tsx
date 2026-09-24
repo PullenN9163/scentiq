@@ -1,3 +1,4 @@
+import { SignedIn, SignedOut } from "@clerk/nextjs";
 import { ArrowRight, BarChart3, Beaker, CalendarDays, CloudSun, Compass, Sparkles } from "lucide-react";
 import Link from "next/link";
 
@@ -21,7 +22,8 @@ export default function Home() {
     <main className="landing">
       <nav className="landing-nav container" aria-label="Marketing navigation">
         <Link href="/" className="brand"><span className="brand__mark">S</span><span>ScentIQ</span></Link>
-        <Button asChild size="sm"><Link href="/dashboard">Enter Demo <ArrowRight size={16} /></Link></Button>
+        <SignedIn><Button asChild size="sm"><Link href="/dashboard">Open ScentIQ <ArrowRight size={16} /></Link></Button></SignedIn>
+        <SignedOut><Button asChild size="sm"><Link href="/sign-in">Sign in <ArrowRight size={16} /></Link></Button></SignedOut>
       </nav>
       <section className="hero container">
         <div className="hero__copy">
@@ -29,7 +31,7 @@ export default function Home() {
           <h1 className="serif">ScentIQ</h1>
           <p className="hero__lede">Your life already has a rhythm. Wear a fragrance that belongs in it.</p>
           <p className="muted">ScentIQ considers your collection, the weather, and what is next—then offers a clear, personal recommendation.</p>
-          <div className="cluster"><Button asChild><Link href="/dashboard">Enter Demo <ArrowRight size={17} /></Link></Button><Button asChild variant="ghost"><Link href="#how-it-works">See how it works</Link></Button></div>
+          <div className="cluster"><SignedIn><Button asChild><Link href="/dashboard">Open ScentIQ <ArrowRight size={17} /></Link></Button></SignedIn><SignedOut><Button asChild><Link href="/sign-in">Sign in <ArrowRight size={17} /></Link></Button></SignedOut><Button asChild variant="ghost"><Link href="#how-it-works">See how it works</Link></Button></div>
         </div>
         <div className="hero__preview" aria-label="Today recommendation preview">
           <div className="preview-top"><span>{today.weather.condition} · {today.weather.high}°</span><Badge>{today.recommendation.primary.score}% match</Badge></div>

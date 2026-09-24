@@ -44,6 +44,28 @@ param apiImage string = 'scentiqacrdevus.azurecr.io/scentiq-api@sha256:63804207a
 param webImage string = 'scentiqacrdevus.azurecr.io/scentiq-web@sha256:cd2bcadef061c1b9bf3933623a9de3aefd0b88868f1f6be09808296895ebb3d7'
 @secure()
 param databaseSecretUri string = ''
+
+// --- Identity provider (Clerk) ----------------------------------------------
+// Issuer, audience and authorized parties are public identifiers, so they are
+// plain configuration. Only the three credentials below are Key Vault secrets.
+// Every value defaults to empty: with no issuer configured the API fails closed
+// and refuses protected requests rather than serving them unauthenticated.
+@description('Clerk Frontend API URL, used as the token issuer. Empty disables authentication, which fails closed.')
+param clerkIssuer string = ''
+@description('Expected audience claim on Clerk session tokens.')
+param clerkAudience string = ''
+@description('Comma-separated authorized parties (azp) accepted on session tokens.')
+param clerkAuthorizedParties string = ''
+@description('Key Vault secret URI for the Clerk secret key, used server-side to delete an identity.')
+@secure()
+param clerkSecretKeySecretUri string = ''
+@description('Key Vault secret URI for the Clerk webhook signing secret.')
+@secure()
+param clerkWebhookSecretUri string = ''
+@description('Key Vault secret URI for the shared credential guarding the internal identity-event endpoint.')
+@secure()
+param internalServiceTokenSecretUri string = ''
+
 @secure()
 param postgresAdministratorPassword string = ''
 param postgresAdministratorLogin string = 'scentiqadmin'
@@ -333,6 +355,15 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
     databaseSecretUri: databaseSecretUri
     commonTags: commonTags
+    // The API verifies session tokens itself, so it needs the issuer config and
+    // the internal service credential, but never a Clerk client key.
+    keyVaultSecrets: [
+      {
+        name: 'internal-service-token'
+        envVar: 'INTERNAL_SERVICE_TOKEN'
+        keyVaultUrl: internalServiceTokenSecretUri
+      }
+    ]
     environmentVariables: [
       { name: 'SCENTIQ_ENV', value: environmentName }
       { name: 'CORS_ORIGINS', value: 'https://${webAppName}.${containerEnvironment.outputs.defaultDomain}' }
@@ -340,6 +371,9 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
       { name: 'AZURE_CLIENT_ID', value: useExistingFoundation ? adoptedIdentity!.outputs.clientId : identity!.outputs.clientId }
       { name: 'AZURE_STORAGE_ACCOUNT_URL', value: storageBlobEndpoint }
       { name: 'AZURE_KEY_VAULT_URL', value: keyVaultUri }
+      { name: 'CLERK_ISSUER', value: clerkIssuer }
+      { name: 'CLERK_AUDIENCE', value: clerkAudience }
+      { name: 'CLERK_AUTHORIZED_PARTIES', value: clerkAuthorizedParties }
     ]
   }
 }
@@ -360,7 +394,31 @@ module web 'modules/container-app.bicep' = if (deployApplications) {
     cpu: '0.5'
     memory: '1Gi'
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
-    environmentVariables: [{ name: 'API_INTERNAL_URL', value: 'https://${api!.outputs.fqdn}' }]
+    // The browser only ever talks to the web app, so this is where the Clerk
+    // server credentials and the webhook signing secret belong. The publishable
+    // key is baked into the image at build time, not injected here.
+    keyVaultSecrets: [
+      {
+        name: 'clerk-secret-key'
+        envVar: 'CLERK_SECRET_KEY'
+        keyVaultUrl: clerkSecretKeySecretUri
+      }
+      {
+        name: 'clerk-webhook-secret'
+        envVar: 'CLERK_WEBHOOK_SECRET'
+        keyVaultUrl: clerkWebhookSecretUri
+      }
+      {
+        name: 'internal-service-token'
+        envVar: 'INTERNAL_SERVICE_TOKEN'
+        keyVaultUrl: internalServiceTokenSecretUri
+      }
+    ]
+    environmentVariables: [
+      { name: 'API_INTERNAL_URL', value: 'https://${api!.outputs.fqdn}' }
+      { name: 'NEXT_PUBLIC_CLERK_SIGN_IN_URL', value: '/sign-in' }
+      { name: 'NEXT_PUBLIC_CLERK_SIGN_UP_URL', value: '/sign-up' }
+    ]
     commonTags: commonTags
   }
 }

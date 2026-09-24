@@ -2,7 +2,9 @@
 
 ScentIQ is a fragrance intelligence application with a Next.js frontend, a FastAPI API, a PostgreSQL fragrance catalog and collection model, and an Azure Container Apps deployment foundation. Milestones 2 and 3 add persistent demo-domain data and continuously deployable infrastructure while preserving the original frontend presentation.
 
-Authentication, collection mutations, uploads, recommendations, analytics, and external integrations remain future work. See the [Milestones 2 and 3 architecture](docs/architecture/milestones-2-3-persistence-and-azure.md) for the implemented boundaries and runtime contracts.
+Members sign in with Clerk and own persistent profiles, preferences, collections, wear history and private custom fragrances. Weekly planning, layering, discovery, the agent, and the weather, event and recommendation cards on Today remain clearly labelled previews.
+
+Uploads, external fragrance datasets, live weather and calendar connections, notifications, recommendation scoring and language-model agent calls remain future work. See the [authenticated application architecture](docs/architecture/authenticated-personal-application.md) for the current boundaries and runtime contracts, and the [Milestones 2 and 3 architecture](docs/architecture/milestones-2-3-persistence-and-azure.md) for the persistence and Azure foundation beneath them.
 
 ## Architecture
 
@@ -98,6 +100,9 @@ The example password is for a developer-owned local database only. Do not reuse 
 | `pnpm build` | Build the production frontend. |
 | `pnpm api:migrate` | Upgrade the configured database to the current Alembic head. |
 | `pnpm api:seed` | Idempotently seed the fictional demo catalog and collection. |
+| `pnpm api:reconcile-deletions` | Purge accounts whose deletion webhook never completed. Accepts `--dry-run`. |
+| `pnpm contracts` | Regenerate `apps/api/openapi.json` and the frontend types from it. |
+| `pnpm contracts:check` | Fail if the committed API contract has drifted from the application. |
 | `pnpm compose:config` | Validate Compose using safe example configuration. |
 | `pnpm verify` | Run unit tests, linting, type checking, the frontend build, and Compose validation. |
 
@@ -106,6 +111,19 @@ PostgreSQL integration tests require a reachable database and an exported `DATAB
 ```powershell
 uv run --directory apps/api pytest -m integration
 ```
+
+## Authentication
+
+ScentIQ is an invite-only authenticated application. Clerk is the identity provider; the browser talks only to Next.js, which calls the internally hosted FastAPI service.
+
+Running the app signed in requires a Clerk application and the variables listed in `.env.example`. Two are easy to miss:
+
+- **The Clerk JWT template must include an `email` claim.** A member record is created on their first authenticated request, and the verified token is the only trustworthy source for their email address. Without the claim, every request fails with `401`.
+- **`INTERNAL_SERVICE_TOKEN` must be identical** for the web and API processes. It guards the internal identity-event endpoint that the account-deletion webhook forwards to.
+
+Without `CLERK_ISSUER` the API fails closed: protected endpoints return `503 authentication_unavailable` rather than serving unauthenticated traffic.
+
+See the [identity and accounts runbook](docs/runbooks/identity-and-accounts.md) for setup, deployment order and troubleshooting, and the [authenticated application architecture](docs/architecture/authenticated-personal-application.md) for the design.
 
 ## Configuration and credentials
 

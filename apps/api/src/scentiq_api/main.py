@@ -2,12 +2,15 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from scentiq_api.api import create_v1_router
+from scentiq_api.auth import SigningKeyResolver
 from scentiq_api.config import Settings
 from scentiq_api.database import (
     DatabaseProbe,
@@ -15,6 +18,12 @@ from scentiq_api.database import (
     create_database_probe,
     create_session_factory,
     dispose_database_probe,
+)
+from scentiq_api.errors import (
+    ApiError,
+    handle_api_error,
+    handle_http_exception,
+    handle_validation_error,
 )
 from scentiq_api.health import create_health_router
 from scentiq_api.logging import (
@@ -28,6 +37,7 @@ from scentiq_api.logging import (
 def create_app(
     settings: Settings | None = None,
     database_probe: DatabaseProbe | None = None,
+    signing_key_resolver: SigningKeyResolver | None = None,
 ) -> FastAPI:
     resolved_settings = settings or Settings()
     owns_database_probe = database_probe is None
@@ -68,7 +78,7 @@ def create_app(
     application.add_middleware(RequestLoggingMiddleware)
 
     @application.exception_handler(SQLAlchemyError)
-    async def handle_database_error(request: Request, _: SQLAlchemyError) -> JSONResponse:
+    async def handle_database_error(request: Request, _: Exception) -> JSONResponse:
         diagnostic_logger.error(
             format_runtime_event(
                 "database_request_failed",
@@ -79,11 +89,19 @@ def create_app(
         )
         return JSONResponse(
             status_code=500,
-            content={"detail": "Internal server error"},
+            content={"code": "internal_error", "message": "Internal server error"},
         )
 
+    # Every failure leaves through the same {code, message, field_errors?,
+    # request_id} envelope, whichever layer raised it.
+    application.add_exception_handler(ApiError, handle_api_error)
+    application.add_exception_handler(RequestValidationError, handle_validation_error)
+    application.add_exception_handler(StarletteHTTPException, handle_http_exception)
+
     application.include_router(create_health_router(resolved_database_probe))
-    application.include_router(create_v1_router(get_session, resolved_settings.demo_user_id))
+    application.include_router(
+        create_v1_router(get_session, resolved_settings, signing_key_resolver)
+    )
     return application
 
 

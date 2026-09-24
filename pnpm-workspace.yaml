@@ -2,5 +2,7 @@ packages:
   - apps/web
 
 allowBuilds:
+  # Prebuilt dist; its postinstall only prints a telemetry notice.
+  '@clerk/shared': false
   protobufjs: true
   unrs-resolver: true

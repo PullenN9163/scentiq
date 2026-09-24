@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { PageHeader } from "@/components/shared/page-header";
+import { PreviewNotice } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -36,7 +37,8 @@ export function WeekPlanner() {
   return (
     <section className="page">
       <PageHeader eyebrow="September 22–28" title="My Week" description="A clear plan for every forecast and occasion." action={<Button onClick={() => setFormOpen(true)}><CalendarPlus size={17} />Add manual event</Button>} />
-      {addedEvent && <p className="success-note" role="status">Added “{addedEvent.title}” to this demo session.</p>}
+      <PreviewNotice>Weekly planning is a preview built on sample data. Nothing on this screen is saved to your account.</PreviewNotice>
+      {addedEvent && <p className="success-note" role="status">Showing “{addedEvent.title}” in this preview. It was not saved.</p>}
       <div className="week-list">
         {week.map((day, index) => {
           const chosen = selections[day.date] ?? day.primary;

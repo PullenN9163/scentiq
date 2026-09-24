@@ -18,6 +18,9 @@ jobs:
     timeout-minutes: 15
     env:
       NEXT_TELEMETRY_DISABLED: "1"
+      # A build-time placeholder. Clerk only needs a syntactically valid
+      # publishable key to compile; the real key is a runtime secret.
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuY2kuaW52YWxpZCQ
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -45,6 +48,11 @@ jobs:
 
       - name: Type-check frontend
         run: pnpm --filter @scentiq/web typecheck
+
+      - name: Check generated contracts match the committed OpenAPI document
+        run: |
+          pnpm contracts:types
+          git diff --exit-code -- apps/web/types/api.generated.ts
 
       - name: Build frontend
         run: pnpm --filter @scentiq/web build
@@ -106,6 +114,11 @@ jobs:
 
       - name: Type-check backend
         run: uv run --directory apps/api mypy src tests
+
+      - name: Check the committed API contract matches the application
+        run: |
+          uv run --directory apps/api python -m scentiq_api.export_openapi > "${RUNNER_TEMP}/openapi.json"
+          diff -u apps/api/openapi.json "${RUNNER_TEMP}/openapi.json"
 
       - name: Verify full migration cycle
         run: |

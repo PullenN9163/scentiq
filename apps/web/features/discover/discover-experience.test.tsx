@@ -20,10 +20,10 @@ describe("DiscoverExperience", () => {
     expect(screen.getByText(/no demo matches/i)).toBeVisible();
   });
 
-  it("adds a candidate to the frontend-only wishlist", async () => {
+  it("marks a candidate in the preview without claiming it was saved", async () => {
     const user = userEvent.setup();
     render(<DiscoverExperience />);
-    await user.click(screen.getAllByRole("button", { name: /add to wishlist/i })[0]);
-    expect(screen.getAllByRole("button", { name: /wishlisted/i })[0]).toBeDisabled();
+    await user.click(screen.getAllByRole("button", { name: /^mark in preview$/i })[0]);
+    expect(screen.getAllByRole("button", { name: /marked in preview/i })[0]).toBeDisabled();
   });
 });

@@ -193,6 +193,17 @@ Common conditions:
 - **Port 3000 or 8000 is already in use:** Identify the listener with `Get-NetTCPConnection -State Listen -LocalPort 3000,8000`. Stop the known owning application gracefully; do not terminate an unidentified process.
 - **WSL 2 integration is unavailable:** Run `wsl --status`, confirm virtualization and WSL 2 are enabled, then restart Docker Desktop. `wsl --shutdown` interrupts every running WSL distribution, so use it only after saving work and intentionally stopping affected processes.
 - **Stale ScentIQ containers:** Use `docker compose --env-file .env.example down`, then repeat the clean start. Do not remove volumes unless an intentional local database reset is required.
+- **Docker Desktop closes immediately with "An unexpected error occurred":** Check `%LOCALAPPDATA%\Docker\log\host\com.docker.backend.exe.log` for a line containing `backend crashed`. A message of the form `initializing <service>: listening on unix://…: remove …: The file cannot be accessed by the system` means a stale Unix-socket reparse point from an earlier run cannot be deleted. `Remove-Item`, `del`, and `fsutil reparsepoint delete` all fail on it with error 1920. Quit Docker Desktop, rename the containing directory (for example `%LOCALAPPDATA%\Docker\run` or `%LOCALAPPDATA%\docker-secrets-engine`), and start Docker Desktop again; it recreates the directory. Renaming the parent works because it never opens the unreadable entries. Do not choose "Reset to factory defaults" for this, as that discards all local images and volumes.
+
+### PostgreSQL connections hang on Windows
+
+Use `127.0.0.1` rather than `localhost` in `DATABASE_URL` on a Windows host:
+
+```
+DATABASE_URL=postgresql+psycopg://user:password@127.0.0.1:5432/scentiq_local
+```
+
+On Windows, `localhost` resolves to `::1` first. When the database listens only on IPv4 — which is what publishing a container port as `127.0.0.1:<port>` produces — the IPv6 attempt is refused. Windows reports that refusal through the socket's exceptional set, which `selectors.SelectSelector` does not monitor, so psycopg's connect wait can block indefinitely instead of failing over to IPv4. The symptom is a test run or migration that stops with no database activity and no error. `127.0.0.1` avoids the IPv6 attempt entirely.
 
 ## Local-only secrets and Azure identity
 

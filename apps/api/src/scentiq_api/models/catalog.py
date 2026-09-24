@@ -3,24 +3,68 @@ from __future__ import annotations
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from scentiq_api.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class Brand(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    __tablename__ = "brands"
+    """A fragrance house. Rows with a NULL owner are shared curated records."""
 
-    name: Mapped[str] = mapped_column(String(120), unique=True)
-    slug: Mapped[str] = mapped_column(String(120), unique=True)
+    __tablename__ = "brands"
+    __table_args__ = (
+        Index(
+            "uq_brands_shared_name",
+            "name",
+            unique=True,
+            postgresql_where="owner_user_id IS NULL",
+        ),
+        Index(
+            "uq_brands_shared_slug",
+            "slug",
+            unique=True,
+            postgresql_where="owner_user_id IS NULL",
+        ),
+        Index(
+            "uq_brands_custom_name",
+            "owner_user_id",
+            "name",
+            unique=True,
+            postgresql_where="owner_user_id IS NOT NULL",
+        ),
+    )
+
+    name: Mapped[str] = mapped_column(String(120))
+    slug: Mapped[str] = mapped_column(String(120))
+    owner_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     fragrances: Mapped[list[Fragrance]] = relationship(back_populates="brand")
 
 
 class Fragrance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A fragrance. Rows with a NULL owner are shared curated records."""
+
     __tablename__ = "fragrances"
     __table_args__ = (
-        UniqueConstraint("brand_id", "name", "concentration", name="fragrance_identity"),
+        Index(
+            "uq_fragrances_shared_identity",
+            "brand_id",
+            "name",
+            "concentration",
+            unique=True,
+            postgresql_where="owner_user_id IS NULL",
+        ),
+        Index(
+            "uq_fragrances_custom_identity",
+            "owner_user_id",
+            "brand_id",
+            "name",
+            "concentration",
+            unique=True,
+            postgresql_where="owner_user_id IS NOT NULL",
+        ),
         CheckConstraint(
             "release_year IS NULL OR release_year BETWEEN 1700 AND 2100",
             name="release_year_range",
@@ -35,7 +79,10 @@ class Fragrance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
     )
 
-    brand_id: Mapped[UUID] = mapped_column(ForeignKey("brands.id"), index=True)
+    brand_id: Mapped[UUID] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
+    owner_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     name: Mapped[str] = mapped_column(String(160), index=True)
     concentration: Mapped[str] = mapped_column(String(40))
     release_year: Mapped[int | None]

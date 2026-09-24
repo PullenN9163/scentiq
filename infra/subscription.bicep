@@ -58,6 +58,21 @@ param apiImage string
 param webImage string
 @secure()
 param databaseSecretUri string = ''
+
+// --- Identity provider (Clerk) ----------------------------------------------
+// Issuer, audience and authorized parties are public identifiers. Only the
+// three credentials are Key Vault secret URIs. All default to empty so the API
+// fails closed rather than serving protected routes unauthenticated.
+param clerkIssuer string = ''
+param clerkAudience string = ''
+param clerkAuthorizedParties string = ''
+@secure()
+param clerkSecretKeySecretUri string = ''
+@secure()
+param clerkWebhookSecretUri string = ''
+@secure()
+param internalServiceTokenSecretUri string = ''
+
 @secure()
 param postgresAdministratorPassword string = ''
 param postgresAdministratorLogin string = 'scentiqadmin'
@@ -179,6 +194,12 @@ module platform 'main.bicep' = {
     apiImage: apiImage
     webImage: webImage
     databaseSecretUri: databaseSecretUri
+    clerkIssuer: clerkIssuer
+    clerkAudience: clerkAudience
+    clerkAuthorizedParties: clerkAuthorizedParties
+    clerkSecretKeySecretUri: clerkSecretKeySecretUri
+    clerkWebhookSecretUri: clerkWebhookSecretUri
+    internalServiceTokenSecretUri: internalServiceTokenSecretUri
     postgresAdministratorPassword: postgresAdministratorPassword
     postgresAdministratorLogin: postgresAdministratorLogin
     postgresSkuName: postgresSkuName
