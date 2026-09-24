@@ -134,12 +134,30 @@ if ($Mode -eq 'dev') {
     $adoptedWorkloadIdentities = @($resources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities' -and $_.existing })
     Assert-True ($createdWorkloadIdentities.Count -eq 3 -and $adoptedWorkloadIdentities.Count -eq 3) 'development must declare dedicated API, web, migration, and GitHub deployment identities without duplicate create/adopt declarations'
 
+    # GitHub emits the OIDC subject in two forms: the original name-based form,
+    # and an immutable form embedding the numeric owner and repository IDs so a
+    # rename cannot silently transfer trust. Both are required, because GitHub
+    # presents the immutable form and Azure rejects the assertion when only the
+    # other is registered. Asserting the exact expected set, rather than a bare
+    # count, keeps this a real guard against unintended federation trust.
+    $expectedFederatedSubjects = @(
+        'repo:PullenN9163/scentiq:environment:development'
+        'repo:PullenN9163@194549953/scentiq@1327919888:environment:development'
+    )
     $federatedCredentials = @($resources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials' })
-    $githubFederatedCredential = $federatedCredentials | Select-Object -First 1
-    Assert-True ($federatedCredentials.Count -eq 1) 'development must declare exactly one GitHub federated credential'
-    Assert-True ($null -ne $githubFederatedCredential -and $githubFederatedCredential.properties.issuer -eq 'https://token.actions.githubusercontent.com') 'GitHub federated credential must use the GitHub Actions issuer'
-    Assert-True ($null -ne $githubFederatedCredential -and $githubFederatedCredential.properties.subject -eq 'repo:PullenN9163/scentiq:environment:development') 'GitHub federated credential must be restricted to the development environment'
-    Assert-True ($null -ne $githubFederatedCredential -and $githubFederatedCredential.properties.audiences.Count -eq 1 -and $githubFederatedCredential.properties.audiences[0] -eq 'api://AzureADTokenExchange') 'GitHub federated credential must use the Azure AD token exchange audience'
+    Assert-True ($federatedCredentials.Count -eq $expectedFederatedSubjects.Count) 'development must declare exactly the expected GitHub federated credentials'
+
+    $actualFederatedSubjects = @($federatedCredentials | ForEach-Object { $_.properties.subject } | Sort-Object)
+    $unexpectedSubjects = @($actualFederatedSubjects | Where-Object { $_ -notin $expectedFederatedSubjects })
+    $missingSubjects = @($expectedFederatedSubjects | Where-Object { $_ -notin $actualFederatedSubjects })
+    Assert-True ($unexpectedSubjects.Count -eq 0) 'no GitHub federated credential may target a subject outside the development environment'
+    Assert-True ($missingSubjects.Count -eq 0) 'both the name-based and immutable GitHub subjects must be declared'
+
+    $wrongIssuer = @($federatedCredentials | Where-Object { $_.properties.issuer -ne 'https://token.actions.githubusercontent.com' })
+    Assert-True ($wrongIssuer.Count -eq 0) 'every GitHub federated credential must use the GitHub Actions issuer'
+
+    $wrongAudience = @($federatedCredentials | Where-Object { $_.properties.audiences.Count -ne 1 -or $_.properties.audiences[0] -ne 'api://AzureADTokenExchange' })
+    Assert-True ($wrongAudience.Count -eq 0) 'every GitHub federated credential must use the Azure AD token exchange audience'
 
     $platformIdentityOutputs = @('apiIdentity', 'webIdentity', 'migrationIdentity', 'deploymentIdentity')
     $platformDeploymentForIdentityContracts = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'platform-' }) | Select-Object -First 1

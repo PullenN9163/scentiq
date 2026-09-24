@@ -27,6 +27,16 @@ param useExistingFoundation bool = true
 param enableStorageSharedKeyAccess bool = false
 param enableFoundationLocks bool = true
 param enablePostgresLock bool = true
+@description('''
+Creates the subscription-scope custom role and its assignment to the deployment
+identity. Writing either requires Microsoft.Authorization permission at
+subscription scope, which the deployment identity deliberately does not hold —
+it is granted RBAC administration only within its own resource group. A
+privileged operator therefore runs this once during bootstrap, and routine
+deployments leave it false so they do not attempt a write that must fail.
+''')
+param deploySubscriptionRbac bool = false
+
 param deployWorkloads bool = false
 param deployMigration bool = deployWorkloads
 param deployApplications bool = deployWorkloads
@@ -98,7 +108,7 @@ var commonTags = {
 
 var subscriptionDeploymentRoleDefinitionName = guid(subscription().id, 'scentiq-subscription-deployment-runner')
 
-resource subscriptionDeploymentRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+resource subscriptionDeploymentRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' = if (deploySubscriptionRbac) {
   name: subscriptionDeploymentRoleDefinitionName
   properties: {
     roleName: 'ScentIQ Subscription Deployment Runner'
@@ -121,10 +131,10 @@ resource subscriptionDeploymentRoleDefinition 'Microsoft.Authorization/roleDefin
   }
 }
 
-resource subscriptionDeploymentRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, deploymentIdentityPrincipalId, subscriptionDeploymentRoleDefinition.id)
+resource subscriptionDeploymentRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploySubscriptionRbac) {
+  name: guid(subscription().id, deploymentIdentityPrincipalId, subscriptionDeploymentRoleDefinition!.id)
   properties: {
-    roleDefinitionId: subscriptionDeploymentRoleDefinition.id
+    roleDefinitionId: subscriptionDeploymentRoleDefinition!.id
     principalId: deploymentIdentityPrincipalId
     principalType: 'ServicePrincipal'
   }
