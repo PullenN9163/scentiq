@@ -277,6 +277,22 @@ resource migrationKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2
   }
 }
 
+// The web app holds the Clerk server credentials and the internal service
+// token as Key Vault-backed secrets, so its identity needs to read them. The
+// API and migration identities already had this; the web one did not, because
+// until now the web app referenced no secrets at all. Without it the revision
+// fails to provision with "unable to fetch secret using Managed identity".
+resource webKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVaultResource.id, webIdentityName, keyVaultSecretsUserRoleDefinitionId)
+  scope: keyVaultResource
+  dependsOn: [keyVault]
+  properties: {
+    principalId: webIdentity.outputs.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: keyVaultSecretsUserRoleDefinitionId
+  }
+}
+
 resource deploymentContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: deploymentContributorRoleAssignmentName
   properties: {
@@ -380,6 +396,11 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
 
 module web 'modules/container-app.bicep' = if (deployApplications) {
   name: 'web-${environmentName}'
+  // The revision reads its secrets from Key Vault while provisioning, so the
+  // identity must already hold the role by then.
+  dependsOn: [
+    webKeyVaultSecretsUser
+  ]
   params: {
     location: location
     name: webAppName
