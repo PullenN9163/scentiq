@@ -55,7 +55,14 @@ az keyvault secret show --vault-name "$vault" --name clerk-secret-key --query id
 
 The container apps read these through the workload identity, so the values never enter the workflow logs or the repository.
 
-### GitHub repository configuration
+### GitHub Actions configuration
+
+These belong to the **`development` environment**, not the repository scope, because the deployment job runs with `environment: development` and a future production instance needs its own Clerk application. The existing Azure values live there too.
+
+```bash
+gh variable set CLERK_ISSUER --env development --body "<frontend-api-url>"
+gh secret set CLERK_SECRET_KEY_SECRET_URI --env development
+```
 
 | Name | Kind | Value |
 | --- | --- | --- |
