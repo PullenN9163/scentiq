@@ -64,6 +64,12 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-development}
+        # Clerk inlines this into the client bundle, so `next build` fails
+        # outright without it. The fallback is a syntactically valid but
+        # deliberately non-working key ("clerk.ci.invalid"), present only so an
+        # image build succeeds without credentials. It authenticates nobody: a
+        # container started with it cannot reach Clerk at runtime.
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-pk_test_Y2xlcmsuY2kuaW52YWxpZCQ}
     depends_on:
       api:
         condition: service_healthy
