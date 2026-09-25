@@ -191,7 +191,13 @@ if ($Mode -eq 'dev') {
     $blobAssignments = @($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.BlobContributor })
     $keyVaultAssignments = @($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser })
     Assert-True ($acrPullAssignments.Count -eq 4 -and @($acrPullAssignments | Where-Object { $_.scope -notmatch 'Microsoft.ContainerRegistry/registries' }).Count -eq 0) 'API, web, migration, and deployment identities must receive AcrPull or AcrPush only at the registry scope'
-    Assert-True ($blobAssignments.Count -eq 2 -and @($blobAssignments | Where-Object { $_.scope -notmatch 'Microsoft.Storage/storageAccounts' }).Count -eq 0) 'API identity must receive Storage Blob Data Contributor only at the storage account scope'
+    # The deployment identity also runs the scheduled dataset refresh, so it
+    # holds Blob data access, but only on the datasets container.
+    $deploymentBlobAssignments = @($blobAssignments | Where-Object { $_.properties.principalId -eq "[parameters('deploymentIdentityPrincipalId')]" })
+    $apiBlobAssignments = @($blobAssignments | Where-Object { $_.properties.principalId -ne "[parameters('deploymentIdentityPrincipalId')]" })
+    Assert-True ($blobAssignments.Count -eq 3) 'exactly the API identity (fresh and adopted) and the deployment identity may receive Storage Blob Data Contributor'
+    Assert-True ($apiBlobAssignments.Count -eq 2 -and @($apiBlobAssignments | Where-Object { $_.scope -notmatch 'Microsoft.Storage/storageAccounts' -or $_.scope -match 'blobServices/containers' }).Count -eq 0) 'API identity must receive Storage Blob Data Contributor only at the storage account scope'
+    Assert-True ($deploymentBlobAssignments.Count -eq 1 -and $deploymentBlobAssignments[0].scope -match 'Microsoft\.Storage/storageAccounts/blobServices/containers' -and $deploymentBlobAssignments[0].scope -match "/default/datasets'") 'deployment identity must receive Storage Blob Data Contributor only on the datasets container'
     # The web tier now holds the Clerk server credentials and the internal
     # service token, so it reads the vault as well. Access stays scope
     # restricted: every Key Vault Secrets User assignment must target the vault.
@@ -223,7 +229,7 @@ if ($Mode -eq 'dev') {
     Assert-True ($apiAssignments.Count -eq 6 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPull }).Count -eq 2 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.BlobContributor }).Count -eq 2 -and @($apiAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser }).Count -eq 2) 'API identity must have exactly AcrPull, Storage Blob Data Contributor, and Key Vault Secrets User across fresh and adopted branches'
     Assert-True ($webAssignments.Count -eq 2 -and @($webAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPull }).Count -eq 1 -and @($webAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser }).Count -eq 1) 'web identity must have exactly AcrPull and Key Vault Secrets User'
     Assert-True ($migrationAssignments.Count -eq 2 -and @($migrationAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPull }).Count -eq 1 -and @($migrationAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser }).Count -eq 1) 'migration identity must have exactly AcrPull and Key Vault Secrets User'
-    Assert-True ($deploymentAssignments.Count -eq 4 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.Contributor }).Count -eq 1 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.RbacAdministrator }).Count -eq 1 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPush }).Count -eq 1 -and @($deploymentAssignments | Where-Object { $_.properties.roleDefinitionId -match 'subscriptionDeploymentRoleDefinitionName' }).Count -eq 1) 'deployment identity must retain its resource-group roles plus exactly one narrow subscription deployment role'
+    Assert-True ($deploymentAssignments.Count -eq 5 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.Contributor }).Count -eq 1 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.RbacAdministrator }).Count -eq 1 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPush }).Count -eq 1 -and @($deploymentAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.BlobContributor }).Count -eq 1 -and @($deploymentAssignments | Where-Object { $_.properties.roleDefinitionId -match 'subscriptionDeploymentRoleDefinitionName' }).Count -eq 1) 'deployment identity must retain its resource-group roles, datasets Blob access, and exactly one narrow subscription deployment role'
 
     $requiredTypes = @(
         'Microsoft.Insights/actionGroups',
@@ -611,10 +617,13 @@ if ($Mode -eq 'dev') {
     } 'the Blob service preservation baseline'
 
     $storageContainers = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/blobServices/containers' })
-    Assert-True ($storageContainers.Count -eq 3 -and @($storageContainers | Where-Object { -not $_.existing }).Count -eq 0) 'existing private Blob containers must use adoption references so deployment does not reset container metadata'
     foreach ($containerName in @('uploads', 'exports', 'system')) {
-        Assert-True ((@($storageContainers | Where-Object { $_.name -match [regex]::Escape("'$containerName'") }).Count) -eq 1) "storage must declare the $containerName container"
+        $declaredContainers = @($storageContainers | Where-Object { $_.name -match [regex]::Escape("'$containerName'") })
+        Assert-True ($declaredContainers.Count -eq 1) "storage must declare the $containerName container"
+        Assert-True ($declaredContainers.Count -eq 1 -and $declaredContainers[0].existing -eq $true) "the existing $containerName container must use an adoption reference so deployment does not reset container metadata"
     }
+    $createdContainers = @($storageContainers | Where-Object { -not $_.existing })
+    Assert-True ($createdContainers.Count -eq 1 -and $createdContainers[0].name -match "'datasets'" -and $createdContainers[0].properties.publicAccess -eq 'None') 'the private datasets container must be the only Blob container the template creates'
 
     $storagePolicy = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/managementPolicies' }) | Select-Object -First 1
     Assert-True ($null -ne $storagePolicy -and $storagePolicy.properties.policy.rules.Count -eq 1) 'storage must use one scoped lifecycle policy rule and rely on Azure garbage collection for uncommitted blocks'
@@ -671,7 +680,7 @@ if ($Mode -eq 'dev') {
     $platformKeyVaultOutput = $platformDeployment.properties.template.outputs.keyVault
     Assert-True ($null -ne $platformKeyVaultOutput -and $platformKeyVaultOutput.type -eq 'object' -and @($platformKeyVaultOutput.value.PSObject.Properties.Name | Where-Object { $_ -in @('id', 'uri') }).Count -eq 2) 'platform must expose Key Vault ID and URI'
     $storageDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match "storage-" }) | Select-Object -First 1
-    foreach ($containerName in @('uploads', 'exports', 'system')) {
+    foreach ($containerName in @('uploads', 'exports', 'system', 'datasets')) {
         Assert-True ($null -ne $storageDeployment -and $storageDeployment.properties.template.outputs.containerIds.value.$containerName -eq "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageName'), 'default', '$containerName')]") "storage output must resolve the $containerName declared container resource ID"
     }
     $keyVaultDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match "key-vault-" }) | Select-Object -First 1

@@ -98,7 +98,18 @@ resource systemContainer 'Microsoft.Storage/storageAccounts/blobServices/contain
   name: 'system'
 }
 
-resource managementPolicy 'Microsoft.Storage/storageAccounts/managementPolicies@2023-05-01' = {
+// Unlike the adopted containers above, this one is created and owned by the
+// template. It holds third-party catalogue datasets written by the scheduled
+// refresh workflow; Blob versioning retains every replaced copy.
+resource datasetsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobService
+  name: 'datasets'
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
+resource managementPolicy'Microsoft.Storage/storageAccounts/managementPolicies@2023-05-01' = {
   parent: storage
   name: 'default'
   properties: {
@@ -174,4 +185,5 @@ output containerIds object = {
   uploads: uploadsContainer.id
   exports: exportsContainer.id
   system: systemContainer.id
+  datasets: datasetsContainer.id
 }

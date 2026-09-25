@@ -174,6 +174,10 @@ resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
 }
 
+resource datasetsContainerResource 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
+  name: '${storageName}/default/datasets'
+}
+
 var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var storageBlobDataContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
 var keyVaultSecretsUserRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
@@ -319,6 +323,22 @@ resource deploymentAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' 
     principalId: deploymentIdentityPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: acrPushRoleDefinitionId
+  }
+}
+
+// The scheduled dataset refresh signs in as the deployment identity through
+// the same development-environment federation. Contributor covers only the
+// management plane, so the refresh is granted data access to the datasets
+// container alone; the uploads, exports, and system containers stay out of
+// its reach.
+resource deploymentDatasetsBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(datasetsContainerResource.id, deploymentIdentityName, storageBlobDataContributorRoleDefinitionId)
+  scope: datasetsContainerResource
+  dependsOn: [storage]
+  properties: {
+    principalId: deploymentIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: storageBlobDataContributorRoleDefinitionId
   }
 }
 
