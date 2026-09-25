@@ -36,3 +36,6 @@ Thumbs.db
 # OS / temp files
 *.tmp
 *.bak
+
+# Unzipped datasets (raw zips live in datasets/raw)
+datasets/extracted/
