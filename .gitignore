@@ -39,3 +39,4 @@ Thumbs.db
 
 # Unzipped datasets (raw zips live in datasets/raw)
 datasets/extracted/
+datasets/reports/
