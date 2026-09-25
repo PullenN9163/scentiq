@@ -21,7 +21,7 @@ Occasion = Literal[
 ]
 OwnershipType = Literal["bottle", "decant", "sample"]
 CollectionStatus = Literal["owned", "wishlist", "finished", "sold"]
-NoteStage = Literal["top", "middle", "base"]
+NoteStage = Literal["top", "middle", "base", "general"]
 LifecycleState = Literal["active", "deletion_pending"]
 
 # Statuses that retain history instead of being hard-deleted.

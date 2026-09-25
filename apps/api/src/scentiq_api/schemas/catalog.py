@@ -18,7 +18,7 @@ class FragranceSummary(BaseModel):
 
     id: UUID
     name: str
-    concentration: str
+    concentration: str | None
     release_year: int | None
     image_blob_path: str | None
     longevity_score: float | None
