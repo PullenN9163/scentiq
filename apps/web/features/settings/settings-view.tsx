@@ -1,29 +1,40 @@
 "use client";
 
-import { Bell, CalendarDays, Lock, MapPin, SlidersHorizontal, UserRound } from "lucide-react";
+import { Bell, Lock, MapPin, SlidersHorizontal, UserRound } from "lucide-react";
 import { useActionState } from "react";
 
 import { ApiStatus } from "@/components/api-status";
 import { Field, FormMessage } from "@/components/shared/form-field";
 import { PageHeader } from "@/components/shared/page-header";
 import { PreviewNotice } from "@/components/shared/states";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CalendarConnectionsCard } from "@/features/settings/calendar-connections";
 import { DeleteAccountPanel } from "@/features/settings/delete-account-panel";
 import { idleState } from "@/lib/action-state";
 import { updatePreferences, updateProfile } from "@/lib/server/actions";
-import type { Me } from "@/types/api";
+import type { CalendarConnection, CalendarProviderStatus, Me } from "@/types/api";
 
 /**
  * Settings, split between persisted values and surfaces that remain previews.
  *
- * Profile, preferences and the forecast location save to the service. Calendar
- * connections and notifications are still previews and say so, so nothing
- * implies it was saved.
+ * Profile, preferences, the forecast location and calendar connections save to
+ * the service. Notifications are still a preview and say so, so nothing implies
+ * it was saved.
  */
-export function SettingsView({ me }: { me: Me }) {
+export function SettingsView({
+  me,
+  calendarProviders = null,
+  calendarConnections = null,
+  calendarNotice = null,
+}: {
+  me: Me;
+  /** Null when the calendar service could not be reached. */
+  calendarProviders?: CalendarProviderStatus[] | null;
+  calendarConnections?: CalendarConnection[] | null;
+  calendarNotice?: string | null;
+}) {
   const [profileState, profileAction, profilePending] = useActionState(updateProfile, idleState);
   const [preferenceState, preferenceAction, preferencePending] = useActionState(
     updatePreferences,
@@ -213,23 +224,11 @@ export function SettingsView({ me }: { me: Me }) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent>
-            <div className="settings-title">
-              <CalendarDays size={19} />
-              <h2>Calendar connections</h2>
-            </div>
-            <PreviewNotice>Calendar connections are not available yet.</PreviewNotice>
-            <button className="connection-row" disabled type="button">
-              <span>Google Calendar</span>
-              <Badge>Coming later</Badge>
-            </button>
-            <button className="connection-row" disabled type="button">
-              <span>Outlook Calendar</span>
-              <Badge>Coming later</Badge>
-            </button>
-          </CardContent>
-        </Card>
+        <CalendarConnectionsCard
+          providers={calendarProviders}
+          connections={calendarConnections}
+          notice={calendarNotice}
+        />
 
         <Card>
           <CardContent>

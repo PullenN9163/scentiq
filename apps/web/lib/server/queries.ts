@@ -1,8 +1,12 @@
 import "server-only";
 
 import { ApiError, apiClient } from "@/lib/server/api-client";
+import type { CalendarResult } from "@/lib/calendar";
 import type { WeatherResult } from "@/lib/weather";
 import type {
+  CalendarConnection,
+  CalendarEvent,
+  CalendarProviderStatus,
   CollectionInsights,
   CollectionItem,
   DiscoveryResult,
@@ -106,6 +110,50 @@ export async function getWeather(): Promise<WeatherResult> {
       if (error.code === "location_required") return { status: "location_required" };
       if (error.code === "location_unresolved") return { status: "location_unresolved" };
     }
+    return { status: "unavailable" };
+  }
+}
+
+// --- calendar ------------------------------------------------------------
+
+export function getCalendarProviders(): Promise<CalendarProviderStatus[]> {
+  return apiClient.get<CalendarProviderStatus[]>("/api/v1/calendar/providers");
+}
+
+export function getCalendarConnections(): Promise<CalendarConnection[]> {
+  return apiClient.get<CalendarConnection[]>("/api/v1/calendar/connections");
+}
+
+export function getCalendarEvents(start: Date, end: Date): Promise<CalendarEvent[]> {
+  const parameters = new URLSearchParams({ start: start.toISOString(), end: end.toISOString() });
+  return apiClient.get<CalendarEvent[]>(`/api/v1/calendar/events?${parameters.toString()}`);
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Events from a day before to two days after `now`, or why there are none.
+ *
+ * The window covers "today" in every timezone, so this can run alongside the
+ * profile read that supplies the member's zone; `eventsOn` then narrows it.
+ * Like the forecast, calendar trouble is a state for the page rather than an
+ * error, so a provider outage cannot take down the screen.
+ */
+export async function getCalendarAround(now = new Date()): Promise<CalendarResult> {
+  try {
+    const connections = await getCalendarConnections();
+    if (connections.length === 0) return { status: "not_connected" };
+    const events = await getCalendarEvents(
+      new Date(now.getTime() - DAY_MS),
+      new Date(now.getTime() + 2 * DAY_MS),
+    );
+    return {
+      status: "ok",
+      events,
+      needsReconnect: connections.some((connection) => connection.status === "reauth_required"),
+    };
+  } catch (error) {
+    if (error instanceof ApiError && error.kind === "unauthorized") throw error;
     return { status: "unavailable" };
   }
 }

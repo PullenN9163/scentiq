@@ -1,3 +1,4 @@
+from scentiq_api.repositories.calendar import CalendarRepository
 from scentiq_api.repositories.collection import CollectionRepository
 from scentiq_api.repositories.discovery import DiscoveryRepository
 from scentiq_api.repositories.fragrances import FragranceRepository
@@ -8,6 +9,7 @@ from scentiq_api.repositories.wear import WearLogRepository
 from scentiq_api.repositories.weather import WeatherRepository
 
 __all__ = [
+    "CalendarRepository",
     "CollectionRepository",
     "DiscoveryRepository",
     "FragranceRepository",

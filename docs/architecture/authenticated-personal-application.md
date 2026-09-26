@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented September 23, 2026, extended September 25, 2026 with the source-backed shared catalog, and September 27, 2026 with live weather. Targets the existing Azure development topology as a private beta, not a production environment.
+Implemented September 23, 2026, extended September 25, 2026 with the source-backed shared catalog, September 27, 2026 with live weather, and September 28, 2026 with Google calendar connections. Targets the existing Azure development topology as a private beta, not a production environment.
 
 ## Objective
 
@@ -21,7 +21,7 @@ This milestone delivers:
 - live catalog discovery and collection-based layering, with weekly planning and the agent retaining clearly labelled weather/calendar preview inputs; and
 - a generated API contract that continuous integration holds the web application to.
 
-Excluded: image uploads, calendar connections, notifications and language-model agent calls. Live weather was added afterwards; see [Weather](#weather). The shared catalog is built from external source listings; source provenance and licensing constraints remain explicit product boundaries.
+Excluded: image uploads, notifications and language-model agent calls. Live weather and calendar connections were added afterwards; see [Weather](#weather) and [Calendar connections](#calendar-connections). The shared catalog is built from external source listings; source provenance and licensing constraints remain explicit product boundaries.
 
 ## Identity and the service boundary
 
@@ -106,6 +106,13 @@ All endpoints are authenticated and live under `/api/v1`:
 | GET | `/insights/collection` |
 | GET | `/weather/forecast` |
 | GET | `/weather/places` |
+| GET | `/calendar/providers`, `/calendar/connections` |
+| POST | `/calendar/connections/{provider}/authorize`, `/calendar/connections/{provider}/callback` |
+| PATCH | `/calendar/connections/{id}/sources/{source_id}` |
+| POST | `/calendar/connections/{id}/sync` |
+| DELETE | `/calendar/connections/{id}` |
+| GET | `/calendar/events` |
+| PATCH | `/calendar/events/{id}` |
 
 `POST /api/v1/internal/identity-events` is excluded from the public schema and authenticates with the service credential alone.
 
@@ -130,9 +137,9 @@ Mutations are Server Actions returning a common result shape that carries field 
 
 Connected to persisted data: Catalog Search, Discover, Layering, Collection, Fragrance Detail, Settings, Insights, and the Today totals and recent wears.
 
-Connected to live weather: the Today weather card and the Settings location.
+Connected to live weather and calendars: the Today weather and events cards, the Settings location and the Settings calendar connections.
 
-Still previews, and labelled as such on screen: weather and calendar inputs used by weekly planning and the agent, plus the event card on Today. Fragrance choices in those experiences come only from the member's persisted collection. No preview action claims to have been saved.
+Still previews, and labelled as such on screen: the weather and calendar inputs used by weekly planning and the agent. Fragrance choices in those experiences come only from the member's persisted collection. No preview action claims to have been saved.
 
 Insights report how much of a collection each breakdown covers. Custom fragrances normally carry no accord, season or occasion data, so a breakdown that silently omitted them would misrepresent the collection.
 
@@ -149,6 +156,10 @@ Clerk keys, the webhook secret, token-validation settings and the internal servi
 | `INTERNAL_SERVICE_TOKEN` | Web webhook route and API internal endpoint |
 | `WEATHER_API_BASE_URL`, `GEOCODING_API_BASE_URL` | API; blank uses Open-Meteo's free endpoints |
 | `OPEN_METEO_API_KEY` | API; optional, for Open-Meteo's commercial plan |
+| `PUBLIC_APP_URL` | API; the web origin OAuth providers redirect back to |
+| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | API |
+| `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET` | API (Outlook, next phase) |
+| `INTEGRATION_TOKEN_ENCRYPTION_KEY`, `INTEGRATION_TOKEN_PREVIOUS_KEYS` | API; seal stored refresh tokens |
 
 ## Weather
 
@@ -160,6 +171,32 @@ Forecasts come from [Open-Meteo](https://open-meteo.com/) through the API; the b
 - **Failure.** With a cached forecast and an unreachable provider the response carries `stale: true`. With nothing cached it is `503 weather_unavailable`; no saved location is `409 location_required`, and an unresolvable one is `409 location_unresolved`. Today renders each of these as a state of the weather card rather than failing the page.
 - **Units.** Temperatures are always Celsius on the wire. The member's `temperature_unit` preference (default Fahrenheit) is applied only for display.
 - **Licensing.** The free tier is for non-commercial use. The commercial plan needs only configuration: the `customer-*` hosts and `OPEN_METEO_API_KEY`.
+
+## Calendar connections
+
+Members connect Google calendars from Settings. ScentIQ runs its own OAuth flow, separate from Clerk sign-in, so any member can connect any account. Setup and operations are in the [calendar and weather runbook](../runbooks/calendar-and-weather.md).
+
+**The flow.** The browser only ever visits Next.js and the provider.
+
+1. **Start.** `GET /integrations/calendar/{provider}/start` is a session-protected route handler. It asks FastAPI for a consent URL. FastAPI records a single-use state and a PKCE verifier (S256) bound to the member for 10 minutes, and stores only the state's SHA-256 hash.
+2. **Callback.** The provider redirects to `GET /integrations/calendar/{provider}/callback`. The route forwards the code and state to FastAPI and redirects to Settings with a notice code. Provider errors are never rendered.
+3. **State check.** FastAPI checks that the state belongs to this member, provider and window. It deletes and **commits** the state before exchanging the code, so a state cannot be replayed even when the exchange fails.
+4. **Grant storage.** Only the refresh token is stored, sealed with AES-256-GCM. The associated data binds each ciphertext to its member and provider, and a key-id prefix supports rotation. Access tokens live only for the request.
+5. **Reconnect.** Connecting the same account again replaces the grant and keeps the member's calendar choices.
+
+**Sync.** Sync is on demand; there is no scheduler.
+
+- Reading events syncs any active connection not attempted in the last 15 minutes. It locks the connection row with `FOR UPDATE SKIP LOCKED`, so concurrent readers serve stored events instead of syncing twice.
+- Each sync covers the window from yesterday to 21 days ahead for the calendars the member has ticked. Recurring events are expanded by the provider.
+- Events are upserted by `(calendar, provider event id)`. Anything the provider no longer returns in the window is deleted. A member's choice to hide an event survives a re-sync.
+- A rotated refresh token is saved in the same transaction.
+- Failures:
+  - `invalid_grant` or a `401` marks the connection `reauth_required`.
+  - An outage records `last_error_code` and keeps serving stored events.
+
+**Privacy.** Events keep only the title, start, end, the all-day flag, the location and a derived occasion and formality. Descriptions, attendees and meeting links are never stored. All-day events are stored at midnight UTC of their dates and compared by date on screen. Connections, calendars, events and pending states cascade on member deletion.
+
+**Classification.** A deterministic keyword classifier maps each title to the existing occasion values and a formality. For example, "Team dinner" becomes dinner and smart, and "Sam's wedding drinks" becomes formal. Planning consumes this.
 
 ## Verification
 

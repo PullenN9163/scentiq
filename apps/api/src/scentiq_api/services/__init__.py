@@ -1,3 +1,4 @@
+from scentiq_api.services.calendar import CalendarService
 from scentiq_api.services.collection import CollectionService
 from scentiq_api.services.discovery import DiscoveryService
 from scentiq_api.services.fragrances import FragranceService, to_fragrance_summary
@@ -15,6 +16,7 @@ from scentiq_api.services.weather import WeatherService
 __all__ = [
     "RECONCILIATION_GRACE",
     "AccountDeletionService",
+    "CalendarService",
     "CollectionService",
     "DiscoveryService",
     "FragranceService",

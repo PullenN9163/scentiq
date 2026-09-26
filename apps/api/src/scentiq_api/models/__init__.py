@@ -17,8 +17,11 @@ from scentiq_api.models.catalog import (
 )
 from scentiq_api.models.identity import IdentityEvent, UserIdentity
 from scentiq_api.models.planning import (
+    CalendarConnection,
     CalendarEvent,
+    CalendarSource,
     LayeringLog,
+    OAuthState,
     Recommendation,
     RecommendationCandidate,
     WeatherSnapshot,
@@ -36,7 +39,9 @@ __all__ = [
     "Accord",
     "Base",
     "Brand",
+    "CalendarConnection",
     "CalendarEvent",
+    "CalendarSource",
     "CatalogImportRun",
     "Fragrance",
     "FragranceAccord",
@@ -50,6 +55,7 @@ __all__ = [
     "IdentityEvent",
     "LayeringLog",
     "Note",
+    "OAuthState",
     "Perfumer",
     "Recommendation",
     "RecommendationCandidate",

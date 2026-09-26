@@ -83,6 +83,18 @@ param clerkWebhookSecretUri string = ''
 @secure()
 param internalServiceTokenSecretUri string = ''
 
+// --- Calendar connections ---------------------------------------------------
+// OAuth client IDs are public identifiers; client secrets and the refresh-token
+// encryption key are Key Vault secret URIs. Empty leaves a provider unavailable.
+param googleOAuthClientId string = ''
+@secure()
+param googleOAuthClientSecretSecretUri string = ''
+param microsoftOAuthClientId string = ''
+@secure()
+param microsoftOAuthClientSecretSecretUri string = ''
+@secure()
+param integrationTokenEncryptionKeySecretUri string = ''
+
 @secure()
 param postgresAdministratorPassword string = ''
 param postgresAdministratorLogin string = 'scentiqadmin'
@@ -210,6 +222,11 @@ module platform 'main.bicep' = {
     clerkSecretKeySecretUri: clerkSecretKeySecretUri
     clerkWebhookSecretUri: clerkWebhookSecretUri
     internalServiceTokenSecretUri: internalServiceTokenSecretUri
+    googleOAuthClientId: googleOAuthClientId
+    googleOAuthClientSecretSecretUri: googleOAuthClientSecretSecretUri
+    microsoftOAuthClientId: microsoftOAuthClientId
+    microsoftOAuthClientSecretSecretUri: microsoftOAuthClientSecretSecretUri
+    integrationTokenEncryptionKeySecretUri: integrationTokenEncryptionKeySecretUri
     postgresAdministratorPassword: postgresAdministratorPassword
     postgresAdministratorLogin: postgresAdministratorLogin
     postgresSkuName: postgresSkuName

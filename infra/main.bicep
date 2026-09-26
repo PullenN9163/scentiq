@@ -66,6 +66,24 @@ param clerkWebhookSecretUri string = ''
 @secure()
 param internalServiceTokenSecretUri string = ''
 
+// --- Calendar connections ---------------------------------------------------
+// Only the API talks to Google and Microsoft. Client IDs are public; the client
+// secrets and the key sealing stored refresh tokens are Key Vault secrets. An
+// empty value leaves that provider unavailable rather than half-configured.
+@description('Google OAuth client ID for calendar connections.')
+param googleOAuthClientId string = ''
+@description('Key Vault secret URI for the Google OAuth client secret.')
+@secure()
+param googleOAuthClientSecretSecretUri string = ''
+@description('Microsoft Entra application (client) ID for Outlook calendar connections.')
+param microsoftOAuthClientId string = ''
+@description('Key Vault secret URI for the Microsoft Entra client secret.')
+@secure()
+param microsoftOAuthClientSecretSecretUri string = ''
+@description('Key Vault secret URI for the base64 AES-256 key that seals stored calendar refresh tokens.')
+@secure()
+param integrationTokenEncryptionKeySecretUri string = ''
+
 @secure()
 param postgresAdministratorPassword string = ''
 param postgresAdministratorLogin string = 'scentiqadmin'
@@ -379,6 +397,21 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
         envVar: 'INTERNAL_SERVICE_TOKEN'
         keyVaultUrl: internalServiceTokenSecretUri
       }
+      {
+        name: 'google-oauth-client-secret'
+        envVar: 'GOOGLE_OAUTH_CLIENT_SECRET'
+        keyVaultUrl: googleOAuthClientSecretSecretUri
+      }
+      {
+        name: 'microsoft-oauth-client-secret'
+        envVar: 'MICROSOFT_OAUTH_CLIENT_SECRET'
+        keyVaultUrl: microsoftOAuthClientSecretSecretUri
+      }
+      {
+        name: 'integration-token-encryption-key'
+        envVar: 'INTEGRATION_TOKEN_ENCRYPTION_KEY'
+        keyVaultUrl: integrationTokenEncryptionKeySecretUri
+      }
     ]
     environmentVariables: [
       { name: 'SCENTIQ_ENV', value: environmentName }
@@ -390,6 +423,10 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
       { name: 'CLERK_ISSUER', value: clerkIssuer }
       { name: 'CLERK_AUDIENCE', value: clerkAudience }
       { name: 'CLERK_AUTHORIZED_PARTIES', value: clerkAuthorizedParties }
+      // OAuth providers redirect the browser back to the web app, never the API.
+      { name: 'PUBLIC_APP_URL', value: 'https://${webAppName}.${containerEnvironment.outputs.defaultDomain}' }
+      { name: 'GOOGLE_OAUTH_CLIENT_ID', value: googleOAuthClientId }
+      { name: 'MICROSOFT_OAUTH_CLIENT_ID', value: microsoftOAuthClientId }
     ]
   }
 }

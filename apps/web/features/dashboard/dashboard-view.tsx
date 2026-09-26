@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -8,16 +8,18 @@ import { EmptyState, PreviewNotice } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { EventsCard } from "@/features/dashboard/events-card";
 import { WeatherCard } from "@/features/dashboard/weather-card";
+import type { CalendarResult } from "@/lib/calendar";
 import type { WeatherResult } from "@/lib/weather";
 import type { CollectionInsights, Me, WearLogEntry } from "@/types/api";
 
 /**
  * The Today screen.
  *
- * Collection totals, recent wears and the weather are real. Events and the
- * recommendation remain previews and are labelled as such, because no calendar
- * or scoring engine is connected yet.
+ * Collection totals, recent wears, the weather and today's events are real. The
+ * recommendation remains a preview and is labelled as such, because no scoring
+ * engine is connected yet.
  */
 
 function formatDate(value: string): string {
@@ -33,11 +35,16 @@ export function DashboardView({
   insights,
   recentWears,
   weather,
+  calendar,
+  timeZone,
 }: {
   me: Me;
   insights: CollectionInsights;
   recentWears: WearLogEntry[];
   weather: WeatherResult;
+  /** Already narrowed to today in `timeZone`. */
+  calendar: CalendarResult;
+  timeZone: string;
 }) {
   const location = me.preferences.location;
 
@@ -160,19 +167,7 @@ export function DashboardView({
 
         <WeatherCard weather={weather} />
 
-        <Card>
-          <CardContent>
-            <div className="section-title">
-              <CalendarDays size={19} />
-              <h3>Events</h3>
-            </div>
-            <PreviewNotice>No calendar is connected.</PreviewNotice>
-            <p className="muted">
-              Calendar-aware planning is not available yet, so no events are shown.
-            </p>
-            <Badge>Preview</Badge>
-          </CardContent>
-        </Card>
+        <EventsCard calendar={calendar} timeZone={timeZone} />
       </div>
     </section>
   );

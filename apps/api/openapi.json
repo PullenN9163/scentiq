@@ -30,6 +30,19 @@
         "title": "AccordResponse",
         "type": "object"
       },
+      "AuthorizationResponse": {
+        "properties": {
+          "authorization_url": {
+            "title": "Authorization Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url"
+        ],
+        "title": "AuthorizationResponse",
+        "type": "object"
+      },
       "BrandResponse": {
         "properties": {
           "country": {
@@ -63,6 +76,276 @@
           "slug"
         ],
         "title": "BrandResponse",
+        "type": "object"
+      },
+      "CalendarConnectionResponse": {
+        "properties": {
+          "account_email": {
+            "title": "Account Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Code"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          },
+          "provider": {
+            "enum": [
+              "google",
+              "microsoft"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarSourceResponse"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "reauth_required"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "account_email",
+          "status",
+          "sources"
+        ],
+        "title": "CalendarConnectionResponse",
+        "type": "object"
+      },
+      "CalendarEventResponse": {
+        "properties": {
+          "calendar_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calendar Name"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "formality": {
+            "anyOf": [
+              {
+                "enum": [
+                  "formal",
+                  "smart",
+                  "casual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formality"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_all_day": {
+            "description": "All-day events start and end at midnight UTC of their dates; the end date is exclusive.",
+            "title": "Is All Day",
+            "type": "boolean"
+          },
+          "is_hidden": {
+            "title": "Is Hidden",
+            "type": "boolean"
+          },
+          "location_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Label"
+          },
+          "occasion": {
+            "enum": [
+              "work",
+              "casual",
+              "date",
+              "dinner",
+              "party",
+              "formal",
+              "gym",
+              "travel",
+              "other"
+            ],
+            "title": "Occasion",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "google",
+                  "microsoft"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "starts_at",
+          "ends_at",
+          "is_all_day",
+          "occasion",
+          "is_hidden"
+        ],
+        "title": "CalendarEventResponse",
+        "type": "object"
+      },
+      "CalendarEventUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "is_hidden": {
+            "title": "Is Hidden",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_hidden"
+        ],
+        "title": "CalendarEventUpdateRequest",
+        "type": "object"
+      },
+      "CalendarProviderStatus": {
+        "properties": {
+          "available": {
+            "description": "False when the provider is not configured here.",
+            "title": "Available",
+            "type": "boolean"
+          },
+          "provider": {
+            "enum": [
+              "google",
+              "microsoft"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "available"
+        ],
+        "title": "CalendarProviderStatus",
+        "type": "object"
+      },
+      "CalendarSourceResponse": {
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "is_selected": {
+            "title": "Is Selected",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "is_primary",
+          "is_selected"
+        ],
+        "title": "CalendarSourceResponse",
+        "type": "object"
+      },
+      "CalendarSourceUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "is_selected": {
+            "title": "Is Selected",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_selected"
+        ],
+        "title": "CalendarSourceUpdateRequest",
         "type": "object"
       },
       "CollectionInsightsResponse": {
@@ -1667,6 +1950,29 @@
         "title": "NoteResponse",
         "type": "object"
       },
+      "OAuthCallbackRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "state": {
+            "maxLength": 256,
+            "minLength": 16,
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "state"
+        ],
+        "title": "OAuthCallbackRequest",
+        "type": "object"
+      },
       "OccasionResponse": {
         "properties": {
           "occasion": {
@@ -2352,6 +2658,596 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/calendar/connections": {
+      "get": {
+        "operationId": "list_connections_api_v1_calendar_connections_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CalendarConnectionResponse"
+                  },
+                  "title": "Response List Connections Api V1 Calendar Connections Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Connections",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
+    "/api/v1/calendar/connections/{connection_id}": {
+      "delete": {
+        "description": "Revoke the grant (best effort) and delete it with its calendars and events.",
+        "operationId": "disconnect_api_v1_calendar_connections__connection_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disconnect",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
+    "/api/v1/calendar/connections/{connection_id}/sources/{source_id}": {
+      "patch": {
+        "operationId": "update_source_api_v1_calendar_connections__connection_id__sources__source_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarSourceUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarConnectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Source",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
+    "/api/v1/calendar/connections/{connection_id}/sync": {
+      "post": {
+        "operationId": "sync_api_v1_calendar_connections__connection_id__sync_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarConnectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
+    "/api/v1/calendar/connections/{provider}/authorize": {
+      "post": {
+        "description": "Begin a connection: returns the provider consent URL to redirect to.",
+        "operationId": "authorize_api_v1_calendar_connections__provider__authorize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "enum": [
+                "google",
+                "microsoft"
+              ],
+              "title": "Provider",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Authorize",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
+    "/api/v1/calendar/connections/{provider}/callback": {
+      "post": {
+        "description": "Finish a connection with the code and state the provider returned.\n\nThe state is spent and committed before the code is exchanged, so it\ncannot be replayed even if the exchange fails.",
+        "operationId": "callback_api_v1_calendar_connections__provider__callback_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "enum": [
+                "google",
+                "microsoft"
+              ],
+              "title": "Provider",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthCallbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarConnectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Callback",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
+    "/api/v1/calendar/events": {
+      "get": {
+        "description": "Events overlapping the range from selected calendars.\n\nConnections not synced in the last 15 minutes are refreshed first.",
+        "operationId": "list_events_api_v1_calendar_events_get",
+        "parameters": [
+          {
+            "description": "Inclusive, with an offset.",
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "description": "Inclusive, with an offset.",
+              "format": "date-time",
+              "title": "Start",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exclusive, at most 31 days after start.",
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "description": "Exclusive, at most 31 days after start.",
+              "format": "date-time",
+              "title": "End",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_hidden",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Hidden",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CalendarEventResponse"
+                  },
+                  "title": "Response List Events Api V1 Calendar Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Events",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
+    "/api/v1/calendar/events/{event_id}": {
+      "patch": {
+        "operationId": "update_event_api_v1_calendar_events__event_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Event Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarEventUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarEventResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Event",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
+    "/api/v1/calendar/providers": {
+      "get": {
+        "operationId": "list_providers_api_v1_calendar_providers_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CalendarProviderStatus"
+                  },
+                  "title": "Response List Providers Api V1 Calendar Providers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Providers",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
     "/api/v1/collection": {
       "get": {
         "operationId": "list_collection_api_v1_collection_get",

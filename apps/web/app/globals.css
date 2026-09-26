@@ -353,3 +353,14 @@ h1, h2, h3 { text-wrap: balance; }
 .form-message--error { border-color: var(--destructive); color: var(--destructive); }
 .data-note { margin: 0.75rem 0 0; color: var(--muted-foreground); font-size: 0.85rem; }
 .auth-page { display: grid; min-height: 100vh; place-items: center; padding: 2rem 1rem; background: var(--background); }
+
+/* Calendar connections in Settings. */
+.calendar-connection { display: grid; gap: 0.5rem; border-top: 1px solid var(--border); padding: 0.9rem 0; }
+.calendar-connection__header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.calendar-connection__header span, .calendar-connection__header small { display: block; }
+.calendar-connection__header small { color: var(--muted-foreground); overflow-wrap: anywhere; }
+.calendar-connection__sources { margin: 0; border: 0; padding: 0; }
+a.connection-row { color: inherit; text-decoration: none; }
+.event-list { display: grid; gap: 0.5rem; margin: 0 0 0.75rem; padding: 0; list-style: none; }
+.event-list li { display: grid; grid-template-columns: 4.25rem 1fr; gap: 0.5rem; align-items: baseline; }
+.event-list .event-list__time { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }

@@ -1,8 +1,9 @@
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 
 from fastapi import APIRouter
 from sqlalchemy.orm import Session
 
+from scentiq_api.api.v1.calendar import create_calendar_router
 from scentiq_api.api.v1.collection import create_collection_router
 from scentiq_api.api.v1.discover import create_discover_router
 from scentiq_api.api.v1.fragrances import create_fragrance_router
@@ -18,6 +19,8 @@ from scentiq_api.auth import (
     require_internal_service_token,
 )
 from scentiq_api.config import Settings
+from scentiq_api.integrations.calendar import CalendarProvider, GoogleCalendarProvider
+from scentiq_api.integrations.crypto import TokenCipher
 from scentiq_api.integrations.weather import OpenMeteoClient, WeatherProvider
 
 
@@ -26,12 +29,13 @@ def create_v1_router(
     settings: Settings,
     signing_key_resolver: SigningKeyResolver | None = None,
     weather_provider: WeatherProvider | None = None,
+    calendar_providers: Mapping[str, CalendarProvider] | None = None,
 ) -> APIRouter:
     """Assemble the v1 router.
 
-    `signing_key_resolver` and `weather_provider` are test seams: passing one
-    replaces the JWKS lookup with a local key, or Open-Meteo with a fake. Left
-    as None, production uses the real providers.
+    `signing_key_resolver`, `weather_provider` and `calendar_providers` are
+    test seams: passing one replaces the JWKS lookup with a local key, or a
+    provider with a fake. Left as None, production uses the real providers.
     """
     router = APIRouter(prefix="/api/v1")
     resolved_weather_provider = weather_provider or OpenMeteoClient(
@@ -67,7 +71,30 @@ def create_v1_router(
     router.include_router(
         create_weather_router(get_session, current_user, resolved_weather_provider)
     )
+    token_keys = settings.integration_token_keys
+    router.include_router(
+        create_calendar_router(
+            get_session,
+            current_user,
+            calendar_providers
+            if calendar_providers is not None
+            else configured_calendar_providers(settings),
+            TokenCipher(token_keys) if token_keys else None,
+            settings.public_app_url,
+        )
+    )
     router.include_router(
         create_identity_event_router(get_session, require_internal_service_token(settings))
     )
     return router
+
+
+def configured_calendar_providers(settings: Settings) -> dict[str, CalendarProvider]:
+    """Providers with complete client credentials; the rest report unavailable."""
+    providers: dict[str, CalendarProvider] = {}
+    google_secret = settings.google_oauth_client_secret_value
+    if settings.google_oauth_client_id and google_secret:
+        providers["google"] = GoogleCalendarProvider(
+            client_id=settings.google_oauth_client_id, client_secret=google_secret
+        )
+    return providers

@@ -4,6 +4,176 @@
  */
 
 export interface paths {
+    "/api/v1/calendar/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Connections */
+        get: operations["list_connections_api_v1_calendar_connections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/connections/{connection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect
+         * @description Revoke the grant (best effort) and delete it with its calendars and events.
+         */
+        delete: operations["disconnect_api_v1_calendar_connections__connection_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/connections/{connection_id}/sources/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Source */
+        patch: operations["update_source_api_v1_calendar_connections__connection_id__sources__source_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/calendar/connections/{connection_id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sync */
+        post: operations["sync_api_v1_calendar_connections__connection_id__sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/connections/{provider}/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Authorize
+         * @description Begin a connection: returns the provider consent URL to redirect to.
+         */
+        post: operations["authorize_api_v1_calendar_connections__provider__authorize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/connections/{provider}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Callback
+         * @description Finish a connection with the code and state the provider returned.
+         *
+         *     The state is spent and committed before the code is exchanged, so it
+         *     cannot be replayed even if the exchange fails.
+         */
+        post: operations["callback_api_v1_calendar_connections__provider__callback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Events
+         * @description Events overlapping the range from selected calendars.
+         *
+         *     Connections not synced in the last 15 minutes are refreshed first.
+         */
+        get: operations["list_events_api_v1_calendar_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/events/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Event */
+        patch: operations["update_event_api_v1_calendar_events__event_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/calendar/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Providers */
+        get: operations["list_providers_api_v1_calendar_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collection": {
         parameters: {
             query?: never;
@@ -339,6 +509,11 @@ export interface components {
             /** Weight */
             weight: number;
         };
+        /** AuthorizationResponse */
+        AuthorizationResponse: {
+            /** Authorization Url */
+            authorization_url: string;
+        };
         /** BrandResponse */
         BrandResponse: {
             /** Country */
@@ -352,6 +527,111 @@ export interface components {
             name: string;
             /** Slug */
             slug: string;
+        };
+        /** CalendarConnectionResponse */
+        CalendarConnectionResponse: {
+            /** Account Email */
+            account_email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Error Code */
+            last_error_code?: string | null;
+            /** Last Synced At */
+            last_synced_at?: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "google" | "microsoft";
+            /** Sources */
+            sources: components["schemas"]["CalendarSourceResponse"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "reauth_required";
+        };
+        /** CalendarEventResponse */
+        CalendarEventResponse: {
+            /** Calendar Name */
+            calendar_name?: string | null;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Formality */
+            formality?: ("formal" | "smart" | "casual") | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Is All Day
+             * @description All-day events start and end at midnight UTC of their dates; the end date is exclusive.
+             */
+            is_all_day: boolean;
+            /** Is Hidden */
+            is_hidden: boolean;
+            /** Location Label */
+            location_label?: string | null;
+            /**
+             * Occasion
+             * @enum {string}
+             */
+            occasion: "work" | "casual" | "date" | "dinner" | "party" | "formal" | "gym" | "travel" | "other";
+            /** Provider */
+            provider?: ("google" | "microsoft") | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Title */
+            title: string;
+        };
+        /** CalendarEventUpdateRequest */
+        CalendarEventUpdateRequest: {
+            /** Is Hidden */
+            is_hidden: boolean;
+        };
+        /** CalendarProviderStatus */
+        CalendarProviderStatus: {
+            /**
+             * Available
+             * @description False when the provider is not configured here.
+             */
+            available: boolean;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "google" | "microsoft";
+        };
+        /** CalendarSourceResponse */
+        CalendarSourceResponse: {
+            /** Color */
+            color?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Primary */
+            is_primary: boolean;
+            /** Is Selected */
+            is_selected: boolean;
+            /** Name */
+            name: string;
+        };
+        /** CalendarSourceUpdateRequest */
+        CalendarSourceUpdateRequest: {
+            /** Is Selected */
+            is_selected: boolean;
         };
         /** CollectionInsightsResponse */
         CollectionInsightsResponse: {
@@ -791,6 +1071,13 @@ export interface components {
             /** Weight */
             weight?: number | null;
         };
+        /** OAuthCallbackRequest */
+        OAuthCallbackRequest: {
+            /** Code */
+            code: string;
+            /** State */
+            state: string;
+        };
         /** OccasionResponse */
         OccasionResponse: {
             /**
@@ -996,6 +1283,314 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_connections_api_v1_calendar_connections_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarConnectionResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disconnect_api_v1_calendar_connections__connection_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_source_api_v1_calendar_connections__connection_id__sources__source_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                connection_id: string;
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalendarSourceUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarConnectionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_api_v1_calendar_connections__connection_id__sync_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarConnectionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    authorize_api_v1_calendar_connections__provider__authorize_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                provider: "google" | "microsoft";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    callback_api_v1_calendar_connections__provider__callback_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                provider: "google" | "microsoft";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OAuthCallbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarConnectionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_events_api_v1_calendar_events_get: {
+        parameters: {
+            query: {
+                /** @description Inclusive, with an offset. */
+                start: string;
+                /** @description Exclusive, at most 31 days after start. */
+                end: string;
+                include_hidden?: boolean;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarEventResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_event_api_v1_calendar_events__event_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalendarEventUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarEventResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_providers_api_v1_calendar_providers_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarProviderStatus"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_collection_api_v1_collection_get: {
         parameters: {
             query?: never;

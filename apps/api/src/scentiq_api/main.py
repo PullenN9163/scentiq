@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator, Mapping
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -26,6 +26,7 @@ from scentiq_api.errors import (
     handle_validation_error,
 )
 from scentiq_api.health import create_health_router
+from scentiq_api.integrations.calendar import CalendarProvider
 from scentiq_api.integrations.weather import WeatherProvider
 from scentiq_api.logging import (
     RequestLoggingMiddleware,
@@ -40,6 +41,7 @@ def create_app(
     database_probe: DatabaseProbe | None = None,
     signing_key_resolver: SigningKeyResolver | None = None,
     weather_provider: WeatherProvider | None = None,
+    calendar_providers: Mapping[str, CalendarProvider] | None = None,
 ) -> FastAPI:
     resolved_settings = settings or Settings()
     owns_database_probe = database_probe is None
@@ -102,7 +104,13 @@ def create_app(
 
     application.include_router(create_health_router(resolved_database_probe))
     application.include_router(
-        create_v1_router(get_session, resolved_settings, signing_key_resolver, weather_provider)
+        create_v1_router(
+            get_session,
+            resolved_settings,
+            signing_key_resolver,
+            weather_provider,
+            calendar_providers,
+        )
     )
     return application
 

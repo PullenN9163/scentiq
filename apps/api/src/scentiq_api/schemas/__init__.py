@@ -1,3 +1,13 @@
+from scentiq_api.schemas.calendar import (
+    AuthorizationResponse,
+    CalendarConnectionResponse,
+    CalendarEventResponse,
+    CalendarEventUpdateRequest,
+    CalendarProviderStatus,
+    CalendarSourceResponse,
+    CalendarSourceUpdateRequest,
+    OAuthCallbackRequest,
+)
 from scentiq_api.schemas.catalog import (
     AccordResponse,
     BrandResponse,
@@ -48,7 +58,14 @@ from scentiq_api.schemas.weather import ForecastDay, PlaceResponse, WeatherForec
 __all__ = [
     "RETIRED_STATUSES",
     "AccordResponse",
+    "AuthorizationResponse",
     "BrandResponse",
+    "CalendarConnectionResponse",
+    "CalendarEventResponse",
+    "CalendarEventUpdateRequest",
+    "CalendarProviderStatus",
+    "CalendarSourceResponse",
+    "CalendarSourceUpdateRequest",
     "CollectionInsightsResponse",
     "CollectionItemCreateRequest",
     "CollectionItemResponse",
@@ -70,6 +87,7 @@ __all__ = [
     "MostWornEntry",
     "NoteResponse",
     "NoteStage",
+    "OAuthCallbackRequest",
     "Occasion",
     "OccasionResponse",
     "OwnershipType",

@@ -3,7 +3,14 @@ import { Suspense } from "react";
 import { ErrorState, LoadingState, UnavailableState } from "@/components/shared/states";
 import { DashboardView } from "@/features/dashboard/dashboard-view";
 import { ApiError } from "@/lib/server/api-client";
-import { getInsights, getMe, getWearLogs, getWeather } from "@/lib/server/queries";
+import { eventsOn, localDate, safeTimeZone, type CalendarResult } from "@/lib/calendar";
+import {
+  getCalendarAround,
+  getInsights,
+  getMe,
+  getWearLogs,
+  getWeather,
+} from "@/lib/server/queries";
 import type { WeatherResult } from "@/lib/weather";
 import type { CollectionInsights, Me, WearLogEntry } from "@/types/api";
 
@@ -12,15 +19,17 @@ async function DashboardBoundary() {
   let insights: CollectionInsights;
   let recentWears: WearLogEntry[];
   let weather: WeatherResult;
+  let calendar: CalendarResult;
 
   try {
-    // `getWeather` reports provider trouble as a state rather than throwing,
-    // so the forecast can never fail the rest of the screen.
-    [me, insights, recentWears, weather] = await Promise.all([
+    // Weather and calendar report provider trouble as a state rather than
+    // throwing, so neither can fail the rest of the screen.
+    [me, insights, recentWears, weather, calendar] = await Promise.all([
       getMe(),
       getInsights(),
       getWearLogs({ limit: 10 }),
       getWeather(),
+      getCalendarAround(),
     ]);
   } catch (error) {
     if (error instanceof ApiError && error.kind === "unavailable") {
@@ -32,7 +41,20 @@ async function DashboardBoundary() {
     throw error;
   }
 
-  return <DashboardView me={me} insights={insights} recentWears={recentWears} weather={weather} />;
+  // The saved location's timezone decides what "today" means; UTC without one.
+  const timeZone = safeTimeZone(me.preferences.timezone);
+  const today = localDate(new Date(), timeZone);
+
+  return (
+    <DashboardView
+      me={me}
+      insights={insights}
+      recentWears={recentWears}
+      weather={weather}
+      calendar={eventsOn(calendar, today, timeZone)}
+      timeZone={timeZone}
+    />
+  );
 }
 
 export default function DashboardPage() {

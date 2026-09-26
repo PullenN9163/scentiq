@@ -1,3 +1,6 @@
+import base64
+from typing import Any
+
 import pytest
 from pydantic import ValidationError
 
@@ -236,3 +239,60 @@ def test_weather_urls_must_be_https() -> None:
             CORS_ORIGINS="http://localhost:3000",
             WEATHER_API_BASE_URL="http://api.open-meteo.com",
         )
+
+
+def _calendar_settings(**values: Any) -> Settings:
+    return Settings(
+        SCENTIQ_ENV="test",
+        DATABASE_URL="postgresql+psycopg://user:password@localhost/scentiq",
+        CORS_ORIGINS="http://localhost:3000",
+        **values,
+    )
+
+
+def test_calendar_settings_default_to_unconfigured() -> None:
+    settings = _calendar_settings(
+        PUBLIC_APP_URL="",
+        GOOGLE_OAUTH_CLIENT_ID="",
+        GOOGLE_OAUTH_CLIENT_SECRET="",
+        INTEGRATION_TOKEN_ENCRYPTION_KEY="",
+    )
+
+    assert settings.public_app_url is None
+    assert settings.google_oauth_client_id is None
+    assert settings.google_oauth_client_secret_value is None
+    assert settings.integration_token_keys == []
+
+
+def test_encryption_keys_are_decoded_current_first() -> None:
+    current, previous = bytes(range(32)), bytes(range(1, 33))
+    settings = _calendar_settings(
+        INTEGRATION_TOKEN_ENCRYPTION_KEY=base64.b64encode(current).decode(),
+        INTEGRATION_TOKEN_PREVIOUS_KEYS=base64.b64encode(previous).decode(),
+    )
+
+    assert settings.integration_token_keys == [current, previous]
+
+
+def test_a_short_encryption_key_is_rejected_without_echoing_it() -> None:
+    with pytest.raises(ValidationError) as error:
+        _calendar_settings(INTEGRATION_TOKEN_ENCRYPTION_KEY="c2hvcnQta2V5")
+    assert "c2hvcnQta2V5" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("value", "accepted"),
+    [
+        ("https://scentiq.example.com/", True),
+        ("http://localhost:3000", True),
+        ("http://scentiq.example.com", False),
+    ],
+)
+def test_public_app_url_requires_https_outside_local_development(
+    value: str, accepted: bool
+) -> None:
+    if accepted:
+        assert _calendar_settings(PUBLIC_APP_URL=value).public_app_url == value.rstrip("/")
+    else:
+        with pytest.raises(ValidationError):
+            _calendar_settings(PUBLIC_APP_URL=value)

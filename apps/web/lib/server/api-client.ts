@@ -85,7 +85,7 @@ function internalBaseUrl(): string {
 }
 
 type RequestOptions = {
-  method?: "GET" | "POST" | "PATCH";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   signal?: AbortSignal;
 };
@@ -162,4 +162,6 @@ export const apiClient = {
     request<T>(path, { ...options, method: "POST", body }),
   patch: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "method" | "body">) =>
     request<T>(path, { ...options, method: "PATCH", body }),
+  delete: <T>(path: string, options?: Omit<RequestOptions, "method" | "body">) =>
+    request<T>(path, { ...options, method: "DELETE" }),
 };

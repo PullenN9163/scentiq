@@ -1,3 +1,5 @@
+import base64
+import binascii
 from typing import Literal
 from uuid import UUID
 
@@ -7,6 +9,15 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError
 
 Environment = Literal["development", "test", "production"]
+
+
+def _decode_key(value: str) -> bytes:
+    try:
+        return base64.b64decode(value.strip(), validate=True)
+    except binascii.Error, ValueError:
+        return b""
+
+
 DEFAULT_DEMO_USER_ID = UUID("00000000-0000-4000-8000-000000000001")
 # Open-Meteo's free endpoints. The commercial plan uses customer-* hosts plus an
 # API key, so both are configurable rather than hard-coded.
@@ -57,6 +68,25 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="OPEN_METEO_API_KEY",
     )
+    public_app_url: str | None = Field(default=None, validation_alias="PUBLIC_APP_URL")
+    google_oauth_client_id: str | None = Field(
+        default=None, validation_alias="GOOGLE_OAUTH_CLIENT_ID"
+    )
+    google_oauth_client_secret: SecretStr | None = Field(
+        default=None, validation_alias="GOOGLE_OAUTH_CLIENT_SECRET"
+    )
+    microsoft_oauth_client_id: str | None = Field(
+        default=None, validation_alias="MICROSOFT_OAUTH_CLIENT_ID"
+    )
+    microsoft_oauth_client_secret: SecretStr | None = Field(
+        default=None, validation_alias="MICROSOFT_OAUTH_CLIENT_SECRET"
+    )
+    integration_token_encryption_key: SecretStr | None = Field(
+        default=None, validation_alias="INTEGRATION_TOKEN_ENCRYPTION_KEY"
+    )
+    integration_token_previous_keys: SecretStr | None = Field(
+        default=None, validation_alias="INTEGRATION_TOKEN_PREVIOUS_KEYS"
+    )
 
     @field_validator(
         "clerk_issuer",
@@ -65,6 +95,13 @@ class Settings(BaseSettings):
         "clerk_authorized_parties",
         "internal_service_token",
         "open_meteo_api_key",
+        "public_app_url",
+        "google_oauth_client_id",
+        "google_oauth_client_secret",
+        "microsoft_oauth_client_id",
+        "microsoft_oauth_client_secret",
+        "integration_token_encryption_key",
+        "integration_token_previous_keys",
         mode="before",
     )
     @classmethod
@@ -101,6 +138,31 @@ class Settings(BaseSettings):
         if not value.startswith("https://"):
             raise ValueError("Weather provider URLs must be https URLs")
         return value.rstrip("/")
+
+    @field_validator("public_app_url")
+    @classmethod
+    def validate_public_app_url(cls, value: str | None) -> str | None:
+        """The browser-facing origin; OAuth providers redirect back to it.
+
+        Plain http is accepted only for local development hosts.
+        """
+        if value is None:
+            return None
+        url = value.rstrip("/")
+        local = url.startswith(("http://localhost", "http://127.0.0.1"))
+        if not url.startswith("https://") and not local:
+            raise ValueError("PUBLIC_APP_URL must be an https URL")
+        return url
+
+    @field_validator("integration_token_encryption_key", "integration_token_previous_keys")
+    @classmethod
+    def validate_encryption_keys(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return None
+        for candidate in value.get_secret_value().split(","):
+            if len(_decode_key(candidate)) != 32:
+                raise ValueError("Integration token encryption keys must be 32 base64 bytes")
+        return value
 
     @field_validator("clerk_issuer")
     @classmethod
@@ -199,6 +261,32 @@ class Settings(BaseSettings):
         if self.open_meteo_api_key is None:
             return None
         return self.open_meteo_api_key.get_secret_value()
+
+    @property
+    def integration_token_keys(self) -> list[bytes]:
+        """The current key first, then any previous keys still accepted."""
+        keys: list[bytes] = []
+        for secret in (self.integration_token_encryption_key, self.integration_token_previous_keys):
+            if secret is None:
+                continue
+            keys.extend(
+                _decode_key(candidate)
+                for candidate in secret.get_secret_value().split(",")
+                if candidate.strip()
+            )
+        return keys
+
+    @property
+    def google_oauth_client_secret_value(self) -> str | None:
+        if self.google_oauth_client_secret is None:
+            return None
+        return self.google_oauth_client_secret.get_secret_value()
+
+    @property
+    def microsoft_oauth_client_secret_value(self) -> str | None:
+        if self.microsoft_oauth_client_secret is None:
+            return None
+        return self.microsoft_oauth_client_secret.get_secret_value()
 
     @property
     def internal_service_token_value(self) -> str | None:

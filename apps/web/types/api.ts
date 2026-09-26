@@ -245,3 +245,45 @@ export interface WeatherForecast {
   stale: boolean;
   days: ForecastDay[];
 }
+
+export type CalendarProviderName = "google" | "microsoft";
+export type CalendarConnectionStatus = "active" | "reauth_required";
+
+export interface CalendarProviderStatus {
+  provider: CalendarProviderName;
+  /** False when this deployment has no credentials for the provider. */
+  available: boolean;
+}
+
+export interface CalendarSource {
+  id: string;
+  name: string;
+  color: string | null;
+  is_primary: boolean;
+  is_selected: boolean;
+}
+
+export interface CalendarConnection {
+  id: string;
+  provider: CalendarProviderName;
+  account_email: string;
+  status: CalendarConnectionStatus;
+  last_synced_at: string | null;
+  last_error_code: string | null;
+  sources: CalendarSource[];
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  starts_at: string;
+  /** Exclusive. All-day events run midnight to midnight UTC of their dates. */
+  ends_at: string;
+  is_all_day: boolean;
+  location_label: string | null;
+  occasion: Occasion;
+  formality: "formal" | "smart" | "casual" | null;
+  is_hidden: boolean;
+  calendar_name: string | null;
+  provider: CalendarProviderName | null;
+}

@@ -457,3 +457,68 @@ export async function deleteAccount(
   refreshMemberScreens();
   return { status: "success", message: "Your account is being deleted." };
 }
+
+// --- calendar connections ----------------------------------------------
+
+function refreshCalendarScreens(): void {
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+  revalidatePath("/week");
+}
+
+const identifier = z.string().uuid();
+
+export async function setCalendarSelected(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const connectionId = identifier.safeParse(textOf(formData, "connection_id"));
+  const sourceId = identifier.safeParse(textOf(formData, "source_id"));
+  if (!connectionId.success || !sourceId.success) {
+    return { status: "error", message: "That calendar could not be identified." };
+  }
+  try {
+    await apiClient.patch(
+      `/api/v1/calendar/connections/${connectionId.data}/sources/${sourceId.data}`,
+      { is_selected: textOf(formData, "is_selected") === "true" },
+    );
+  } catch (error) {
+    return failureFrom(error, {});
+  }
+  refreshCalendarScreens();
+  return { status: "success", message: "Calendar choices saved." };
+}
+
+export async function syncCalendarConnection(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const connectionId = identifier.safeParse(textOf(formData, "connection_id"));
+  if (!connectionId.success) {
+    return { status: "error", message: "That connection could not be identified." };
+  }
+  try {
+    await apiClient.post(`/api/v1/calendar/connections/${connectionId.data}/sync`);
+  } catch (error) {
+    return failureFrom(error, {});
+  }
+  refreshCalendarScreens();
+  return { status: "success", message: "Calendar synced." };
+}
+
+export async function disconnectCalendar(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const connectionId = identifier.safeParse(textOf(formData, "connection_id"));
+  if (!connectionId.success) {
+    return { status: "error", message: "That connection could not be identified." };
+  }
+  try {
+    await apiClient.delete(`/api/v1/calendar/connections/${connectionId.data}`);
+  } catch (error) {
+    return failureFrom(error, {});
+  }
+  refreshCalendarScreens();
+  return { status: "success", message: "Calendar disconnected and its events removed." };
+}
