@@ -27,7 +27,9 @@ function params(provider: string) {
 }
 
 function location(response: Response): URL {
-  return new URL(response.headers.get("location") ?? "");
+  const header = response.headers.get("location") ?? "";
+  // Settings redirects are relative, so the browser keeps the public host.
+  return new URL(header, "https://public.example");
 }
 
 describe("calendar OAuth routes", () => {
@@ -123,5 +125,16 @@ describe("calendar OAuth routes", () => {
       params("google"),
     );
     expect(location(odd).searchParams.get("calendar_error")).toBe("authorization_failed");
+  });
+
+  it("never redirects to the server's own address", async () => {
+    // The standalone server reports its bind address as the request host.
+    post.mockResolvedValue({ id: "c1" });
+    const response = await callback(
+      new Request("https://localhost:3000/integrations/calendar/google/callback?code=a&state=b"),
+      params("google"),
+    );
+
+    expect(response.headers.get("location")).toBe("/settings?calendar=connected#calendar");
   });
 });

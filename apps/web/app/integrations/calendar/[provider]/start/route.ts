@@ -11,7 +11,7 @@ export async function GET(
   context: { params: Promise<{ provider: string }> },
 ): Promise<Response> {
   const provider = parseProvider((await context.params).provider);
-  if (!provider) return settingsRedirect(request, "calendar_error", "authorization_failed");
+  if (!provider) return settingsRedirect("calendar_error", "authorization_failed");
 
   try {
     const { authorization_url } = await apiClient.post<{ authorization_url: string }>(
@@ -19,6 +19,6 @@ export async function GET(
     );
     return Response.redirect(authorization_url, 303);
   } catch (error) {
-    return settingsRedirect(request, "calendar_error", noticeCodeFor(error));
+    return settingsRedirect("calendar_error", noticeCodeFor(error));
   }
 }

@@ -23,9 +23,18 @@ export function noticeCodeFor(error: unknown): string {
   return "authorization_failed";
 }
 
-export function settingsRedirect(request: Request, parameter: string, value: string): Response {
-  const target = new URL("/settings", request.url);
-  target.searchParams.set(parameter, value);
-  target.hash = "calendar";
-  return Response.redirect(target, 303);
+/**
+ * Back to Settings, as a relative redirect the browser resolves against the
+ * public URL it is on.
+ *
+ * `request.url` can't be used as the base: the standalone server builds it
+ * from its own bind address (`HOSTNAME=0.0.0.0`, port 3000), so an absolute
+ * redirect from it sends the member to `localhost:3000` instead of the app.
+ */
+export function settingsRedirect(parameter: string, value: string): Response {
+  const query = new URLSearchParams({ [parameter]: value });
+  return new Response(null, {
+    status: 303,
+    headers: { Location: `/settings?${query.toString()}#calendar` },
+  });
 }

@@ -17,16 +17,16 @@ export async function GET(
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
 
-  if (!provider) return settingsRedirect(request, "calendar_error", "authorization_failed");
+  if (!provider) return settingsRedirect("calendar_error", "authorization_failed");
   if (url.searchParams.get("error") === "access_denied") {
-    return settingsRedirect(request, "calendar_error", "access_denied");
+    return settingsRedirect("calendar_error", "access_denied");
   }
-  if (!code || !state) return settingsRedirect(request, "calendar_error", "authorization_failed");
+  if (!code || !state) return settingsRedirect("calendar_error", "authorization_failed");
 
   try {
     await apiClient.post(`/api/v1/calendar/connections/${provider}/callback`, { code, state });
   } catch (error) {
-    return settingsRedirect(request, "calendar_error", noticeCodeFor(error));
+    return settingsRedirect("calendar_error", noticeCodeFor(error));
   }
-  return settingsRedirect(request, "calendar", "connected");
+  return settingsRedirect("calendar", "connected");
 }
