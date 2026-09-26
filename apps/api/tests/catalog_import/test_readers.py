@@ -10,6 +10,8 @@ from scentiq_api.catalog_import.readers import (
     read_luckyscent_archive,
     read_parfumo_file,
 )
+from scentiq_api.catalog_import.readers.fragrantica import _normalize as normalize_fragrantica
+from scentiq_api.catalog_import.readers.luckyscent import _notes as luckyscent_notes
 from scentiq_api.catalog_import.types import RejectedRecord, SourceRecord
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "catalog_import"
@@ -51,6 +53,29 @@ def test_fragrantica_reader_normalizes_all_supported_signal_groups(tmp_path: Pat
     assert record.similarities[0].source_record_id == "9"
     assert isinstance(results[1], RejectedRecord)
     assert results[1].reason == "missing_identity"
+
+
+def test_fragrantica_reader_treats_out_of_range_community_averages_as_missing() -> None:
+    record = normalize_fragrantica(
+        {
+            "id": 99,
+            "name": "Boundary Scent",
+            "brand": "Boundary House",
+            "longevity": {"average": 0, "histogram": [{"count": 3}]},
+            "sillage": {"average": 5, "histogram": [{"count": 4}]},
+            "price_value": {"average": 0, "histogram": [{"count": 2}]},
+        },
+        1,
+    )
+
+    assert isinstance(record, SourceRecord)
+    assert record.community is not None
+    assert record.community.longevity_average is None
+    assert record.community.longevity_votes == 3
+    assert record.community.sillage_average is None
+    assert record.community.sillage_votes == 4
+    assert record.community.price_value_average is None
+    assert record.community.price_value_votes == 2
 
 
 def test_fra_reader_uses_exact_ids_and_keeps_display_slugs_out_of_canonical_fields(
@@ -117,3 +142,11 @@ def test_luckyscent_reader_builds_stable_source_id_and_flat_notes(tmp_path: Path
     assert record.description == "A real editorial description."
     assert [item.name for item in record.notes] == ["Vanilla bean", "musks"]
     assert all(item.stage == "general" for item in record.notes)
+
+
+def test_luckyscent_reader_drops_scraped_ingredient_disclosure_from_notes() -> None:
+    disclosure = "Click Here For Ingredients " + "ingredient disclosure " * 8
+
+    notes = luckyscent_notes(f"Angelica root, {disclosure}, Neroli")
+
+    assert [item.name for item in notes] == ["Angelica root", "Neroli"]

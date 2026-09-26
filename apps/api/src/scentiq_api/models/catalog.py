@@ -166,7 +166,7 @@ class Fragrance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class Note(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "notes"
 
-    name: Mapped[str] = mapped_column(String(100), unique=True)
+    name: Mapped[str] = mapped_column(String(100))
     slug: Mapped[str] = mapped_column(String(100), unique=True)
     fragrance_links: Mapped[list[FragranceNote]] = relationship(back_populates="note")
 

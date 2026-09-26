@@ -47,6 +47,13 @@ def test_catalog_metadata_exposes_all_import_tables_and_columns() -> None:
     }
     assert "stage IN ('top', 'middle', 'base', 'general')" in checks
 
+    notes = Base.metadata.tables["notes"]
+    assert not any(
+        isinstance(constraint, UniqueConstraint)
+        and {column.name for column in constraint.columns} == {"name"}
+        for constraint in notes.constraints
+    )
+
 
 def test_catalog_model_checks_cover_import_ranges_and_identity() -> None:
     fragrances = Base.metadata.tables["fragrances"]

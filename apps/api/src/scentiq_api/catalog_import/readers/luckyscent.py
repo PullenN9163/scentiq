@@ -27,7 +27,11 @@ def _notes(value: object) -> tuple[NoteValue, ...]:
     if text is None:
         return ()
     names = (item.strip() for item in text.split(","))
-    return tuple(NoteValue(name, fold(name), "general") for name in names if name)
+    return tuple(
+        NoteValue(name, fold(name), "general")
+        for name in names
+        if name and len(name) <= 100
+    )
 
 
 def _normalize(row: Mapping[str, str], row_number: int) -> SourceRecord | RejectedRecord:

@@ -67,6 +67,11 @@ def test_catalog_import_migration_creates_postgresql_contract() -> None:
         assert indexes["ix_fragrances_popularity_score_desc"]
         assert indexes["uq_fragrances_shared_identity"]["unique"] is True
 
+        note_unique_constraints = inspector.get_unique_constraints("notes")
+        assert not any(
+            constraint["column_names"] == ["name"] for constraint in note_unique_constraints
+        )
+
         with engine.connect() as connection:
             assert (
                 connection.scalar(
@@ -132,6 +137,10 @@ def test_catalog_migration_downgrade_and_upgrade_are_reversible() -> None:
         fragrance_name_type = columns["name"]["type"]
         assert isinstance(fragrance_name_type, String)
         assert fragrance_name_type.length == 160
+        assert any(
+            constraint["column_names"] == ["name"]
+            for constraint in inspector.get_unique_constraints("notes")
+        )
     finally:
         engine.dispose()
 

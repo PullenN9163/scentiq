@@ -66,6 +66,15 @@ def _metric(value: object) -> tuple[Decimal | None, int]:
     return parse_decimal(value.get("average")), _votes(value)
 
 
+def _bounded_metric(
+    value: object, minimum: Decimal, maximum: Decimal
+) -> tuple[Decimal | None, int]:
+    average, votes = _metric(value)
+    if average is not None and not minimum <= average <= maximum:
+        average = None
+    return average, votes
+
+
 def _mapping(value: object) -> Mapping[str, Any]:
     return cast(Mapping[str, Any], value) if isinstance(value, Mapping) else {}
 
@@ -172,9 +181,15 @@ def _normalize(row: Mapping[str, Any], row_number: int) -> SourceRecord | Reject
         )
 
     rating_average, rating_count = _metric(row.get("rating"))
-    longevity_average, longevity_votes = _metric(row.get("longevity"))
-    sillage_average, sillage_votes = _metric(row.get("sillage"))
-    price_average, price_votes = _metric(row.get("price_value"))
+    longevity_average, longevity_votes = _bounded_metric(
+        row.get("longevity"), Decimal("1"), Decimal("5")
+    )
+    sillage_average, sillage_votes = _bounded_metric(
+        row.get("sillage"), Decimal("1"), Decimal("4")
+    )
+    price_average, price_votes = _bounded_metric(
+        row.get("price_value"), Decimal("1"), Decimal("5")
+    )
     relation = _mapping(row.get("relation"))
     perceived = _mapping(row.get("community_gender"))
     daypart = _mapping(row.get("daypart"))

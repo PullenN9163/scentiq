@@ -18,6 +18,8 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.execute(sa.text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
 
+    op.drop_constraint(op.f("uq_notes_name"), "notes", type_="unique")
+
     op.add_column("brands", sa.Column("country", sa.String(length=80), nullable=True))
 
     op.alter_column(
@@ -340,3 +342,5 @@ def downgrade() -> None:
     )
 
     op.drop_column("brands", "country")
+
+    op.create_unique_constraint(op.f("uq_notes_name"), "notes", ["name"])

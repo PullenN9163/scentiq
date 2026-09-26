@@ -24,6 +24,7 @@ from auth_harness import (
     token,
     unconfigured_settings,
 )
+from catalog_fixture import load_test_catalog
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, text
 
@@ -62,6 +63,7 @@ def _seed() -> None:
 @pytest.fixture
 def seeded() -> None:
     _reset_database()
+    load_test_catalog()
     _seed()
 
 
@@ -197,7 +199,7 @@ def test_two_shared_brands_cannot_share_a_name(seeded: None) -> None:
                 text(
                     """
                     INSERT INTO brands (id, name, slug, owner_user_id, created_at, updated_at)
-                    VALUES (:id, 'ScentIQ Atelier', 'duplicate-slug', NULL, now(), now())
+                    VALUES (:id, 'ScentIQ Test Atelier', 'duplicate-slug', NULL, now(), now())
                     """
                 ),
                 {"id": uuid4()},
