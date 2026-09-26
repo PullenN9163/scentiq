@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented September 23, 2026. Targets the existing Azure development topology as a private beta, not a production environment.
+Implemented September 23, 2026 and extended September 25, 2026 with the source-backed shared catalog. Targets the existing Azure development topology as a private beta, not a production environment.
 
 ## Objective
 
@@ -18,10 +18,10 @@ This milestone delivers:
 - collection insights computed from persisted data;
 - a same-origin Next.js backend-for-frontend over the internally hosted FastAPI service;
 - a two-phase account deletion flow driven by a signed provider webhook, with scheduled reconciliation;
-- clearly labelled previews for weekly planning, layering, discovery and the agent; and
+- live catalog discovery and collection-based layering, with weekly planning and the agent retaining clearly labelled weather/calendar preview inputs; and
 - a generated API contract that continuous integration holds the web application to.
 
-Excluded: external fragrance datasets, image uploads, live weather and calendar connections, notifications, recommendation scoring and language-model agent calls.
+Excluded: image uploads, live weather and calendar connections, notifications and language-model agent calls. The shared catalog is built from external source listings; source provenance and licensing constraints remain explicit product boundaries.
 
 ## Identity and the service boundary
 
@@ -46,7 +46,7 @@ Two simultaneous first requests race for the same subject. The unique constraint
 
 Catalog rows carry a nullable `owner_user_id`:
 
-- a `NULL` owner marks a **shared curated** row, readable by everyone;
+- a `NULL` owner marks a **shared source-backed** row, readable by everyone;
 - a non-null owner marks a **private custom** row, visible only to its creator.
 
 Global catalog uniqueness was replaced with partial unique indexes so the two kinds can coexist:
@@ -55,10 +55,16 @@ Global catalog uniqueness was replaced with partial unique indexes so the two ki
 | --- | --- |
 | `uq_brands_shared_name`, `uq_brands_shared_slug` | `owner_user_id IS NULL` |
 | `uq_brands_custom_name` on `(owner_user_id, name)` | `owner_user_id IS NOT NULL` |
-| `uq_fragrances_shared_identity` on `(brand_id, name, concentration)` | `owner_user_id IS NULL` |
+| `uq_fragrances_shared_identity` on `(brand_id, lower(name), concentration, release_year, gender)` with `NULLS NOT DISTINCT` | `owner_user_id IS NULL` |
 | `uq_fragrances_custom_identity` on `(owner_user_id, brand_id, name, concentration)` | `owner_user_id IS NOT NULL` |
 
-Two members can therefore both record a private "Indie House" entry, while the curated catalog stays globally unique.
+Two members can therefore both record a private "Indie House" entry, while the shared catalog retains a null-safe uniqueness backstop. Stable source mappings, rather than display names, are the primary catalog identity.
+
+### Shared catalog provenance
+
+Every accepted source record has one unique `(source, source_record_id)` mapping to a canonical fragrance. Deterministic match and survivorship rules merge compatible records while ambiguous matches remain in an operator review report. Imports write only shared rows, retain disappeared records, replace only imported child relationships, and use stable identifiers so collection references do not churn on refresh.
+
+The catalog includes Fragrantica data via the Kaggle `ledecanteur/fragrantica-perfumes` corpus under CC BY-NC-SA 4.0, plus Parfumo, Luckyscent and related Fragrantica scrape listings whose licensing must be resolved before commercial use. Raw payloads are not stored in PostgreSQL; source URLs, raw source identity, per-field origin and import-run hashes provide the audit trail.
 
 Every repository method takes an authenticated user identifier and includes an ownership predicate. A private row belonging to another member returns `404`, not `403`: existence itself must not leak.
 
@@ -92,6 +98,8 @@ All endpoints are authenticated and live under `/api/v1`:
 | POST | `/me/deletion`, `/me/deletion/cancel` |
 | GET, POST | `/fragrances` |
 | GET | `/fragrances/{id}` |
+| GET | `/discover` |
+| GET | `/layering/suggestions` |
 | GET, POST | `/collection` |
 | PATCH | `/collection/{id}` |
 | GET, POST | `/wear-logs` |
@@ -118,9 +126,9 @@ A single server-only client (`lib/server/api-client.ts`) reaches FastAPI. Import
 
 Mutations are Server Actions returning a common result shape that carries field errors and echoes the submitted values, so a failed form re-renders with the member's input intact rather than blanking it.
 
-Connected to persisted data: Collection, Fragrance Detail, Settings, Insights, and the Today totals and recent wears.
+Connected to persisted data: Catalog Search, Discover, Layering, Collection, Fragrance Detail, Settings, Insights, and the Today totals and recent wears.
 
-Still previews, and labelled as such on screen: weekly planning, layering, discovery, the agent, and the weather, event and recommendation cards on Today. No preview action claims to have been saved.
+Still previews, and labelled as such on screen: weather and calendar inputs used by weekly planning and the agent, plus the weather and event cards on Today. Fragrance choices in those experiences come only from the member's persisted collection. No preview action claims to have been saved.
 
 Insights report how much of a collection each breakdown covers. Custom fragrances normally carry no accord, season or occasion data, so a breakdown that silently omitted them would misrepresent the collection.
 
@@ -149,7 +157,8 @@ Tests that depend on PostgreSQL behaviour live under `apps/api/tests/integration
 ## Deployment sequence
 
 1. Apply migrations.
-2. Deploy the API revision.
-3. Deploy the web revision.
+2. Run the catalog import through the reviewed operator procedure when source data changes.
+3. Deploy the API revision.
+4. Deploy the web revision.
 
 Prior healthy revisions are retained for rollback. The API keeps internal ingress throughout.
