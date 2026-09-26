@@ -3,12 +3,45 @@ from __future__ import annotations
 from uuid import UUID
 
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, load_only, selectinload
+from sqlalchemy.sql.base import ExecutableOption
 
-from scentiq_api.models import Fragrance, FragranceSimilarity, UserCollectionItem
-from scentiq_api.repositories.fragrances import FragranceRepository, _catalog_options
+from scentiq_api.models import (
+    Fragrance,
+    FragranceAccord,
+    FragranceNote,
+    FragranceSimilarity,
+    UserCollectionItem,
+)
+from scentiq_api.repositories.fragrances import FragranceRepository
 
 DISCOVERY_CANDIDATE_POOL = 2_000
+
+
+def _discovery_options() -> tuple[ExecutableOption, ...]:
+    """Load only data consumed by discovery scoring and its result summaries."""
+    return (
+        load_only(
+            Fragrance.id,
+            Fragrance.brand_id,
+            Fragrance.owner_user_id,
+            Fragrance.name,
+            Fragrance.concentration,
+            Fragrance.release_year,
+            Fragrance.image_blob_path,
+            Fragrance.image_url,
+            Fragrance.gender,
+            Fragrance.olfactory_family,
+            Fragrance.rating_average,
+            Fragrance.rating_count,
+            Fragrance.popularity_score,
+            Fragrance.longevity_score,
+            Fragrance.projection_level,
+        ),
+        joinedload(Fragrance.brand),
+        selectinload(Fragrance.note_links).joinedload(FragranceNote.note),
+        selectinload(Fragrance.accord_links).joinedload(FragranceAccord.accord),
+    )
 
 
 class DiscoveryRepository:
@@ -20,7 +53,7 @@ class DiscoveryRepository:
             select(Fragrance)
             .join(UserCollectionItem, UserCollectionItem.fragrance_id == Fragrance.id)
             .where(UserCollectionItem.user_id == user_id, UserCollectionItem.status == "owned")
-            .options(*_catalog_options())
+            .options(*_discovery_options())
             .order_by(Fragrance.id)
         )
         return list(self._session.scalars(statement).unique())
@@ -52,6 +85,7 @@ class DiscoveryRepository:
             shared_only=True,
             minimum_value=minimum_value,
             _max_limit=DISCOVERY_CANDIDATE_POOL,
+            _options=_discovery_options(),
         )
 
     def similarity_strengths(

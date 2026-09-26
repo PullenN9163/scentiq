@@ -49,12 +49,17 @@ class FragranceRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def _base_query(self, user_id: UUID) -> Select[tuple[Fragrance]]:
+    def _base_query(
+        self,
+        user_id: UUID,
+        *,
+        options: tuple[ExecutableOption, ...] | None = None,
+    ) -> Select[tuple[Fragrance]]:
         return (
             select(Fragrance)
             .join(Fragrance.brand)
             .where(_visible_to(user_id))
-            .options(*_catalog_options())
+            .options(*(options if options is not None else _catalog_options()))
         )
 
     def search(
@@ -73,8 +78,9 @@ class FragranceRepository:
         shared_only: bool = False,
         minimum_value: float | None = None,
         _max_limit: int = MAX_SEARCH_LIMIT,
+        _options: tuple[ExecutableOption, ...] | None = None,
     ) -> list[Fragrance]:
-        statement = self._base_query(user_id)
+        statement = self._base_query(user_id, options=_options)
         if shared_only:
             statement = statement.where(Fragrance.owner_user_id.is_(None))
         if exclude_ids:
