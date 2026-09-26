@@ -111,6 +111,7 @@ export async function updateProfile(
 
 const preferencesSchema = z.object({
   location: optionalText,
+  temperature_unit: z.enum(["celsius", "fahrenheit"]).nullable(),
   preferred_season: z.enum(["spring", "summer", "fall", "winter"]).nullable(),
   preferred_occasion: z
     .enum(["work", "casual", "date", "dinner", "party", "formal", "gym", "travel", "other"])
@@ -131,6 +132,7 @@ export async function updatePreferences(
 ): Promise<ActionState> {
   const fields = [
     "location",
+    "temperature_unit",
     "preferred_season",
     "preferred_occasion",
     "preferred_projection",
@@ -141,6 +143,7 @@ export async function updatePreferences(
 
   const parsed = preferencesSchema.safeParse({
     location: textOf(formData, "location"),
+    temperature_unit: nullableEnum(formData, "temperature_unit"),
     preferred_season: nullableEnum(formData, "preferred_season"),
     preferred_occasion: nullableEnum(formData, "preferred_occasion"),
     preferred_projection: nullableEnum(formData, "preferred_projection"),

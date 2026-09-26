@@ -5,6 +5,7 @@ from scentiq_api.repositories.insights import InsightsRepository
 from scentiq_api.repositories.layering import LayeringRepository
 from scentiq_api.repositories.users import IdentityRepository, UserRepository
 from scentiq_api.repositories.wear import WearLogRepository
+from scentiq_api.repositories.weather import WeatherRepository
 
 __all__ = [
     "CollectionRepository",
@@ -15,4 +16,5 @@ __all__ = [
     "LayeringRepository",
     "UserRepository",
     "WearLogRepository",
+    "WeatherRepository",
 ]

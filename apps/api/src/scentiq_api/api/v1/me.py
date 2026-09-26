@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from scentiq_api.auth import AuthenticatedUser, CurrentUserDependency
+from scentiq_api.integrations.weather import WeatherProvider
 from scentiq_api.repositories import IdentityRepository, UserRepository
 from scentiq_api.schemas import (
     DeletionResponse,
@@ -22,6 +23,7 @@ def create_me_router(
     current_user: CurrentUserDependency,
     *,
     current_user_allowing_pending: CurrentUserDependency,
+    weather_provider: WeatherProvider | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/me", tags=["me"])
 
@@ -48,7 +50,13 @@ def create_me_router(
         session: Annotated[Session, Depends(get_session)],
         user: Annotated[AuthenticatedUser, Depends(current_user)],
     ) -> PreferencesResponse:
-        updated = ProfileService(UserRepository(session)).replace_preferences(
+        """Replace the preference set.
+
+        A new location is geocoded; one that matches no place is refused with a
+        `location_not_found` field error. If the weather provider is
+        unreachable the location is saved and resolved later.
+        """
+        updated = ProfileService(UserRepository(session), weather_provider).replace_preferences(
             user.user_id,
             payload,
         )

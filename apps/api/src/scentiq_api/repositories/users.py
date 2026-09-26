@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from scentiq_api.models import Brand, Fragrance, IdentityEvent, User, UserIdenti
 
 _PREFERENCE_FIELDS = (
     "location",
+    "temperature_unit",
     "preferred_season",
     "preferred_occasion",
     "preferred_projection",
@@ -43,6 +45,22 @@ class UserRepository:
             self._session.add(preferences)
         for field in _PREFERENCE_FIELDS:
             setattr(preferences, field, values.get(field))
+        self._session.flush()
+        return preferences
+
+    def set_resolved_location(
+        self,
+        preferences: UserPreference,
+        *,
+        label: str | None,
+        latitude: Decimal | None,
+        longitude: Decimal | None,
+        timezone: str | None,
+    ) -> UserPreference:
+        preferences.location_label = label
+        preferences.latitude = latitude
+        preferences.longitude = longitude
+        preferences.timezone = timezone
         self._session.flush()
         return preferences
 

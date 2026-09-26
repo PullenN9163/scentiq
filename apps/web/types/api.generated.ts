@@ -199,7 +199,14 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Preferences */
+        /**
+         * Update Preferences
+         * @description Replace the preference set.
+         *
+         *     A new location is geocoded; one that matches no place is refused with a
+         *     `location_not_found` field error. If the weather provider is
+         *     unreachable the location is saved and resolved later.
+         */
         patch: operations["update_preferences_api_v1_me_preferences_patch"];
         trace?: never;
     };
@@ -215,6 +222,48 @@ export interface paths {
         put?: never;
         /** Add Wear Log */
         post: operations["add_wear_log_api_v1_wear_logs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/weather/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Forecast
+         * @description The next seven days for the member's saved location.
+         *
+         *     `409 location_required` means no location is saved; `409
+         *     location_unresolved` means it could not be found. A cached forecast is
+         *     served with `stale: true` while the provider is unreachable, and `503
+         *     weather_unavailable` is returned only when there is nothing cached.
+         */
+        get: operations["get_forecast_api_v1_weather_forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/weather/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Places */
+        get: operations["search_places_api_v1_weather_places_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -507,6 +556,33 @@ export interface components {
             /** Taste Match */
             taste_match: number;
         };
+        /** ForecastDay */
+        ForecastDay: {
+            /**
+             * Condition
+             * @enum {string}
+             */
+            condition: "clear" | "partly_cloudy" | "cloudy" | "fog" | "drizzle" | "rain" | "snow" | "thunderstorm" | "unknown";
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** High Celsius */
+            high_celsius: number;
+            /**
+             * Humidity
+             * @description Mean relative humidity, 0 to 100.
+             */
+            humidity?: number | null;
+            /** Low Celsius */
+            low_celsius?: number | null;
+            /**
+             * Precipitation Probability
+             * @description 0 to 1, the day's highest hourly chance.
+             */
+            precipitation_probability?: number | null;
+        };
         /**
          * FragranceCreateRequest
          * @description A private custom fragrance.
@@ -737,10 +813,26 @@ export interface components {
             /** Slug */
             slug: string;
         };
+        /** PlaceResponse */
+        PlaceResponse: {
+            /** Label */
+            label: string;
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
+            /** Timezone */
+            timezone?: string | null;
+        };
         /** PreferencesResponse */
         PreferencesResponse: {
             /** Location */
             location?: string | null;
+            /**
+             * Location Label
+             * @description The place `location` resolved to; null when unresolved.
+             */
+            location_label?: string | null;
             /** Maximum Sprays */
             maximum_sprays?: number | null;
             /** Preferred Longevity */
@@ -751,6 +843,10 @@ export interface components {
             preferred_projection?: ("intimate" | "moderate" | "strong") | null;
             /** Preferred Season */
             preferred_season?: ("spring" | "summer" | "fall" | "winter") | null;
+            /** Temperature Unit */
+            temperature_unit?: ("celsius" | "fahrenheit") | null;
+            /** Timezone */
+            timezone?: string | null;
         };
         /**
          * PreferencesUpdateRequest
@@ -769,6 +865,8 @@ export interface components {
             preferred_projection?: ("intimate" | "moderate" | "strong") | null;
             /** Preferred Season */
             preferred_season?: ("spring" | "summer" | "fall" | "winter") | null;
+            /** Temperature Unit */
+            temperature_unit?: ("celsius" | "fahrenheit") | null;
         };
         /** SeasonResponse */
         SeasonResponse: {
@@ -855,6 +953,30 @@ export interface components {
              * Format: date-time
              */
             worn_at: string;
+        };
+        /** WeatherForecastResponse */
+        WeatherForecastResponse: {
+            /** Days */
+            days: components["schemas"]["ForecastDay"][];
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+            /** Location Label */
+            location_label: string;
+            /**
+             * Stale
+             * @description True when the provider was unreachable and a cached forecast is shown.
+             */
+            stale: boolean;
+            /**
+             * Temperature Unit
+             * @enum {string}
+             */
+            temperature_unit: "celsius" | "fahrenheit";
+            /** Timezone */
+            timezone?: string | null;
         };
         /** WeightedSlice */
         WeightedSlice: {
@@ -1411,6 +1533,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WearLogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_forecast_api_v1_weather_forecast_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeatherForecastResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_places_api_v1_weather_places_get: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceResponse"][];
                 };
             };
             /** @description Validation Error */

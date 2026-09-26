@@ -894,6 +894,76 @@
         "title": "DiscoveryResult",
         "type": "object"
       },
+      "ForecastDay": {
+        "properties": {
+          "condition": {
+            "enum": [
+              "clear",
+              "partly_cloudy",
+              "cloudy",
+              "fog",
+              "drizzle",
+              "rain",
+              "snow",
+              "thunderstorm",
+              "unknown"
+            ],
+            "title": "Condition",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "high_celsius": {
+            "title": "High Celsius",
+            "type": "number"
+          },
+          "humidity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean relative humidity, 0 to 100.",
+            "title": "Humidity"
+          },
+          "low_celsius": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low Celsius"
+          },
+          "precipitation_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0 to 1, the day's highest hourly chance.",
+            "title": "Precipitation Probability"
+          }
+        },
+        "required": [
+          "date",
+          "condition",
+          "high_celsius"
+        ],
+        "title": "ForecastDay",
+        "type": "object"
+      },
       "FragranceCreateRequest": {
         "additionalProperties": false,
         "description": "A private custom fragrance.\n\nBrand, name and concentration are required; the descriptive and\nclassification metadata a curated entry carries is optional here, and\ninsights report what is missing rather than guessing.",
@@ -1650,6 +1720,40 @@
         "title": "PerfumerResponse",
         "type": "object"
       },
+      "PlaceResponse": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          }
+        },
+        "required": [
+          "label",
+          "latitude",
+          "longitude"
+        ],
+        "title": "PlaceResponse",
+        "type": "object"
+      },
       "PreferencesResponse": {
         "properties": {
           "location": {
@@ -1662,6 +1766,18 @@
               }
             ],
             "title": "Location"
+          },
+          "location_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The place `location` resolved to; null when unresolved.",
+            "title": "Location Label"
           },
           "maximum_sprays": {
             "anyOf": [
@@ -1739,6 +1855,32 @@
               }
             ],
             "title": "Preferred Season"
+          },
+          "temperature_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "celsius",
+                  "fahrenheit"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Unit"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
           }
         },
         "title": "PreferencesResponse",
@@ -1840,6 +1982,21 @@
               }
             ],
             "title": "Preferred Season"
+          },
+          "temperature_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "celsius",
+                  "fahrenheit"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Unit"
           }
         },
         "title": "PreferencesUpdateRequest",
@@ -2109,6 +2266,59 @@
           "worn_at"
         ],
         "title": "WearLogResponse",
+        "type": "object"
+      },
+      "WeatherForecastResponse": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "location_label": {
+            "title": "Location Label",
+            "type": "string"
+          },
+          "stale": {
+            "description": "True when the provider was unreachable and a cached forecast is shown.",
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "temperature_unit": {
+            "enum": [
+              "celsius",
+              "fahrenheit"
+            ],
+            "title": "Temperature Unit",
+            "type": "string"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          }
+        },
+        "required": [
+          "location_label",
+          "temperature_unit",
+          "fetched_at",
+          "stale",
+          "days"
+        ],
+        "title": "WeatherForecastResponse",
         "type": "object"
       },
       "WeightedSlice": {
@@ -3158,6 +3368,7 @@
     },
     "/api/v1/me/preferences": {
       "patch": {
+        "description": "Replace the preference set.\n\nA new location is geocoded; one that matches no place is refused with a\n`location_not_found` field error. If the weather provider is\nunreachable the location is saved and resolved later.",
         "operationId": "update_preferences_api_v1_me_preferences_patch",
         "parameters": [
           {
@@ -3402,6 +3613,120 @@
         "summary": "Add Wear Log",
         "tags": [
           "wear-logs"
+        ]
+      }
+    },
+    "/api/v1/weather/forecast": {
+      "get": {
+        "description": "The next seven days for the member's saved location.\n\n`409 location_required` means no location is saved; `409\nlocation_unresolved` means it could not be found. A cached forecast is\nserved with `stale: true` while the provider is unreachable, and `503\nweather_unavailable` is returned only when there is nothing cached.",
+        "operationId": "get_forecast_api_v1_weather_forecast_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeatherForecastResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Forecast",
+        "tags": [
+          "weather"
+        ]
+      }
+    },
+    "/api/v1/weather/places": {
+      "get": {
+        "operationId": "search_places_api_v1_weather_places_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlaceResponse"
+                  },
+                  "title": "Response Search Places Api V1 Weather Places Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Places",
+        "tags": [
+          "weather"
         ]
       }
     },

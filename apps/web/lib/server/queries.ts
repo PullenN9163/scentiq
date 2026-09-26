@@ -1,6 +1,7 @@
 import "server-only";
 
-import { apiClient } from "@/lib/server/api-client";
+import { ApiError, apiClient } from "@/lib/server/api-client";
+import type { WeatherResult } from "@/lib/weather";
 import type {
   CollectionInsights,
   CollectionItem,
@@ -11,6 +12,7 @@ import type {
   LayeringMode,
   LayeringSuggestion,
   WearLogEntry,
+  WeatherForecast,
 } from "@/types/api";
 
 /**
@@ -85,4 +87,25 @@ export function getWearLogs(
   }
   parameters.set("limit", String(options.limit ?? 50));
   return apiClient.get<WearLogEntry[]>(`/api/v1/wear-logs?${parameters.toString()}`);
+}
+
+/**
+ * The forecast, or why there isn't one.
+ *
+ * Weather is supplementary: a missing location or an unreachable provider is
+ * reported as a state for the page to show, never thrown, so it cannot take
+ * down the screen it sits on. Only an authentication failure propagates.
+ */
+export async function getWeather(): Promise<WeatherResult> {
+  try {
+    const forecast = await apiClient.get<WeatherForecast>("/api/v1/weather/forecast");
+    return { status: "ok", forecast };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.kind === "unauthorized") throw error;
+      if (error.code === "location_required") return { status: "location_required" };
+      if (error.code === "location_unresolved") return { status: "location_unresolved" };
+    }
+    return { status: "unavailable" };
+  }
 }

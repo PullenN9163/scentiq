@@ -42,16 +42,22 @@ class WeatherSnapshot(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
             "precipitation_probability IS NULL OR precipitation_probability BETWEEN 0 AND 1",
             name="precipitation_probability_range",
         ),
+        UniqueConstraint("user_id", "forecast_at", name="weather_user_forecast_at"),
     )
 
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     location_label: Mapped[str] = mapped_column(String(160))
+    # A daily forecast is stored at midnight UTC of its local calendar date.
     forecast_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    # The day's high; `temperature_min_celsius` is its low.
     temperature_celsius: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    temperature_min_celsius: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     humidity: Mapped[int | None]
     precipitation_probability: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
+    weather_code: Mapped[int | None]
     condition: Mapped[str] = mapped_column(String(40))
     source: Mapped[str] = mapped_column(String(80))
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):

@@ -8,6 +8,10 @@ from sqlalchemy.exc import ArgumentError
 
 Environment = Literal["development", "test", "production"]
 DEFAULT_DEMO_USER_ID = UUID("00000000-0000-4000-8000-000000000001")
+# Open-Meteo's free endpoints. The commercial plan uses customer-* hosts plus an
+# API key, so both are configurable rather than hard-coded.
+DEFAULT_WEATHER_API_BASE_URL = "https://api.open-meteo.com"
+DEFAULT_GEOCODING_API_BASE_URL = "https://geocoding-api.open-meteo.com"
 
 
 class Settings(BaseSettings):
@@ -41,6 +45,18 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="INTERNAL_SERVICE_TOKEN",
     )
+    weather_api_base_url: str = Field(
+        default=DEFAULT_WEATHER_API_BASE_URL,
+        validation_alias="WEATHER_API_BASE_URL",
+    )
+    geocoding_api_base_url: str = Field(
+        default=DEFAULT_GEOCODING_API_BASE_URL,
+        validation_alias="GEOCODING_API_BASE_URL",
+    )
+    open_meteo_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias="OPEN_METEO_API_KEY",
+    )
 
     @field_validator(
         "clerk_issuer",
@@ -48,6 +64,7 @@ class Settings(BaseSettings):
         "clerk_audience",
         "clerk_authorized_parties",
         "internal_service_token",
+        "open_meteo_api_key",
         mode="before",
     )
     @classmethod
@@ -62,6 +79,28 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @field_validator("weather_api_base_url", mode="before")
+    @classmethod
+    def default_weather_api_base_url(cls, value: object) -> object:
+        """A blank or missing URL means the free public endpoint."""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return DEFAULT_WEATHER_API_BASE_URL
+        return value
+
+    @field_validator("geocoding_api_base_url", mode="before")
+    @classmethod
+    def default_geocoding_api_base_url(cls, value: object) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return DEFAULT_GEOCODING_API_BASE_URL
+        return value
+
+    @field_validator("weather_api_base_url", "geocoding_api_base_url")
+    @classmethod
+    def validate_weather_urls(cls, value: str) -> str:
+        if not value.startswith("https://"):
+            raise ValueError("Weather provider URLs must be https URLs")
+        return value.rstrip("/")
 
     @field_validator("clerk_issuer")
     @classmethod
@@ -154,6 +193,12 @@ class Settings(BaseSettings):
     def authentication_is_configured(self) -> bool:
         """Authentication fails closed until an issuer and JWKS source exist."""
         return self.clerk_issuer is not None and self.resolved_clerk_jwks_url is not None
+
+    @property
+    def open_meteo_api_key_value(self) -> str | None:
+        if self.open_meteo_api_key is None:
+            return None
+        return self.open_meteo_api_key.get_secret_value()
 
     @property
     def internal_service_token_value(self) -> str | None:

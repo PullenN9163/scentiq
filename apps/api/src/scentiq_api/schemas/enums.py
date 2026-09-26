@@ -23,6 +23,7 @@ OwnershipType = Literal["bottle", "decant", "sample"]
 CollectionStatus = Literal["owned", "wishlist", "finished", "sold"]
 NoteStage = Literal["top", "middle", "base", "general"]
 LifecycleState = Literal["active", "deletion_pending"]
+TemperatureUnit = Literal["celsius", "fahrenheit"]
 
 # Statuses that retain history instead of being hard-deleted.
 RETIRED_STATUSES: tuple[str, ...] = ("finished", "sold")

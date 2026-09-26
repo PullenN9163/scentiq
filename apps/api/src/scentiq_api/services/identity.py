@@ -7,6 +7,7 @@ from uuid import UUID
 
 from scentiq_api.auth.provisioning import CLERK_PROVIDER
 from scentiq_api.errors import not_found
+from scentiq_api.integrations.weather import Place, WeatherProvider, WeatherProviderError
 from scentiq_api.repositories import IdentityRepository, UserRepository
 from scentiq_api.schemas import (
     DeletionResponse,
@@ -15,6 +16,7 @@ from scentiq_api.schemas import (
     PreferencesResponse,
     PreferencesUpdateRequest,
 )
+from scentiq_api.services.weather import location_not_found, resolve_place
 
 # How long a deletion-pending user waits before reconciliation cleans it up.
 RECONCILIATION_GRACE = timedelta(hours=24)
@@ -29,8 +31,13 @@ def _preferences_response(
 
 
 class ProfileService:
-    def __init__(self, repository: UserRepository) -> None:
+    def __init__(
+        self,
+        repository: UserRepository,
+        weather: WeatherProvider | None = None,
+    ) -> None:
         self._repository = repository
+        self._weather = weather
 
     def get(self, user_id: UUID) -> MeResponse:
         user = self._repository.get(user_id)
@@ -57,10 +64,43 @@ class ProfileService:
         user_id: UUID,
         request: PreferencesUpdateRequest,
     ) -> PreferencesResponse:
+        previous = self._repository.get_preferences(user_id)
+        location_changed = previous is None or previous.location != request.location
+        needs_resolution = request.location is not None and (
+            location_changed or previous is None or previous.latitude is None
+        )
+
+        # Resolve before writing anything, so an unknown place is refused
+        # without disturbing the saved preferences.
+        place: Place | None = None
+        if needs_resolution and self._weather is not None:
+            assert request.location is not None
+            try:
+                place = resolve_place(self._weather, request.location)
+            except WeatherProviderError:
+                # Saved unresolved; the forecast resolves it once the provider
+                # is reachable again.
+                place = None
+            else:
+                if place is None:
+                    raise location_not_found()
+
         preferences = self._repository.replace_preferences(
             user_id,
             request.model_dump(),
         )
+        if place is not None:
+            self._repository.set_resolved_location(
+                preferences,
+                label=place.label,
+                latitude=place.latitude,
+                longitude=place.longitude,
+                timezone=place.timezone,
+            )
+        elif location_changed:
+            self._repository.set_resolved_location(
+                preferences, label=None, latitude=None, longitude=None, timezone=None
+            )
         return PreferencesResponse.model_validate(preferences)
 
 

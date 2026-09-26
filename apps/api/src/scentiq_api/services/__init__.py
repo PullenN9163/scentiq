@@ -10,6 +10,7 @@ from scentiq_api.services.identity import (
 from scentiq_api.services.insights import InsightsService
 from scentiq_api.services.layering import LayeringService
 from scentiq_api.services.wear import WearLogService
+from scentiq_api.services.weather import WeatherService
 
 __all__ = [
     "RECONCILIATION_GRACE",
@@ -22,5 +23,6 @@ __all__ = [
     "LayeringService",
     "ProfileService",
     "WearLogService",
+    "WeatherService",
     "to_fragrance_summary",
 ]

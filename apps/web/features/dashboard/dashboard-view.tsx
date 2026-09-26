@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, CloudSun, Sparkles } from "lucide-react";
+import { CalendarDays, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -8,14 +8,16 @@ import { EmptyState, PreviewNotice } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { WeatherCard } from "@/features/dashboard/weather-card";
+import type { WeatherResult } from "@/lib/weather";
 import type { CollectionInsights, Me, WearLogEntry } from "@/types/api";
 
 /**
  * The Today screen.
  *
- * Collection totals and recent wears are real. Weather, events and the
- * recommendation remain previews and are labelled as such, because no provider
- * or engine is connected yet.
+ * Collection totals, recent wears and the weather are real. Events and the
+ * recommendation remain previews and are labelled as such, because no calendar
+ * or scoring engine is connected yet.
  */
 
 function formatDate(value: string): string {
@@ -30,10 +32,12 @@ export function DashboardView({
   me,
   insights,
   recentWears,
+  weather,
 }: {
   me: Me;
   insights: CollectionInsights;
   recentWears: WearLogEntry[];
+  weather: WeatherResult;
 }) {
   const location = me.preferences.location;
 
@@ -154,23 +158,7 @@ export function DashboardView({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent>
-            <div className="section-title">
-              <CloudSun size={19} />
-              <h3>Weather</h3>
-            </div>
-            <PreviewNotice>No weather provider is connected.</PreviewNotice>
-            <p className="muted">
-              {location
-                ? `Your saved location is ${location}. Forecasts will use it once a provider is connected.`
-                : "Add a location in Settings and forecasts will use it once a provider is connected."}
-            </p>
-            <Button asChild variant="ghost">
-              <Link href="/settings">Open settings</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <WeatherCard weather={weather} />
 
         <Card>
           <CardContent>

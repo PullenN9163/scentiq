@@ -74,12 +74,27 @@ class UserPreference(TimestampMixin, Base):
             "maximum_sprays IS NULL OR maximum_sprays BETWEEN 1 AND 20",
             name="maximum_sprays_range",
         ),
+        CheckConstraint(
+            "temperature_unit IS NULL OR temperature_unit IN ('celsius', 'fahrenheit')",
+            name="temperature_unit_value",
+        ),
+        CheckConstraint("latitude IS NULL OR latitude BETWEEN -90 AND 90", name="latitude_range"),
+        CheckConstraint(
+            "longitude IS NULL OR longitude BETWEEN -180 AND 180", name="longitude_range"
+        ),
     )
 
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     location: Mapped[str | None] = mapped_column(String(120))
+    # Resolved from `location` by geocoding. Null when the location is unset or
+    # the provider was unreachable when it was saved.
+    location_label: Mapped[str | None] = mapped_column(String(160))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(8, 5))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(8, 5))
+    timezone: Mapped[str | None] = mapped_column(String(64))
+    temperature_unit: Mapped[str | None] = mapped_column(String(10))
     preferred_season: Mapped[str | None] = mapped_column(String(10))
     preferred_occasion: Mapped[str | None] = mapped_column(String(20))
     preferred_projection: Mapped[str | None] = mapped_column(String(20))

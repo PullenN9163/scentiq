@@ -6,11 +6,13 @@ dependencies = [
   "alembic>=1.19,<1.20",
   "azure-monitor-opentelemetry>=1.8,<1.9",
   "fastapi[standard]>=0.141,<0.142",
+  "httpx>=0.28,<0.29",
   "psycopg[binary]>=3.3,<3.4",
   "pydantic-settings>=2.15,<2.16",
   "pyjwt[crypto]>=2.10,<3",
   "rapidfuzz>=3.14,<4",
   "sqlalchemy>=2.0.51,<2.1",
+  "tzdata>=2026.3",
 ]
 
 [dependency-groups]

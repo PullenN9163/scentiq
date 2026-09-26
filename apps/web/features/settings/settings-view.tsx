@@ -19,8 +19,9 @@ import type { Me } from "@/types/api";
 /**
  * Settings, split between persisted values and surfaces that remain previews.
  *
- * Profile and preferences save to the service. Calendar connections and
- * notifications are still previews and say so, so nothing implies it was saved.
+ * Profile, preferences and the forecast location save to the service. Calendar
+ * connections and notifications are still previews and say so, so nothing
+ * implies it was saved.
  */
 export function SettingsView({ me }: { me: Me }) {
   const [profileState, profileAction, profilePending] = useActionState(updateProfile, idleState);
@@ -83,9 +84,23 @@ export function SettingsView({ me }: { me: Me }) {
                 label="Location"
                 state={preferenceState}
                 fallbackValue={preferences.location ?? ""}
-                hint="Used for future weather-aware planning."
+                hint='A city, optionally with its country, e.g. "Leeds, UK". Drives your forecast.'
               >
                 {(props) => <Input type="text" maxLength={120} {...props} />}
+              </Field>
+              <Field
+                name="temperature_unit"
+                label="Temperature unit"
+                state={preferenceState}
+                fallbackValue={preferences.temperature_unit ?? ""}
+              >
+                {(props) => (
+                  <select className="select" {...props}>
+                    <option value="">Default (°F)</option>
+                    <option value="fahrenheit">Fahrenheit (°F)</option>
+                    <option value="celsius">Celsius (°C)</option>
+                  </select>
+                )}
               </Field>
               <Field
                 name="preferred_season"
@@ -171,12 +186,30 @@ export function SettingsView({ me }: { me: Me }) {
               <MapPin size={19} />
               <h2>Weather</h2>
             </div>
-            <PreviewNotice>
-              Weather is not connected yet, so nothing here is saved or used.
-            </PreviewNotice>
-            <p className="muted">
-              Your saved location will drive weather-aware planning once a provider is connected.
-            </p>
+            {preferences.location === null ? (
+              <p className="muted">
+                Add a location under Recommendation preferences to see forecasts on Today.
+              </p>
+            ) : preferences.location_label ? (
+              <>
+                <p>
+                  Forecasts are for <strong>{preferences.location_label}</strong>
+                  {preferences.timezone ? ` (${preferences.timezone})` : ""}.
+                </p>
+                <p className="field-hint">
+                  Forecast data by{" "}
+                  <a href="https://open-meteo.com/" rel="noreferrer" target="_blank">
+                    Open-Meteo
+                  </a>
+                  .
+                </p>
+              </>
+            ) : (
+              <p className="muted">
+                We haven&apos;t matched &ldquo;{preferences.location}&rdquo; to a place yet. It will
+                be looked up again the next time a forecast loads.
+              </p>
+            )}
           </CardContent>
         </Card>
 

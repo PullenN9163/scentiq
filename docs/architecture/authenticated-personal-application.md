@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented September 23, 2026 and extended September 25, 2026 with the source-backed shared catalog. Targets the existing Azure development topology as a private beta, not a production environment.
+Implemented September 23, 2026, extended September 25, 2026 with the source-backed shared catalog, and September 27, 2026 with live weather. Targets the existing Azure development topology as a private beta, not a production environment.
 
 ## Objective
 
@@ -21,7 +21,7 @@ This milestone delivers:
 - live catalog discovery and collection-based layering, with weekly planning and the agent retaining clearly labelled weather/calendar preview inputs; and
 - a generated API contract that continuous integration holds the web application to.
 
-Excluded: image uploads, live weather and calendar connections, notifications and language-model agent calls. The shared catalog is built from external source listings; source provenance and licensing constraints remain explicit product boundaries.
+Excluded: image uploads, calendar connections, notifications and language-model agent calls. Live weather was added afterwards; see [Weather](#weather). The shared catalog is built from external source listings; source provenance and licensing constraints remain explicit product boundaries.
 
 ## Identity and the service boundary
 
@@ -104,6 +104,8 @@ All endpoints are authenticated and live under `/api/v1`:
 | PATCH | `/collection/{id}` |
 | GET, POST | `/wear-logs` |
 | GET | `/insights/collection` |
+| GET | `/weather/forecast` |
+| GET | `/weather/places` |
 
 `POST /api/v1/internal/identity-events` is excluded from the public schema and authenticates with the service credential alone.
 
@@ -128,7 +130,9 @@ Mutations are Server Actions returning a common result shape that carries field 
 
 Connected to persisted data: Catalog Search, Discover, Layering, Collection, Fragrance Detail, Settings, Insights, and the Today totals and recent wears.
 
-Still previews, and labelled as such on screen: weather and calendar inputs used by weekly planning and the agent, plus the weather and event cards on Today. Fragrance choices in those experiences come only from the member's persisted collection. No preview action claims to have been saved.
+Connected to live weather: the Today weather card and the Settings location.
+
+Still previews, and labelled as such on screen: weather and calendar inputs used by weekly planning and the agent, plus the event card on Today. Fragrance choices in those experiences come only from the member's persisted collection. No preview action claims to have been saved.
 
 Insights report how much of a collection each breakdown covers. Custom fragrances normally carry no accord, season or occasion data, so a breakdown that silently omitted them would misrepresent the collection.
 
@@ -143,6 +147,19 @@ Clerk keys, the webhook secret, token-validation settings and the internal servi
 | `CLERK_WEBHOOK_SECRET` | Web webhook route |
 | `CLERK_ISSUER`, `CLERK_JWKS_URL`, `CLERK_AUDIENCE`, `CLERK_AUTHORIZED_PARTIES` | API token verification |
 | `INTERNAL_SERVICE_TOKEN` | Web webhook route and API internal endpoint |
+| `WEATHER_API_BASE_URL`, `GEOCODING_API_BASE_URL` | API; blank uses Open-Meteo's free endpoints |
+| `OPEN_METEO_API_KEY` | API; optional, for Open-Meteo's commercial plan |
+
+## Weather
+
+Forecasts come from [Open-Meteo](https://open-meteo.com/) through the API; the browser never calls the provider.
+
+- **Location resolution.** Saving a new `location` preference geocodes it and stores the resolved label, coordinates and IANA timezone beside it. A place that matches nothing is refused with a `location_not_found` field error, leaving the saved preferences untouched. If the provider is unreachable the location is saved unresolved and resolved by the next forecast request.
+- **Qualified names.** Open-Meteo matches bare place names only, so `Leeds, UK` is searched as `Leeds` and the qualifier ranks results by country, country code or region.
+- **Caching.** `GET /weather/forecast` returns seven daily forecasts from the member's local today. Days are stored in `weather_snapshots` (one row per member per local date, keyed at midnight UTC) and served for 60 minutes before the provider is asked again. Past days are kept as a record of the weather on days a member wore something.
+- **Failure.** With a cached forecast and an unreachable provider the response carries `stale: true`. With nothing cached it is `503 weather_unavailable`; no saved location is `409 location_required`, and an unresolvable one is `409 location_unresolved`. Today renders each of these as a state of the weather card rather than failing the page.
+- **Units.** Temperatures are always Celsius on the wire. The member's `temperature_unit` preference (default Fahrenheit) is applied only for display.
+- **Licensing.** The free tier is for non-commercial use. The commercial plan needs only configuration: the `customer-*` hosts and `OPEN_METEO_API_KEY`.
 
 ## Verification
 

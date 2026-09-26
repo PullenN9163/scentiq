@@ -23,6 +23,7 @@ export type OwnershipType = "bottle" | "decant" | "sample";
 export type CollectionStatus = "owned" | "wishlist" | "finished" | "sold";
 export type NoteStage = "top" | "middle" | "base" | "general";
 export type LifecycleState = "active" | "deletion_pending";
+export type TemperatureUnit = "celsius" | "fahrenheit";
 
 export interface Brand {
   id: string;
@@ -146,6 +147,10 @@ export interface WearLogEntry {
 
 export interface Preferences {
   location: string | null;
+  /** The place `location` resolved to; null until it has been found. */
+  location_label: string | null;
+  timezone: string | null;
+  temperature_unit: TemperatureUnit | null;
   preferred_season: Season | null;
   preferred_occasion: Occasion | null;
   preferred_projection: Projection | null;
@@ -207,4 +212,36 @@ export interface CollectionInsights {
 export interface DeletionAccepted {
   lifecycle_state: LifecycleState;
   deletion_requested_at: string;
+}
+
+export type WeatherCondition =
+  | "clear"
+  | "partly_cloudy"
+  | "cloudy"
+  | "fog"
+  | "drizzle"
+  | "rain"
+  | "snow"
+  | "thunderstorm"
+  | "unknown";
+
+export interface ForecastDay {
+  /** Local calendar date, `YYYY-MM-DD`. */
+  date: string;
+  condition: WeatherCondition;
+  high_celsius: number;
+  low_celsius: number | null;
+  /** 0 to 1. */
+  precipitation_probability: number | null;
+  humidity: number | null;
+}
+
+export interface WeatherForecast {
+  location_label: string;
+  timezone: string | null;
+  temperature_unit: TemperatureUnit;
+  fetched_at: string;
+  /** True when the provider was unreachable and a cached forecast is shown. */
+  stale: boolean;
+  days: ForecastDay[];
 }

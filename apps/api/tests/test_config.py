@@ -197,3 +197,42 @@ def test_blank_issuer_leaves_authentication_unconfigured() -> None:
 
     assert settings.clerk_issuer is None
     assert settings.authentication_is_configured is False
+
+
+def test_blank_weather_settings_fall_back_to_the_free_endpoints() -> None:
+    settings = Settings(
+        SCENTIQ_ENV="test",
+        DATABASE_URL="postgresql+psycopg://user:password@localhost/scentiq",
+        CORS_ORIGINS="http://localhost:3000",
+        WEATHER_API_BASE_URL="",
+        GEOCODING_API_BASE_URL="  ",
+        OPEN_METEO_API_KEY="",
+    )
+
+    assert settings.weather_api_base_url == "https://api.open-meteo.com"
+    assert settings.geocoding_api_base_url == "https://geocoding-api.open-meteo.com"
+    assert settings.open_meteo_api_key_value is None
+
+
+def test_commercial_weather_settings_are_accepted() -> None:
+    settings = Settings(
+        SCENTIQ_ENV="test",
+        DATABASE_URL="postgresql+psycopg://user:password@localhost/scentiq",
+        CORS_ORIGINS="http://localhost:3000",
+        WEATHER_API_BASE_URL="https://customer-api.open-meteo.com/",
+        OPEN_METEO_API_KEY="commercial-key",
+    )
+
+    assert settings.weather_api_base_url == "https://customer-api.open-meteo.com"
+    assert settings.open_meteo_api_key_value == "commercial-key"
+    assert "commercial-key" not in repr(settings)
+
+
+def test_weather_urls_must_be_https() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            SCENTIQ_ENV="test",
+            DATABASE_URL="postgresql+psycopg://user:password@localhost/scentiq",
+            CORS_ORIGINS="http://localhost:3000",
+            WEATHER_API_BASE_URL="http://api.open-meteo.com",
+        )

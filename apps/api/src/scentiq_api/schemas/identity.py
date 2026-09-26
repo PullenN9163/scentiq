@@ -10,7 +10,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from scentiq_api.schemas.enums import LifecycleState, Occasion, Projection, Season
+from scentiq_api.schemas.enums import (
+    LifecycleState,
+    Occasion,
+    Projection,
+    Season,
+    TemperatureUnit,
+)
 
 
 def _blank_to_none(value: str | None) -> str | None:
@@ -24,6 +30,12 @@ class PreferencesResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     location: str | None = None
+    location_label: str | None = Field(
+        default=None,
+        description="The place `location` resolved to; null when unresolved.",
+    )
+    timezone: str | None = None
+    temperature_unit: TemperatureUnit | None = None
     preferred_season: Season | None = None
     preferred_occasion: Occasion | None = None
     preferred_projection: Projection | None = None
@@ -62,6 +74,7 @@ class PreferencesUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     location: str | None = Field(default=None, max_length=120)
+    temperature_unit: TemperatureUnit | None = None
     preferred_season: Season | None = None
     preferred_occasion: Occasion | None = None
     preferred_projection: Projection | None = None

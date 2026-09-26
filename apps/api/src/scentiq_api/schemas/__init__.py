@@ -26,6 +26,7 @@ from scentiq_api.schemas.enums import (
     OwnershipType,
     Projection,
     Season,
+    TemperatureUnit,
 )
 from scentiq_api.schemas.identity import (
     DeletionResponse,
@@ -42,6 +43,7 @@ from scentiq_api.schemas.insights import (
 )
 from scentiq_api.schemas.layering import LayeringMode, LayeringSuggestion
 from scentiq_api.schemas.wear import WearLogCreateRequest, WearLogResponse
+from scentiq_api.schemas.weather import ForecastDay, PlaceResponse, WeatherForecastResponse
 
 __all__ = [
     "RETIRED_STATUSES",
@@ -56,6 +58,7 @@ __all__ = [
     "CountSlice",
     "DeletionResponse",
     "DiscoveryResult",
+    "ForecastDay",
     "FragranceCreateRequest",
     "FragranceDetail",
     "FragranceSummary",
@@ -71,13 +74,16 @@ __all__ = [
     "OccasionResponse",
     "OwnershipType",
     "PerfumerResponse",
+    "PlaceResponse",
     "PreferencesResponse",
     "PreferencesUpdateRequest",
     "Projection",
     "Season",
     "SeasonResponse",
     "SourceResponse",
+    "TemperatureUnit",
     "WearLogCreateRequest",
     "WearLogResponse",
+    "WeatherForecastResponse",
     "WeightedSlice",
 ]
