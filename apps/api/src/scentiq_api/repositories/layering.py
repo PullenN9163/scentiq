@@ -22,3 +22,17 @@ class LayeringRepository:
             .order_by(Fragrance.name, Fragrance.id)
         )
         return list(self._session.scalars(statement).unique())
+
+    def owned_pair(self, user_id: UUID, fragrance_ids: set[UUID]) -> list[Fragrance]:
+        statement = (
+            select(Fragrance)
+            .join(UserCollectionItem, UserCollectionItem.fragrance_id == Fragrance.id)
+            .where(
+                UserCollectionItem.user_id == user_id,
+                UserCollectionItem.status == "owned",
+                Fragrance.id.in_(fragrance_ids),
+            )
+            .options(*_catalog_options())
+            .order_by(Fragrance.name, Fragrance.id)
+        )
+        return list(self._session.scalars(statement).unique())

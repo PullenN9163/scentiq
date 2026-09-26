@@ -13,6 +13,7 @@ from sqlalchemy import ColumnElement, Select, desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.sql.base import ExecutableOption
 
+from scentiq_api.catalog_import.normalize import fold
 from scentiq_api.models import (
     Accord,
     Brand,
@@ -61,7 +62,7 @@ class FragranceRepository:
         user_id: UUID,
         *,
         query: str | None = None,
-        limit: int = 25,
+        limit: int | None = 25,
         offset: int = 0,
         gender: str | None = None,
         family: str | None = None,
@@ -71,6 +72,7 @@ class FragranceRepository:
         exclude_ids: set[UUID] | None = None,
         shared_only: bool = False,
         minimum_value: float | None = None,
+        _max_limit: int = MAX_SEARCH_LIMIT,
     ) -> list[Fragrance]:
         statement = self._base_query(user_id)
         if shared_only:
@@ -78,14 +80,8 @@ class FragranceRepository:
         if exclude_ids:
             statement = statement.where(Fragrance.id.not_in(exclude_ids))
         if query:
-            pattern = f"%{query.strip()}%"
-            statement = statement.where(
-                or_(
-                    Fragrance.search_text.ilike(pattern),
-                    Fragrance.name.ilike(pattern),
-                    Brand.name.ilike(pattern),
-                )
-            )
+            folded_query = fold(query)
+            statement = statement.where(Fragrance.search_text.ilike(f"%{folded_query}%"))
         if gender:
             statement = statement.where(Fragrance.gender == gender)
         if family:
@@ -108,7 +104,7 @@ class FragranceRepository:
         dialect = self._session.get_bind().dialect.name
         if sort == "relevance" and query and dialect == "postgresql":
             statement = statement.order_by(
-                desc(func.similarity(Fragrance.search_text, query.strip().lower())),
+                desc(func.similarity(Fragrance.search_text, fold(query))),
                 desc(Fragrance.popularity_score).nullslast(),
                 Brand.name,
                 Fragrance.name,
@@ -126,7 +122,8 @@ class FragranceRepository:
             statement = statement.order_by(
                 desc(Fragrance.popularity_score).nullslast(), Brand.name, Fragrance.name
             )
-        statement = statement.offset(max(offset, 0)).limit(min(max(limit, 1), MAX_SEARCH_LIMIT))
+        if limit is not None:
+            statement = statement.offset(max(offset, 0)).limit(min(max(limit, 1), _max_limit))
         return list(self._session.scalars(statement))
 
     def get(self, user_id: UUID, fragrance_id: UUID) -> Fragrance | None:

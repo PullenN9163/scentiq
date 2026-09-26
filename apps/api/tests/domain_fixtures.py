@@ -15,6 +15,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
+from scentiq_api.catalog_import.normalize import fold
 from scentiq_api.models import (
     Accord,
     Brand,
@@ -72,6 +73,7 @@ def make_fragrance(
         owner_user_id=owner_user_id,
         name=name,
         concentration=concentration,
+        search_text=fold(" ".join((brand.name, name, concentration))),
     )
     session.add(fragrance)
     session.flush()

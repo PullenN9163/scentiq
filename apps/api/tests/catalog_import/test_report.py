@@ -41,6 +41,7 @@ def test_report_writes_inspectable_json_markdown_and_unresolved_csv(tmp_path: Pa
     assert summary["unresolved_matches"] == 1
     assert summary["unresolved_cross_source_percent"] == 100.0
     assert summary["excluded_attributes"]["occasions"]["reason"]
+    assert summary["excluded_attributes"]["occasions"]["coverage_count"] == 0
     assert report == summary
     assert "Canonical fragrances: 2" in (tmp_path / "summary.md").read_text(encoding="utf-8")
     with (tmp_path / "unresolved_matches.csv").open(encoding="utf-8", newline="") as handle:

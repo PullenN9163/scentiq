@@ -4,7 +4,7 @@ import argparse
 import hashlib
 import json
 from collections import Counter
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -47,22 +47,50 @@ def _psycopg_url(database_url: str) -> str:
     return parsed.render_as_string(hide_password=False)
 
 
-def _streams(raw_dir: Path) -> tuple[Iterator[SourceRecord | RejectedRecord], ...]:
-    paths = (
-        raw_dir / "fragrantica_full_kaggle.zip",
-        raw_dir / "fragrantica_fra_perfumes.zip",
-        raw_dir / "parfumo_data_clean.csv",
-        raw_dir / "final_perfume_data.zip",
-    )
-    missing = [str(path) for path in paths if not path.is_file()]
+def _selected_sources(values: Iterable[str] | None) -> set[SourceName]:
+    if values is None:
+        return set(_SOURCES)
+    selected = {token.strip() for value in values for token in value.split(",") if token.strip()}
+    unknown = selected - set(_SOURCES)
+    if unknown:
+        raise ValueError("unknown catalog source: " + ", ".join(sorted(unknown)))
+    if not selected:
+        raise ValueError("at least one catalog source is required")
+    return selected  # type: ignore[return-value]
+
+
+def _streams(
+    raw_dir: Path, selected: set[SourceName]
+) -> tuple[Iterator[SourceRecord | RejectedRecord], ...]:
+    paths = {
+        "fragrantica": raw_dir / "fragrantica_full_kaggle.zip",
+        "fra": raw_dir / "fragrantica_fra_perfumes.zip",
+        "parfumo": raw_dir / "parfumo_data_clean.csv",
+        "luckyscent": raw_dir / "final_perfume_data.zip",
+    }
+    required = {
+        name
+        for name, enabled in (
+            ("fragrantica", "fragrantica" in selected),
+            ("fra", bool({"fra_cleaned", "fra_perfumes"} & selected)),
+            ("parfumo", "parfumo" in selected),
+            ("luckyscent", "luckyscent" in selected),
+        )
+        if enabled
+    }
+    missing = [str(paths[name]) for name in required if not paths[name].is_file()]
     if missing:
         raise FileNotFoundError("missing catalog inputs: " + ", ".join(missing))
-    return (
-        read_fragrantica_archive(paths[0]),
-        read_fra_archive(paths[1]),
-        read_parfumo_file(paths[2]),
-        read_luckyscent_archive(paths[3]),
-    )
+    streams: list[Iterator[SourceRecord | RejectedRecord]] = []
+    if "fragrantica" in required:
+        streams.append(read_fragrantica_archive(paths["fragrantica"]))
+    if "fra" in required:
+        streams.append(read_fra_archive(paths["fra"]))
+    if "parfumo" in required:
+        streams.append(read_parfumo_file(paths["parfumo"]))
+    if "luckyscent" in required:
+        streams.append(read_luckyscent_archive(paths["luckyscent"]))
+    return tuple(streams)
 
 
 def _read_records(
@@ -71,7 +99,7 @@ def _read_records(
     records: list[SourceRecord] = []
     source_counts: Counter[str] = Counter()
     rejected_counts: Counter[str] = Counter()
-    for stream in _streams(raw_dir):
+    for stream in _streams(raw_dir, selected):
         for item in stream:
             if item.source not in selected:
                 continue
@@ -83,7 +111,11 @@ def _read_records(
     return records, source_counts, rejected_counts
 
 
-def _input_manifest(raw_dir: Path, source_counts: Counter[str]) -> dict[str, dict[str, Any]]:
+def _input_manifest(
+    raw_dir: Path,
+    source_counts: Mapping[str, int],
+    selected: set[SourceName],
+) -> dict[str, dict[str, Any]]:
     paths = {
         "fragrantica_archive": raw_dir / "fragrantica_full_kaggle.zip",
         "fra_archive": raw_dir / "fragrantica_fra_perfumes.zip",
@@ -91,14 +123,21 @@ def _input_manifest(raw_dir: Path, source_counts: Counter[str]) -> dict[str, dic
         "luckyscent_archive": raw_dir / "final_perfume_data.zip",
     }
     rows = {
-        "fragrantica_archive": source_counts["fragrantica"],
-        "fra_archive": source_counts["fra_cleaned"] + source_counts["fra_perfumes"],
-        "parfumo_file": source_counts["parfumo"],
-        "luckyscent_archive": source_counts["luckyscent"],
+        "fragrantica_archive": source_counts.get("fragrantica", 0),
+        "fra_archive": source_counts.get("fra_cleaned", 0) + source_counts.get("fra_perfumes", 0),
+        "parfumo_file": source_counts.get("parfumo", 0),
+        "luckyscent_archive": source_counts.get("luckyscent", 0),
+    }
+    included = {
+        "fragrantica_archive": "fragrantica" in selected,
+        "fra_archive": bool({"fra_cleaned", "fra_perfumes"} & selected),
+        "parfumo_file": "parfumo" in selected,
+        "luckyscent_archive": "luckyscent" in selected,
     }
     return {
-        name: {"path": str(path), "sha256": _sha256(path), "rows": rows[name]}
+        name: {"path": path.name, "sha256": _sha256(path), "rows": rows[name]}
         for name, path in paths.items()
+        if included[name]
     }
 
 
@@ -144,14 +183,20 @@ def _parser() -> argparse.ArgumentParser:
         default=repository_root / "datasets" / "reports" / "catalog-import",
     )
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--only", action="append", choices=_SOURCES)
+    parser.add_argument("--only", action="append", metavar="SOURCE[,SOURCE...]")
     parser.add_argument("--purge-demo-catalog", action="store_true")
     return parser
 
 
 def main(argv: Iterable[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
-    selected = set(args.only or _SOURCES)
+    parser = _parser()
+    args = parser.parse_args(argv)
+    try:
+        selected = _selected_sources(args.only)
+    except ValueError as error:
+        parser.error(str(error))
+    if selected != set(_SOURCES) and not args.dry_run:
+        parser.error("--only is restricted to --dry-run so omitted-source enrichment is preserved")
     records, source_counts, rejected_counts = _read_records(args.raw_dir, selected)
     repository_root = Path(__file__).parents[5]
     brand_aliases = load_aliases_csv(
@@ -160,7 +205,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     accord_aliases = load_aliases_csv(
         repository_root / "datasets" / "mappings" / "accord_aliases.csv"
     )
-    manifest = _input_manifest(args.raw_dir, source_counts)
+    manifest = _input_manifest(args.raw_dir, source_counts, selected)
 
     connection: psycopg.Connection[Any] | None = None
     existing: dict[tuple[str, str], UUID] = {}
@@ -182,7 +227,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             rejected_counts=rejected_counts,
             inputs=manifest,
         )
-        if not args.only and summary["unresolved_cross_source_percent"] >= 1:
+        if selected == set(_SOURCES) and summary["unresolved_cross_source_percent"] >= 1:
             raise RuntimeError("unresolved Parfumo + Luckyscent matches must remain below 1%")
         if args.dry_run:
             print(json.dumps({"dry_run": True, **summary}, sort_keys=True))

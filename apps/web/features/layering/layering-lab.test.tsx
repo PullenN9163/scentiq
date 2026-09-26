@@ -1,12 +1,16 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fragranceSummary, layeringSuggestion } from "@/test/catalog-fixtures";
 
 import { LayeringLab } from "./layering-lab";
 
+const getLayeringPair = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/server/actions", () => ({ getLayeringPair }));
+
 afterEach(cleanup);
+beforeEach(() => getLayeringPair.mockReset().mockResolvedValue(null));
 
 const first = fragranceSummary();
 const second = fragranceSummary({
@@ -41,5 +45,26 @@ describe("LayeringLab", () => {
   it("requires two owned fragrances", () => {
     render(<LayeringLab owned={[first]} suggestions={[]} />);
     expect(screen.getByText("Add at least two owned fragrances")).toBeVisible();
+  });
+
+  it("scores a selected pair that was not in the initial top results", async () => {
+    const user = userEvent.setup();
+    const third = fragranceSummary({
+      id: "33333333-3333-4333-8333-333333333333",
+      name: "Third Source Scent",
+    });
+    getLayeringPair.mockResolvedValue(
+      layeringSuggestion({ first: second, second: third, score: 0.71 }),
+    );
+    render(<LayeringLab owned={[first, second, third]} suggestions={[layeringSuggestion()]} />);
+
+    await user.selectOptions(screen.getByLabelText("Fragrance B"), third.id);
+    await user.selectOptions(screen.getByLabelText("Fragrance A"), second.id);
+
+    expect(await screen.findByRole("progressbar", { name: "Compatibility score" })).toHaveAttribute(
+      "aria-valuenow",
+      "71",
+    );
+    expect(getLayeringPair).toHaveBeenCalledWith(second.id, third.id, "safe");
   });
 });

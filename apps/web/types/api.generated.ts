@@ -1160,6 +1160,8 @@ export interface operations {
             query?: {
                 mode?: "safe" | "contrast" | "experimental";
                 limit?: number;
+                first_id?: string | null;
+                second_id?: string | null;
             };
             header?: {
                 authorization?: string | null;

@@ -28,10 +28,23 @@ class LayeringService:
         self._repository = repository
 
     def suggest(
-        self, user_id: UUID, *, mode: LayeringMode = "safe", limit: int = 12
+        self,
+        user_id: UUID,
+        *,
+        mode: LayeringMode = "safe",
+        limit: int = 12,
+        first_id: UUID | None = None,
+        second_id: UUID | None = None,
     ) -> list[LayeringSuggestion]:
         results: list[LayeringSuggestion] = []
-        for first, second in combinations(self._repository.owned(user_id), 2):
+        if first_id is not None or second_id is not None:
+            if first_id is None or second_id is None or first_id == second_id:
+                return []
+            owned = self._repository.owned_pair(user_id, {first_id, second_id})
+            pairs = [tuple(owned)] if len(owned) == 2 else []
+        else:
+            pairs = list(combinations(self._repository.owned(user_id), 2))
+        for first, second in pairs:
             first_notes = _weighted_keys(first, "note_links")
             second_notes = _weighted_keys(second, "note_links")
             shared_notes = sorted(set(first_notes) & set(second_notes))

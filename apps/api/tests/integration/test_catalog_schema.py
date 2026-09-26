@@ -145,3 +145,36 @@ def test_catalog_migration_downgrade_and_upgrade_are_reversible() -> None:
         engine.dispose()
 
     command.upgrade(config, "head")
+
+
+def test_catalog_migration_backfills_search_text_for_existing_rows() -> None:
+    config = _alembic_config()
+    command.downgrade(config, "base")
+    command.upgrade(config, "20260923_0003")
+    engine = create_engine(os.environ["DATABASE_URL"])
+    brand_id = uuid4()
+    fragrance_id = uuid4()
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO brands (id, name, slug) VALUES (:id, 'Maison Élan', 'legacy')"),
+                {"id": brand_id},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO fragrances (id, brand_id, name, concentration) "
+                    "VALUES (:id, :brand, 'D.S. & Durga', 'Parfum')"
+                ),
+                {"id": fragrance_id, "brand": brand_id},
+            )
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            assert (
+                connection.scalar(
+                    text("SELECT search_text FROM fragrances WHERE id=:id"),
+                    {"id": fragrance_id},
+                )
+                == "maison elan d s and durga parfum"
+            )
+    finally:
+        engine.dispose()

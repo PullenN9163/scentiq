@@ -8,14 +8,25 @@ from typing import Any
 
 from scentiq_api.catalog_import.merge import CanonicalCatalog
 
-_EXCLUDED_ATTRIBUTES = {
-    "ai_summary": {"reason": "below the 20% inclusion threshold and third-party generated text"},
-    "rating_longevity_sillage_histograms": {
-        "reason": "averages and vote counts preserve the supported signal"
-    },
-    "occasions": {"reason": "no source provides occasion data"},
-    "prices": {"reason": "no source provides price data"},
+_EXCLUDED_ATTRIBUTE_COUNTS = {
+    "ai_summary": (12788, "below the 20% inclusion threshold and third-party generated text"),
+    "rating_histogram": (121232, "average and vote count preserve the supported signal"),
+    "longevity_histogram": (75740, "average and vote count preserve the supported signal"),
+    "sillage_histogram": (78392, "average and vote count preserve the supported signal"),
+    "occasions": (0, "no source provides occasion data"),
+    "prices": (0, "no source provides price data"),
 }
+
+
+def _excluded_attributes(total: int) -> dict[str, dict[str, str | int | float]]:
+    return {
+        name: {
+            "coverage_count": count,
+            "coverage_percent": round(count / total * 100, 4) if total else 0.0,
+            "reason": reason,
+        }
+        for name, (count, reason) in _EXCLUDED_ATTRIBUTE_COUNTS.items()
+    }
 
 
 def _coverage(catalog: CanonicalCatalog) -> dict[str, dict[str, int | float]]:
@@ -74,7 +85,7 @@ def write_catalog_report(
         else 0.0,
         "match_rule_counts": catalog.rule_counts,
         "attribute_coverage": _coverage(catalog),
-        "excluded_attributes": _EXCLUDED_ATTRIBUTES,
+        "excluded_attributes": _excluded_attributes(len(catalog.fragrances)),
     }
     (report_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -100,7 +111,11 @@ def write_catalog_report(
     lines.extend(["", "## Match rules", ""])
     lines.extend(f"- {rule}: {count:,}" for rule, count in sorted(catalog.rule_counts.items()))
     lines.extend(["", "## Excluded attributes", ""])
-    lines.extend(f"- {name}: {details['reason']}" for name, details in _EXCLUDED_ATTRIBUTES.items())
+    lines.extend(
+        f"- {name}: {details['coverage_count']:,} "
+        f"({details['coverage_percent']:.4f}%) — {details['reason']}"
+        for name, details in summary["excluded_attributes"].items()
+    )
     (report_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     with (report_dir / "unresolved_matches.csv").open("w", encoding="utf-8", newline="") as handle:

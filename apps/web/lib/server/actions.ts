@@ -6,7 +6,11 @@ import { z } from "zod";
 
 import type { ActionState } from "@/lib/action-state";
 import { ApiError, apiClient } from "@/lib/server/api-client";
-import type { FragranceSummary } from "@/types/api";
+import type {
+  FragranceSummary,
+  LayeringMode,
+  LayeringSuggestion,
+} from "@/types/api";
 
 /**
  * Refreshes the screens a collection or wear change affects.
@@ -285,6 +289,25 @@ export async function searchCatalogPage(
     sort: "relevance",
   });
   return apiClient.get<FragranceSummary[]>(`/api/v1/fragrances?${parameters.toString()}`);
+}
+
+export async function getLayeringPair(
+  firstId: string,
+  secondId: string,
+  mode: LayeringMode,
+): Promise<LayeringSuggestion | null> {
+  const identifiers = z.array(z.string().uuid()).length(2).safeParse([firstId, secondId]);
+  if (!identifiers.success || firstId === secondId) return null;
+  const parameters = new URLSearchParams({
+    first_id: firstId,
+    second_id: secondId,
+    mode,
+    limit: "1",
+  });
+  const results = await apiClient.get<LayeringSuggestion[]>(
+    `/api/v1/layering/suggestions?${parameters.toString()}`,
+  );
+  return results[0] ?? null;
 }
 
 const updateCollectionSchema = z.object({

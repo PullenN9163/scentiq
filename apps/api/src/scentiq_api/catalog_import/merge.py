@@ -177,6 +177,7 @@ def _merge_group(
     group_index: int,
     existing_sources: Mapping[tuple[str, str], UUID],
     accord_aliases: Mapping[str, str],
+    brand_aliases: Mapping[str, str],
 ) -> CanonicalFragrance:
     group = match.groups[group_index]
     records = group.records
@@ -190,9 +191,9 @@ def _merge_group(
             origin_records[field_name] = record
         return value
 
-    display_priority = ("fragrantica", "fra_perfumes", "parfumo", "luckyscent")
+    display_priority = ("fragrantica", "parfumo", "luckyscent", "fra_perfumes")
     name = choose("name", display_priority)
-    brand = choose("brand", ("fragrantica", "fra_perfumes", "parfumo", "luckyscent"))
+    brand = choose("brand", display_priority)
     if not isinstance(name, str) or not isinstance(brand, str):
         raise ValueError("canonical group has no display identity")
 
@@ -251,7 +252,7 @@ def _merge_group(
         primary_source_record_id=group.primary.source_record_id,
         name=name,
         brand=brand,
-        brand_key=fold(brand),
+        brand_key=brand_aliases.get(fold(brand), fold(brand)),
         country=country,
         concentration=concentration,
         release_year=release_year,
@@ -318,7 +319,13 @@ def build_canonical_catalog(
 ) -> CanonicalCatalog:
     match = match_records(records, brand_aliases)
     fragrances = tuple(
-        _merge_group(match, index, existing_sources, accord_aliases or {})
+        _merge_group(
+            match,
+            index,
+            existing_sources,
+            accord_aliases or {},
+            {fold(alias): fold(canonical) for alias, canonical in brand_aliases.items()},
+        )
         for index in range(len(match.groups))
     )
     _resolve_similarities(fragrances, match)

@@ -24,6 +24,8 @@ class DiscoveryService:
     plus its family that are new. Redundancy risk is the maximum of direct
     source similarity and accord Jaccard overlap with any owned fragrance. The
     final score is `0.55*taste + 0.35*expansion - 0.25*redundancy`.
+    Detailed scoring runs over a bounded, popularity-ranked candidate pool so
+    request cost does not grow with the full catalog.
     """
 
     def __init__(self, repository: DiscoveryRepository) -> None:
@@ -44,8 +46,6 @@ class DiscoveryService:
         owned = self._repository.owned(user_id)
         candidates = self._repository.candidates(
             user_id,
-            limit=limit,
-            offset=offset,
             gender=gender,
             family=family,
             season=season,
@@ -98,7 +98,7 @@ class DiscoveryService:
                     score=round(score, 4),
                 )
             )
-        return sorted(
+        ranked = sorted(
             results,
             key=lambda result: (
                 -result.score,
@@ -106,3 +106,4 @@ class DiscoveryService:
                 str(result.fragrance.id),
             ),
         )
+        return ranked[offset : offset + limit]

@@ -80,7 +80,7 @@ uv run --directory apps/api python -m scentiq_api.catalog_import `
   --purge-demo-catalog
 ```
 
-`--only` is for an explicitly reviewed recovery or diagnostic load, not the standard full import. Disappeared source records and shared fragrances remain in place by design; a routine refresh never deletes them.
+`--only fragrantica,parfumo` (or repeated `--only` flags) is available with `--dry-run` for diagnostics. Partial live loads are rejected because rebuilding canonical rows from an incomplete source set could erase enrichment supplied by an omitted source. Disappeared source records and shared fragrances remain in place by design; a routine full refresh never deletes them.
 
 ## Verification
 

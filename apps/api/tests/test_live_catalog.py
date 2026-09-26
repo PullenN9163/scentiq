@@ -85,6 +85,18 @@ def test_custom_fragrance_populates_folded_search_text(session: Session) -> None
     assert stored.search_text == "maison elan creme and cedar eau de parfum"
 
 
+def test_catalog_search_uses_the_indexed_folded_document_only(session: Session) -> None:
+    user = make_user(session, email="indexed-search@example.test")
+    brand = make_brand(session, name="Search House")
+    fragrance = make_fragrance(session, brand=brand, name="Visible Name")
+    fragrance.search_text = "canonical document"
+    session.flush()
+
+    results = FragranceService(FragranceRepository(session)).search(user.id, query="Visible Name")
+
+    assert results == []
+
+
 def test_discovery_excludes_owned_and_returns_deterministic_scores(session: Session) -> None:
     user = make_user(session, email="discover@example.test")
     brand = make_brand(session, name="Discovery House")
@@ -123,6 +135,34 @@ def test_discovery_excludes_owned_and_returns_deterministic_scores(session: Sess
     assert 0 <= results[0].redundancy_risk <= 1
 
 
+def test_discovery_paginates_after_catalog_wide_scoring(session: Session) -> None:
+    user = make_user(session, email="discover-page@example.test")
+    brand = make_brand(session, name="Discovery Page House")
+    owned = make_fragrance(session, brand=brand, name="Owned")
+    popular = make_fragrance(session, brand=brand, name="Popular")
+    best = make_fragrance(session, brand=brand, name="Best")
+    woody = Accord(name="Woody", slug="woody")
+    amber = Accord(name="Amber", slug="amber")
+    session.add_all((woody, amber))
+    session.flush()
+    session.add_all(
+        (
+            FragranceAccord(fragrance_id=owned.id, accord_id=woody.id, weight=Decimal("1")),
+            FragranceAccord(fragrance_id=popular.id, accord_id=woody.id, weight=Decimal("1")),
+            FragranceAccord(fragrance_id=best.id, accord_id=woody.id, weight=Decimal("0.5")),
+            FragranceAccord(fragrance_id=best.id, accord_id=amber.id, weight=Decimal("1")),
+        )
+    )
+    popular.popularity_score = 100
+    best.popularity_score = 1
+    make_collection_item(session, user=user, fragrance=owned)
+    session.flush()
+
+    results = DiscoveryService(DiscoveryRepository(session)).discover(user.id, limit=1)
+
+    assert [item.fragrance.id for item in results] == [best.id]
+
+
 def test_layering_uses_owned_collection_and_is_deterministic(session: Session) -> None:
     user = make_user(session, email="layering@example.test")
     brand = make_brand(session, name="Layer House")
@@ -146,3 +186,29 @@ def test_layering_uses_owned_collection_and_is_deterministic(session: Session) -
     assert {results[0].first.id, results[0].second.id} == {first.id, second.id}
     assert results[0].mode == "safe"
     assert results[0].season_overlap > 0
+
+
+def test_layering_can_score_an_explicit_owned_pair_outside_top_results(session: Session) -> None:
+    user = make_user(session, email="layering-pair@example.test")
+    brand = make_brand(session, name="Pair House")
+    fragrances = [
+        make_fragrance(session, brand=brand, name=f"Scent {index}", seasons=("fall",))
+        for index in range(3)
+    ]
+    for fragrance in fragrances:
+        make_collection_item(session, user=user, fragrance=fragrance)
+    session.flush()
+
+    results = LayeringService(LayeringRepository(session)).suggest(
+        user.id,
+        mode="safe",
+        limit=1,
+        first_id=fragrances[1].id,
+        second_id=fragrances[2].id,
+    )
+
+    assert len(results) == 1
+    assert {results[0].first.id, results[0].second.id} == {
+        fragrances[1].id,
+        fragrances[2].id,
+    }

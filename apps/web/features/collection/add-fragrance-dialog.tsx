@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 
 import { Field, FormMessage } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ export function AddFragranceDialog({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState(catalog);
   const [isSearching, startSearch] = useTransition();
+  const searchSequence = useRef(0);
   // Close once the save has actually resolved, never optimistically, and from
   // inside the action rather than an effect reacting to the result.
   const [addState, addAction, addPending] = useActionState(
@@ -51,10 +52,17 @@ export function AddFragranceDialog({
   const selectable = results.filter((item) => !owned.has(item.id));
 
   useEffect(() => {
+    const sequence = ++searchSequence.current;
     const handle = window.setTimeout(() => {
-      startSearch(async () => setResults(await searchCatalogPage(query, 0)));
+      startSearch(async () => {
+        const next = await searchCatalogPage(query, 0);
+        if (searchSequence.current === sequence) setResults(next);
+      });
     }, 250);
-    return () => window.clearTimeout(handle);
+    return () => {
+      window.clearTimeout(handle);
+      if (searchSequence.current === sequence) searchSequence.current += 1;
+    };
   }, [query]);
 
   return (

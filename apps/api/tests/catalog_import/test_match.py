@@ -142,3 +142,30 @@ def test_alias_csv_loader_folds_values_and_rejects_conflicts(tmp_path: Path) -> 
     path.write_text("alias,canonical\nA,B\nA,C\n", encoding="utf-8")
     with pytest.raises(ValueError, match="multiple canonical"):
         load_aliases_csv(path)
+
+
+def test_fra_cleaned_orphan_attaches_to_fra_perfumes_fallback_by_id() -> None:
+    cleaned = _record(
+        "fra_cleaned",
+        "36536",
+        name=None,
+        brand=None,
+        year=2012,
+    )
+    cleaned = replace(cleaned, country="France")
+    fallback = _record(
+        "fra_perfumes",
+        "36536",
+        name="Fallback Scent",
+        brand="Fallback House",
+        year=2012,
+    )
+
+    result = match_records([cleaned, fallback], {})
+
+    assert len(result.groups) == 1
+    assert {record.source for record in result.groups[0].records} == {
+        "fra_cleaned",
+        "fra_perfumes",
+    }
+    assert result.rule_counts["fra_cleaned_fallback_id_join"] == 1

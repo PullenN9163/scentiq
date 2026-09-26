@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -18,9 +19,15 @@ def create_layering_router(get_session: object, current_user: CurrentUserDepende
         user: Annotated[AuthenticatedUser, Depends(current_user)],
         mode: LayeringMode = "safe",
         limit: Annotated[int, Query(ge=1, le=50)] = 12,
+        first_id: UUID | None = None,
+        second_id: UUID | None = None,
     ) -> list[LayeringSuggestion]:
         return LayeringService(LayeringRepository(session)).suggest(
-            user.user_id, mode=mode, limit=limit
+            user.user_id,
+            mode=mode,
+            limit=limit,
+            first_id=first_id,
+            second_id=second_id,
         )
 
     return router

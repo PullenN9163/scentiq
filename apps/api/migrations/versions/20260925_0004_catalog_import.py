@@ -4,6 +4,8 @@ Revision ID: 20260925_0004
 Revises: 20260923_0003
 """
 
+import re
+import unicodedata
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -13,6 +15,14 @@ revision: str = "20260925_0004"
 down_revision: str | Sequence[str] | None = "20260923_0003"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+_NON_ALPHANUMERIC = re.compile(r"[^a-z0-9]+")
+
+
+def _fold(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value.replace("&", " and "))
+    without_marks = "".join(char for char in normalized if not unicodedata.combining(char))
+    return _NON_ALPHANUMERIC.sub(" ", without_marks.casefold()).strip()
 
 
 def upgrade() -> None:
@@ -46,6 +56,30 @@ def upgrade() -> None:
         sa.Column("search_text", sa.String(), nullable=True),
     ):
         op.add_column("fragrances", column)
+
+    connection = op.get_bind()
+    legacy_rows = connection.execute(
+        sa.text(
+            "SELECT f.id, b.name AS brand, f.name, f.concentration "
+            "FROM fragrances f JOIN brands b ON b.id = f.brand_id"
+        )
+    ).mappings()
+    search_documents = [
+        {
+            "id": row["id"],
+            "search_text": _fold(
+                " ".join(
+                    value for value in (row["brand"], row["name"], row["concentration"]) if value
+                )
+            ),
+        }
+        for row in legacy_rows
+    ]
+    if search_documents:
+        connection.execute(
+            sa.text("UPDATE fragrances SET search_text = :search_text WHERE id = :id"),
+            search_documents,
+        )
 
     op.create_check_constraint(
         "gender_value",

@@ -2875,6 +2875,40 @@
             }
           },
           {
+            "in": "query",
+            "name": "first_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "First Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "second_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Second Id"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,

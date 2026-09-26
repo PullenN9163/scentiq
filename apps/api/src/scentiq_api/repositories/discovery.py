@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from scentiq_api.models import Fragrance, FragranceSimilarity, UserCollectionItem
 from scentiq_api.repositories.fragrances import FragranceRepository, _catalog_options
 
+DISCOVERY_CANDIDATE_POOL = 2_000
+
 
 class DiscoveryRepository:
     def __init__(self, session: Session) -> None:
@@ -27,8 +29,6 @@ class DiscoveryRepository:
         self,
         user_id: UUID,
         *,
-        limit: int = 25,
-        offset: int = 0,
         gender: str | None = None,
         family: str | None = None,
         season: str | None = None,
@@ -42,8 +42,7 @@ class DiscoveryRepository:
         owned_id_set = set(self._session.scalars(owned_ids))
         return FragranceRepository(self._session).search(
             user_id,
-            limit=limit,
-            offset=offset,
+            limit=DISCOVERY_CANDIDATE_POOL,
             gender=gender,
             family=family,
             season=season,
@@ -52,6 +51,7 @@ class DiscoveryRepository:
             exclude_ids=owned_id_set,
             shared_only=True,
             minimum_value=minimum_value,
+            _max_limit=DISCOVERY_CANDIDATE_POOL,
         )
 
     def similarity_strengths(

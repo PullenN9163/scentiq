@@ -151,3 +151,48 @@ def test_conflicting_existing_source_ids_fail_closed() -> None:
                 ("parfumo", "guerlain/samsara"): UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
             },
         )
+
+
+def test_brand_alias_key_is_persisted_across_different_fragrances() -> None:
+    first = _record(
+        "parfumo",
+        "paco-rabanne/first",
+        name="First",
+        name_key="first",
+        brand="Paco Rabanne",
+        brand_key="paco rabanne",
+    )
+    second = _record(
+        "luckyscent",
+        "second",
+        name="Second",
+        name_key="second",
+        brand="Rabanne",
+        brand_key="rabanne",
+    )
+
+    catalog = build_canonical_catalog([first, second], {"paco rabanne": "rabanne"}, {})
+
+    assert {item.brand_key for item in catalog.fragrances} == {"rabanne"}
+
+
+def test_display_survivorship_prefers_parfumo_over_damaged_fra_fallback() -> None:
+    fallback = _record(
+        "fra_perfumes",
+        "10",
+        name="damagednamebrandforwomen",
+        brand="damagedbrand",
+        brand_key="house",
+    )
+    parfumo = _record(
+        "parfumo",
+        "house/clean-name",
+        name="Clean Name",
+        brand="Clean House",
+        brand_key="house",
+    )
+
+    item = build_canonical_catalog([fallback, parfumo], {}, {}).fragrances[0]
+
+    assert item.name == "Clean Name"
+    assert item.brand == "Clean House"

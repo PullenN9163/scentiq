@@ -212,18 +212,27 @@ def match_records(records: Iterable[SourceRecord], brand_aliases: Mapping[str, s
         id_groups[record.source_record_id] = target
 
     unmatched_fallbacks: list[SourceRecord] = []
-    for source in ("fra_cleaned", "fra_perfumes"):
-        for record in sorted(
-            (item for item in source_records.values() if item.source == source),
-            key=_source_sort_key,
-        ):
-            if target := id_groups.get(record.source_record_id):
-                target.append(record)
-                counts[f"{source}_id_join"] += 1
-            elif source == "fra_perfumes" and record.name is not None and record.brand is not None:
-                unmatched_fallbacks.append(record)
-            else:
-                counts[f"{source}_orphan"] += 1
+    pending_cleaned: dict[str, SourceRecord] = {}
+    for record in sorted(
+        (item for item in source_records.values() if item.source == "fra_cleaned"),
+        key=_source_sort_key,
+    ):
+        if target := id_groups.get(record.source_record_id):
+            target.append(record)
+            counts["fra_cleaned_id_join"] += 1
+        else:
+            pending_cleaned[record.source_record_id] = record
+    for record in sorted(
+        (item for item in source_records.values() if item.source == "fra_perfumes"),
+        key=_source_sort_key,
+    ):
+        if target := id_groups.get(record.source_record_id):
+            target.append(record)
+            counts["fra_perfumes_id_join"] += 1
+        elif record.name is not None and record.brand is not None:
+            unmatched_fallbacks.append(record)
+        else:
+            counts["fra_perfumes_orphan"] += 1
 
     groups_by_brand: dict[str, list[_Group]] = defaultdict(list)
     for group in groups:
@@ -242,10 +251,20 @@ def match_records(records: Iterable[SourceRecord], brand_aliases: Mapping[str, s
         )
     )
     unresolved: list[UnresolvedMatch] = []
+    attached_cleaned: set[str] = set()
     for record in cross_sources:
+        cleaned = (
+            pending_cleaned.get(record.source_record_id)
+            if record.source == "fra_perfumes"
+            else None
+        )
         target, candidates, rule = _find_match(record, groups_by_brand, aliases)
         if target is not None:
             target.append(record)
+            if cleaned is not None:
+                target.append(cleaned)
+                attached_cleaned.add(record.source_record_id)
+                counts["fra_cleaned_fallback_id_join"] += 1
             counts[f"{record.source}_{rule}"] += 1
             continue
         if candidates:
@@ -259,10 +278,16 @@ def match_records(records: Iterable[SourceRecord], brand_aliases: Mapping[str, s
             counts[f"{record.source}_unresolved"] += 1
             continue
         target = _Group(record)
+        if cleaned is not None:
+            target.append(cleaned)
+            attached_cleaned.add(record.source_record_id)
+            counts["fra_cleaned_fallback_id_join"] += 1
         groups.append(target)
         if (brand := _brand(record, aliases)) is not None:
             groups_by_brand[brand].append(target)
         counts[f"{record.source}_new"] += 1
+
+    counts["fra_cleaned_orphan"] += len(set(pending_cleaned) - attached_cleaned)
 
     return MatchResult(
         groups=tuple(MatchedGroup(group.primary, tuple(group.records)) for group in groups),
