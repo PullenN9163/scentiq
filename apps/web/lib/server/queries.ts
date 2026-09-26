@@ -132,21 +132,16 @@ export function getCalendarEvents(start: Date, end: Date): Promise<CalendarEvent
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Events from a day before to two days after `now`, or why there are none.
+ * Events overlapping [start, end), or why there are none to show.
  *
- * The window covers "today" in every timezone, so this can run alongside the
- * profile read that supplies the member's zone; `eventsOn` then narrows it.
  * Like the forecast, calendar trouble is a state for the page rather than an
  * error, so a provider outage cannot take down the screen.
  */
-export async function getCalendarAround(now = new Date()): Promise<CalendarResult> {
+export async function getCalendarRange(start: Date, end: Date): Promise<CalendarResult> {
   try {
     const connections = await getCalendarConnections();
     if (connections.length === 0) return { status: "not_connected" };
-    const events = await getCalendarEvents(
-      new Date(now.getTime() - DAY_MS),
-      new Date(now.getTime() + 2 * DAY_MS),
-    );
+    const events = await getCalendarEvents(start, end);
     return {
       status: "ok",
       events,
@@ -156,4 +151,14 @@ export async function getCalendarAround(now = new Date()): Promise<CalendarResul
     if (error instanceof ApiError && error.kind === "unauthorized") throw error;
     return { status: "unavailable" };
   }
+}
+
+/**
+ * Events from a day before to two days after `now`.
+ *
+ * The window covers "today" in every timezone, so this can run alongside the
+ * profile read that supplies the member's zone; `eventsOn` then narrows it.
+ */
+export function getCalendarAround(now = new Date()): Promise<CalendarResult> {
+  return getCalendarRange(new Date(now.getTime() - DAY_MS), new Date(now.getTime() + 2 * DAY_MS));
 }

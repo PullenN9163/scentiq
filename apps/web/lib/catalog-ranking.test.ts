@@ -37,3 +37,21 @@ describe("catalog ranking", () => {
     ).toBe(nightFall.id);
   });
 });
+
+describe("occasion hint", () => {
+  it("prefers fragrances suited to the day's main event", () => {
+    const office = fragranceDetail({ occasions: [{ occasion: "work", weight: 1 }] });
+    const evening = fragranceDetail({
+      id: "22222222-2222-4222-8222-222222222222",
+      occasions: [{ occasion: "date", weight: 1 }],
+    });
+    const context = { season: "fall" as const, daypart: "day" as const, coolWeather: true };
+
+    expect(rankFragrances([office, evening], { ...context, occasion: "date" })[0].id).toBe(
+      evening.id,
+    );
+    expect(rankFragrances([office, evening], { ...context, occasion: "work" })[0].id).toBe(
+      office.id,
+    );
+  });
+});

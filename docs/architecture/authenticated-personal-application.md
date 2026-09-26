@@ -137,9 +137,9 @@ Mutations are Server Actions returning a common result shape that carries field 
 
 Connected to persisted data: Catalog Search, Discover, Layering, Collection, Fragrance Detail, Settings, Insights, and the Today totals and recent wears.
 
-Connected to live weather and calendars: the Today weather and events cards, the Settings location and the Settings calendar connections.
+Connected to live weather and calendars: the Today weather and events cards, the Settings location and calendar connections, My Week, and the agent's "what should I wear today" answer. My Week plans the member's next seven local days. Each day's ranking uses the season, the forecast high (below 20 °C counts as cool), whether a timed event starts at 17:00 or later (evening), and the day's leading event occasion. Formal outranks date, party, dinner, work, travel, gym and casual. Each input is optional: a missing forecast or calendar is explained on screen and the day is still planned from what remains.
 
-Still previews, and labelled as such on screen: the weather and calendar inputs used by weekly planning and the agent. Fragrance choices in those experiences come only from the member's persisted collection. No preview action claims to have been saved.
+Still previews, and labelled as such on screen: the Today recommendation card and notification settings. Fragrance choices in those experiences come only from the member's persisted collection. No preview action claims to have been saved.
 
 Insights report how much of a collection each breakdown covers. Custom fragrances normally carry no accord, season or occasion data, so a breakdown that silently omitted them would misrepresent the collection.
 

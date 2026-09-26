@@ -1,4 +1,4 @@
-import type { FragranceDetail, Projection, Season } from "@/types/api";
+import type { FragranceDetail, Occasion, Projection, Season } from "@/types/api";
 
 const projectionScores: Record<Projection, number> = {
   intimate: 0.35,
@@ -10,6 +10,8 @@ export interface RankingContext {
   season: Season;
   daypart: "day" | "night";
   coolWeather: boolean;
+  /** The day's main calendar occasion, when a connected calendar supplies one. */
+  occasion?: Occasion | null;
 }
 
 export function seasonForMonth(month: number): Season {
@@ -35,7 +37,12 @@ export function rankFragrances(
     const projection = fragrance.projection_level
       ? projectionScores[fragrance.projection_level]
       : 0;
-    return season * 0.4 + daypart * 0.25 + weatherLongevity * 0.2 + projection * 0.15;
+    const occasion = context.occasion
+      ? (fragrance.occasions.find((entry) => entry.occasion === context.occasion)?.weight ?? 0)
+      : 0;
+    return (
+      season * 0.4 + daypart * 0.25 + weatherLongevity * 0.2 + projection * 0.15 + occasion * 0.3
+    );
   };
 
   return [...fragrances].sort(
