@@ -41,10 +41,14 @@ export function FragranceDetailView({
   fragrance,
   ownedItem,
   wears,
+  backHref = "/collection",
+  backLabel = "Back to collection",
 }: {
   fragrance: FragranceDetail;
   ownedItem: CollectionItem | null;
   wears: WearLogEntry[];
+  backHref?: string;
+  backLabel?: string;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
@@ -74,8 +78,8 @@ export function FragranceDetailView({
 
   return (
     <section className="page detail-page">
-      <Link href="/collection" className="back-link">
-        ← Back to collection
+      <Link href={backHref} className="back-link">
+        ← {backLabel}
       </Link>
 
       <div className="detail-hero">

@@ -21,6 +21,10 @@ describe("DiscoverExperience", () => {
     expect(screen.getByText("80%")).toBeVisible();
     expect(screen.getByLabelText("Family")).toBeVisible();
     expect(screen.getByRole("button", { name: /add to wishlist/i })).toBeVisible();
+    expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
+      "href",
+      "/collection/11111111-1111-4111-8111-111111111111?from=discover",
+    );
   });
 
   it("is honest when no recommendation is supported", () => {
@@ -45,6 +49,10 @@ describe("DiscoverExperience", () => {
     expect(screen.getByRole("heading", { name: "Source Scent" })).toBeVisible();
     expect(screen.getByText("Eau de parfum")).toBeVisible();
     expect(screen.queryByText("Taste match")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
+      "href",
+      "/collection/11111111-1111-4111-8111-111111111111?from=discover&q=source",
+    );
   });
 
   it("explains when catalog search has no matches", () => {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { BookmarkPlus, Compass, Search, SlidersHorizontal } from "lucide-react";
+import { BookmarkPlus, Compass, Eye, Search, SlidersHorizontal } from "lucide-react";
 
 import { CatalogImage } from "@/components/catalog-image";
 import { PageHeader } from "@/components/shared/page-header";
@@ -55,7 +55,7 @@ export function DiscoverExperience({
         matches.length ? <>
           <p className="discover-result-count">Catalog results for “{query}”</p>
           <div className="discover-grid">
-            {matches.map((item) => <CatalogResultCard key={item.id} item={item} />)}
+            {matches.map((item) => <CatalogResultCard key={item.id} item={item} query={query} />)}
           </div>
           {hasMore ? <div className="discover-load-more"><Button
             type="button"
@@ -83,7 +83,10 @@ export function DiscoverExperience({
                   <div className="cluster">{item.top_accords.map((accord) => <Badge key={accord}>{accord}</Badge>)}</div>
                   <p>{item.rating_average === null ? "Not enough community data" : `★ ${item.rating_average.toFixed(2)} (${item.rating_count ?? "vote count unknown"})`}</p>
                   <dl className="score-list"><div><dt>Taste match</dt><dd>{percentage(result.taste_match)}</dd></div><div><dt>Collection expansion</dt><dd>{percentage(result.collection_expansion)}</dd></div><div><dt>Redundancy risk</dt><dd>{percentage(result.redundancy_risk)}</dd></div></dl>
-                  <form action={addToWishlist}><input type="hidden" name="fragrance_id" value={item.id} /><Button type="submit"><BookmarkPlus size={16} />Add to wishlist</Button></form>
+                  <div className="cluster">
+                    <Button asChild variant="secondary"><Link href={detailHref(item.id)}><Eye size={16} />View details</Link></Button>
+                    <form action={addToWishlist}><input type="hidden" name="fragrance_id" value={item.id} /><Button type="submit"><BookmarkPlus size={16} />Add to wishlist</Button></form>
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -96,7 +99,7 @@ export function DiscoverExperience({
   );
 }
 
-function CatalogResultCard({ item }: { item: FragranceSummary }) {
+function CatalogResultCard({ item, query }: { item: FragranceSummary; query: string }) {
   return (
     <Card className="discovery-card" data-testid="catalog-result-card">
       <CatalogImage className="discovery-card__art" id={item.id} name={item.name} brand={item.brand.name} imageUrl={item.image_url} />
@@ -106,10 +109,19 @@ function CatalogResultCard({ item }: { item: FragranceSummary }) {
         <p>{item.brand.name}</p>
         <div className="cluster">{item.top_accords.map((accord) => <Badge key={accord}>{accord}</Badge>)}</div>
         <p>{item.rating_average === null ? "Not enough community data" : `★ ${item.rating_average.toFixed(2)} (${item.rating_count ?? "vote count unknown"})`}</p>
-        <form action={addToWishlist}><input type="hidden" name="fragrance_id" value={item.id} /><Button type="submit"><BookmarkPlus size={16} />Add to wishlist</Button></form>
+        <div className="cluster">
+          <Button asChild variant="secondary"><Link href={detailHref(item.id, query)}><Eye size={16} />View details</Link></Button>
+          <form action={addToWishlist}><input type="hidden" name="fragrance_id" value={item.id} /><Button type="submit"><BookmarkPlus size={16} />Add to wishlist</Button></form>
+        </div>
       </CardContent>
     </Card>
   );
+}
+
+function detailHref(fragranceId: string, query?: string): string {
+  const parameters = new URLSearchParams({ from: "discover" });
+  if (query?.trim()) parameters.set("q", query.trim());
+  return `/collection/${fragranceId}?${parameters.toString()}`;
 }
 
 function formatConcentration(value: string | null): string {
