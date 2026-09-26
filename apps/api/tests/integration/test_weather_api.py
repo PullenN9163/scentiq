@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from alembic import command
@@ -47,9 +48,11 @@ class FakeProvider:
     ) -> list[DailyForecast]:
         if self.fail:
             raise WeatherProviderError("down")
-        # Start yesterday so "today" is always inside the window, whatever the
-        # clock says when the suite runs.
-        start = date.today() - timedelta(days=1)
+        # Like Open-Meteo, count days from the requested zone's local today,
+        # which can differ from the UTC date (London is ahead of UTC after
+        # 23:00 UTC in summer). One extra past day checks it is dropped.
+        local_today = datetime.now(ZoneInfo(timezone or "UTC")).date()
+        start = local_today - timedelta(days=1)
         return [
             DailyForecast(
                 day=start + timedelta(days=offset),
