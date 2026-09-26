@@ -4,9 +4,12 @@ import { apiClient } from "@/lib/server/api-client";
 import type {
   CollectionInsights,
   CollectionItem,
+  DiscoveryResult,
   FragranceDetail,
   FragranceSummary,
   Me,
+  LayeringMode,
+  LayeringSuggestion,
   WearLogEntry,
 } from "@/types/api";
 
@@ -33,13 +36,41 @@ export function getFragrance(fragranceId: string): Promise<FragranceDetail> {
   return apiClient.get<FragranceDetail>(`/api/v1/fragrances/${fragranceId}`);
 }
 
-export function searchFragrances(query?: string, limit = 25): Promise<FragranceSummary[]> {
+export function searchFragrances(
+  query?: string,
+  limit = 25,
+  offset = 0,
+): Promise<FragranceSummary[]> {
   const parameters = new URLSearchParams();
   if (query && query.trim()) {
     parameters.set("q", query.trim());
   }
   parameters.set("limit", String(limit));
+  parameters.set("offset", String(offset));
+  parameters.set("sort", query?.trim() ? "relevance" : "popular");
   return apiClient.get<FragranceSummary[]>(`/api/v1/fragrances?${parameters.toString()}`);
+}
+
+export function getDiscover(options: {
+  gender?: string;
+  family?: string;
+  season?: string;
+  minimumValue?: string;
+} = {}): Promise<DiscoveryResult[]> {
+  const parameters = new URLSearchParams();
+  if (options.gender) parameters.set("gender", options.gender);
+  if (options.family) parameters.set("family", options.family);
+  if (options.season) parameters.set("season", options.season);
+  if (options.minimumValue) parameters.set("minimum_value", options.minimumValue);
+  return apiClient.get<DiscoveryResult[]>(`/api/v1/discover?${parameters.toString()}`);
+}
+
+export function getLayeringSuggestions(
+  mode: LayeringMode = "safe",
+): Promise<LayeringSuggestion[]> {
+  return apiClient.get<LayeringSuggestion[]>(
+    `/api/v1/layering/suggestions?mode=${encodeURIComponent(mode)}`,
+  );
 }
 
 export function getWearLogs(

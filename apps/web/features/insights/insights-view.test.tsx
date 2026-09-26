@@ -33,8 +33,8 @@ function insights(overrides: Partial<CollectionInsights> = {}): CollectionInsigh
       {
         collection_item_id: "c1",
         fragrance_id: "f1",
-        fragrance_name: "Cedar After Rain",
-        brand_name: "Atelier North",
+        fragrance_name: "Source Scent",
+        brand_name: "Source House",
         wear_count: 3,
       },
     ],
@@ -92,7 +92,7 @@ describe("InsightsView", () => {
   it("ranks the most worn fragrance", () => {
     render(<InsightsView insights={insights()} />);
 
-    expect(screen.getByText("Cedar After Rain")).toBeVisible();
+    expect(screen.getByText("Source Scent")).toBeVisible();
     expect(screen.getByText("3")).toBeVisible();
   });
 });

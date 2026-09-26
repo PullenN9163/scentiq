@@ -5,20 +5,22 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 
 import { Field, FormMessage } from "@/components/shared/form-field";
+import { CatalogImage } from "@/components/catalog-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { idleState, type ActionState } from "@/lib/action-state";
 import { logWear, updateCollectionItem } from "@/lib/server/actions";
-import { toneFor } from "@/lib/tone";
 import type { CollectionItem, FragranceDetail, WearLogEntry } from "@/types/api";
 
-const STAGES: { key: "top" | "middle" | "base"; label: string }[] = [
+const STAGES: { key: "top" | "middle" | "base" | "general"; label: string }[] = [
   { key: "top", label: "Top" },
   { key: "middle", label: "Middle" },
   { key: "base", label: "Base" },
+  { key: "general", label: "Notes" },
 ];
 
 function formatWhen(value: string): string {
@@ -65,8 +67,10 @@ export function FragranceDetailView({
     idleState,
   );
 
-  const seasons = fragrance.seasons.map((entry) => entry.season).join(", ");
   const occasions = fragrance.occasions.map((entry) => entry.occasion).join(", ");
+  const dayVotes = fragrance.community?.day_votes ?? null;
+  const nightVotes = fragrance.community?.night_votes ?? null;
+  const daypartTotal = (dayVotes ?? 0) + (nightVotes ?? 0);
 
   return (
     <section className="page detail-page">
@@ -75,13 +79,7 @@ export function FragranceDetailView({
       </Link>
 
       <div className="detail-hero">
-        <div
-          className="detail-art"
-          style={{ "--scent-tone": toneFor(fragrance.id) } as React.CSSProperties}
-        >
-          <span>{fragrance.brand.name}</span>
-          <strong>{fragrance.name}</strong>
-        </div>
+        <CatalogImage className="detail-art" id={fragrance.id} name={fragrance.name} brand={fragrance.brand.name} imageUrl={fragrance.image_url} />
         <div>
           <p className="eyebrow">{fragrance.brand.name}</p>
           <h1 className="serif">{fragrance.name}</h1>
@@ -95,6 +93,12 @@ export function FragranceDetailView({
             ))}
           </div>
           <dl className="detail-facts">
+            <div><dt>Gender</dt><dd>{fragrance.gender ?? "Not recorded"}</dd></div>
+            <div><dt>Family</dt><dd>{fragrance.olfactory_family ?? "Not recorded"}</dd></div>
+            <div><dt>Product line</dt><dd>{fragrance.product_line ?? "Not recorded"}</dd></div>
+            <div><dt>Brand country</dt><dd>{fragrance.brand.country ?? "Not recorded"}</dd></div>
+            <div><dt>Perfumers</dt><dd>{fragrance.perfumers.map((item) => item.name).join(", ") || "Not recorded"}</dd></div>
+            <div><dt>Community rating</dt><dd>{fragrance.rating_average === null ? "Not enough community data" : `${fragrance.rating_average.toFixed(2)} / 5 (${fragrance.rating_count ?? "vote count unknown"})`}</dd></div>
             <div>
               <dt>Longevity</dt>
               <dd>
@@ -109,7 +113,11 @@ export function FragranceDetailView({
             </div>
             <div>
               <dt>Best seasons</dt>
-              <dd>{seasons || "Not recorded"}</dd>
+              <dd>
+                {fragrance.seasons.length
+                  ? fragrance.seasons.map((entry) => entry.season).join(", ")
+                  : "Not recorded"}
+              </dd>
             </div>
             <div>
               <dt>Occasions</dt>
@@ -157,7 +165,7 @@ export function FragranceDetailView({
               STAGES.map(({ key, label }) => {
                 const names = fragrance.notes
                   .filter((note) => note.stage === key)
-                  .map((note) => note.name)
+                  .map((note) => `${note.name}${note.weight === null ? "" : ` (${Math.round(note.weight * 100)}%)`}`)
                   .join(", ");
                 return (
                   <div className="note-row" key={key}>
@@ -217,6 +225,27 @@ export function FragranceDetailView({
           </CardContent>
         </Card>
       </div>
+
+      <div className="grid grid-2 detail-sections">
+        <Card>
+          <CardContent>
+            <h2 className="serif">Community</h2>
+            {fragrance.community ? (
+              <dl className="detail-facts">
+                <div><dt>Longevity</dt><dd>{fragrance.community.longevity_average === null ? "Not enough community data" : `${fragrance.community.longevity_average.toFixed(2)} / 5 (${fragrance.community.longevity_votes ?? "vote count unknown"})`}</dd></div>
+                <div><dt>Sillage</dt><dd>{fragrance.community.sillage_average === null ? "Not enough community data" : `${fragrance.community.sillage_average.toFixed(2)} / 4 (${fragrance.community.sillage_votes ?? "vote count unknown"})`}</dd></div>
+                <div><dt>Price value</dt><dd>{fragrance.community.price_value_average === null ? "Not enough community data" : `${fragrance.community.price_value_average.toFixed(2)} / 5 (${fragrance.community.price_value_votes ?? "vote count unknown"})`}</dd></div>
+              </dl>
+            ) : <p>Not enough community data</p>}
+            <h3>Season strength</h3>
+            {fragrance.seasons.length ? fragrance.seasons.map((entry) => <div key={entry.season}><span>{entry.season}</span><Progress value={entry.weight * 100} label={`${entry.season} strength`} /></div>) : <p className="muted">Not enough community data</p>}
+            <h3>Day / night</h3>
+            {daypartTotal > 0 ? <><div><span>Day</span><Progress value={((dayVotes ?? 0) / daypartTotal) * 100} label="Day votes" /></div><div><span>Night</span><Progress value={((nightVotes ?? 0) / daypartTotal) * 100} label="Night votes" /></div></> : <p className="muted">Not enough community data</p>}
+          </CardContent>
+        </Card>
+        <Card><CardContent><h2 className="serif">Similar fragrances</h2>{fragrance.similar.length ? fragrance.similar.map((item) => <p key={item.id}><Link href={`/collection/${item.id}`}>{item.brand.name} · {item.name}</Link></p>) : <p className="muted">Not enough community data</p>}</CardContent></Card>
+      </div>
+      <p className="data-note">Sources: {fragrance.sources.length ? fragrance.sources.map((source) => source.url ? <a key={`${source.source}-${source.url}`} href={source.url} rel="noreferrer" target="_blank">{source.source}</a> : <span key={source.source}>{source.source}</span>).reduce<React.ReactNode[]>((items, item, index) => [...items, index ? ", " : "", item], []) : "Private custom entry"}</p>
 
       {ownedItem ? (
         <>

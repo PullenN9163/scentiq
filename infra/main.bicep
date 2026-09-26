@@ -437,6 +437,7 @@ module web 'modules/container-app.bicep' = if (deployApplications) {
     ]
     environmentVariables: [
       { name: 'API_INTERNAL_URL', value: 'https://${api!.outputs.fqdn}' }
+      { name: 'NEXT_PUBLIC_CATALOG_REMOTE_IMAGES', value: 'true' }
       { name: 'NEXT_PUBLIC_CLERK_SIGN_IN_URL', value: '/sign-in' }
       { name: 'NEXT_PUBLIC_CLERK_SIGN_UP_URL', value: '/sign-up' }
     ]
