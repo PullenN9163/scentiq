@@ -23,6 +23,7 @@ COPY apps/web/app ./apps/web/app
 COPY apps/web/components ./apps/web/components
 COPY apps/web/features ./apps/web/features
 COPY apps/web/lib ./apps/web/lib
+COPY apps/web/test ./apps/web/test
 COPY apps/web/types ./apps/web/types
 COPY apps/web/instrumentation.ts ./apps/web/instrumentation.ts
 # Route protection lives here. Without this file the image builds and runs but
