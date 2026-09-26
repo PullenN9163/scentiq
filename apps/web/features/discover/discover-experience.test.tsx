@@ -1,11 +1,14 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { discoveryResult } from "@/test/catalog-fixtures";
+import { discoveryResult, fragranceSummary } from "@/test/catalog-fixtures";
 
 import { DiscoverExperience } from "./discover-experience";
 
-vi.mock("@/lib/server/actions", () => ({ addToWishlist: vi.fn() }));
+vi.mock("@/lib/server/actions", () => ({
+  addToWishlist: vi.fn(),
+  searchCatalogPage: vi.fn().mockResolvedValue([]),
+}));
 
 afterEach(cleanup);
 
@@ -25,5 +28,32 @@ describe("DiscoverExperience", () => {
 
     expect(screen.getByText("No recommendations yet")).toBeVisible();
     expect(screen.getByText(/will not invent a match/i)).toBeVisible();
+  });
+
+  it("shows direct catalog matches instead of recommendation scores during search", () => {
+    render(
+      <DiscoverExperience
+        results={[discoveryResult()]}
+        query="source"
+        catalogResults={[fragranceSummary({ concentration: "eau_de_parfum" })]}
+      />,
+    );
+
+    expect(screen.getByRole("searchbox", { name: "Search the fragrance catalog" })).toHaveValue(
+      "source",
+    );
+    expect(screen.getByRole("heading", { name: "Source Scent" })).toBeVisible();
+    expect(screen.getByText("Eau de parfum")).toBeVisible();
+    expect(screen.queryByText("Taste match")).not.toBeInTheDocument();
+  });
+
+  it("explains when catalog search has no matches", () => {
+    render(<DiscoverExperience results={[]} query="missing" catalogResults={[]} />);
+
+    expect(screen.getByText('No fragrances found for “missing”')).toBeVisible();
+    expect(screen.getByRole("link", { name: "Clear search" })).toHaveAttribute(
+      "href",
+      "/discover",
+    );
   });
 });

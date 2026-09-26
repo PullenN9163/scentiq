@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 
 import { Field, FormMessage } from "@/components/shared/form-field";
+import { CatalogImage } from "@/components/catalog-image";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -29,10 +30,13 @@ export function AddFragranceDialog({
   ownedFragranceIds: string[];
 }) {
   const [mode, setMode] = useState<"catalog" | "custom">("catalog");
+  const [wasOpen, setWasOpen] = useState(open);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState(catalog);
+  const [selectedId, setSelectedId] = useState("");
   const [isSearching, startSearch] = useTransition();
   const searchSequence = useRef(0);
+  const isInitialSearch = useRef(true);
   // Close once the save has actually resolved, never optimistically, and from
   // inside the action rather than an effect reacting to the result.
   const [addState, addAction, addPending] = useActionState(
@@ -49,21 +53,36 @@ export function AddFragranceDialog({
   );
 
   const owned = new Set(ownedFragranceIds);
-  const selectable = results.filter((item) => !owned.has(item.id));
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (!open) {
+      setQuery("");
+      setResults(catalog);
+      setSelectedId("");
+    }
+  }
 
   useEffect(() => {
+    if (!open) return;
+    if (isInitialSearch.current) {
+      isInitialSearch.current = false;
+      return;
+    }
     const sequence = ++searchSequence.current;
     const handle = window.setTimeout(() => {
       startSearch(async () => {
         const next = await searchCatalogPage(query, 0);
-        if (searchSequence.current === sequence) setResults(next);
+        if (searchSequence.current === sequence) {
+          setResults(next);
+          setSelectedId("");
+        }
       });
     }, 250);
     return () => {
       window.clearTimeout(handle);
       if (searchSequence.current === sequence) searchSequence.current += 1;
     };
-  }, [query]);
+  }, [open, query]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -95,22 +114,33 @@ export function AddFragranceDialog({
         {mode === "catalog" ? (
           <form className="form-grid" action={addAction} noValidate>
             <FormMessage state={addState} />
-            <div className="field field--full"><label htmlFor="catalog-search">Search the catalog</label><Input id="catalog-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Brand or fragrance" /><small>{isSearching ? "Searching…" : `${selectable.length} results`}</small></div>
-            <div className="field field--full">
-              <Field name="fragrance_id" label="Catalog fragrance" state={addState}>
-                {(props) => (
-                  <select className="select" {...props}>
-                    <option value="">Choose a fragrance</option>
-                    {selectable.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.brand.name} — {item.name}
-                        {item.is_custom ? " (custom)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </Field>
-            </div>
+            <div className="field field--full"><label htmlFor="catalog-search">Search the catalog</label><Input id="catalog-search" type="search" value={query} onChange={(event) => { searchSequence.current += 1; setSelectedId(""); setQuery(event.target.value); }} placeholder="Brand, fragrance or concentration" /><small aria-live="polite">{isSearching ? "Searching…" : `${results.length} results`}</small></div>
+            <fieldset className="catalog-picker field--full">
+              <legend className="label">Catalog results</legend>
+              {results.length ? results.map((item) => {
+                const isOwned = owned.has(item.id);
+                return (
+                  <label className="catalog-picker__result" key={item.id}>
+                    <input
+                      type="radio"
+                      name="fragrance_id"
+                      value={item.id}
+                      checked={selectedId === item.id}
+                      disabled={isOwned}
+                      onChange={() => setSelectedId(item.id)}
+                    />
+                    <CatalogImage className="catalog-picker__image" id={item.id} name={item.name} brand={item.brand.name} imageUrl={item.image_url} />
+                    <span>
+                      <strong>{item.name}</strong>
+                      <small>{item.brand.name}</small>
+                      <small>{formatConcentration(item.concentration)}</small>
+                    </span>
+                    <small>{isOwned ? "Already in collection" : "Select"}</small>
+                  </label>
+                );
+              }) : <p className="data-note">No catalog fragrances match this search.</p>}
+            </fieldset>
+            {selectedId ? <>
             <Field name="ownership_type" label="Ownership" state={addState} fallbackValue="bottle">
               {(props) => (
                 <select className="select" {...props}>
@@ -149,21 +179,29 @@ export function AddFragranceDialog({
               {(props) => <Input type="number" min="1" max="5" step="1" {...props} />}
             </Field>
             <div className="field--full cluster">
-              <Button type="submit" disabled={addPending}>
+              <Button type="submit" disabled={addPending || !selectedId}>
                 {addPending ? "Adding…" : "Add to collection"}
               </Button>
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
+            </div>
+            </> : null}
+            <div className="field--full cluster">
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() =>
+                disabled={isSearching}
+                onClick={() => {
+                  const sequence = searchSequence.current;
+                  const requestQuery = query;
                   startSearch(async () => {
-                    const more = await searchCatalogPage(query, results.length);
-                    setResults((current) => [...current, ...more]);
-                  })
-                }
+                    const more = await searchCatalogPage(requestQuery, results.length);
+                    if (searchSequence.current === sequence && query === requestQuery) {
+                      setResults((current) => [...current, ...more]);
+                    }
+                  });
+                }}
               >
                 Load more
               </Button>
@@ -226,4 +264,10 @@ export function AddFragranceDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function formatConcentration(value: string | null): string {
+  if (!value) return "Concentration not recorded";
+  const words = value.replaceAll("_", " ").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
