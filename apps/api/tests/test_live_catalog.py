@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from domain_fixtures import make_brand, make_collection_item, make_fragrance, make_user
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
 from scentiq_api.models import Accord, Fragrance, FragranceAccord
@@ -161,6 +162,41 @@ def test_discovery_paginates_after_catalog_wide_scoring(session: Session) -> Non
     results = DiscoveryService(DiscoveryRepository(session)).discover(user.id, limit=1)
 
     assert [item.fragrance.id for item in results] == [best.id]
+
+
+def test_discovery_loads_only_relationships_and_columns_used_for_scoring(
+    session: Session,
+) -> None:
+    user = make_user(session, email="discover-loading@example.test")
+    brand = make_brand(session, name="Discovery Loading House")
+    candidate = make_fragrance(
+        session,
+        brand=brand,
+        name="Lean Candidate",
+        accords=("woody",),
+        seasons=("fall",),
+    )
+    candidate.description = "Large source-backed description that discovery does not use."
+    candidate.search_text = "discovery loading house lean candidate"
+    session.flush()
+    session.expire_all()
+
+    result = DiscoveryRepository(session).candidates(user.id)
+
+    state = inspect(result[0])
+    assert result[0].id == candidate.id
+    assert "brand" not in state.unloaded
+    assert "note_links" not in state.unloaded
+    assert "accord_links" not in state.unloaded
+    assert {
+        "community",
+        "description",
+        "occasions",
+        "perfumer_links",
+        "search_text",
+        "seasons",
+        "source_links",
+    }.issubset(state.unloaded)
 
 
 def test_layering_uses_owned_collection_and_is_deterministic(session: Session) -> None:
