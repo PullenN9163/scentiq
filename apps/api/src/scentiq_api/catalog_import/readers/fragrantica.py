@@ -184,12 +184,8 @@ def _normalize(row: Mapping[str, Any], row_number: int) -> SourceRecord | Reject
     longevity_average, longevity_votes = _bounded_metric(
         row.get("longevity"), Decimal("1"), Decimal("5")
     )
-    sillage_average, sillage_votes = _bounded_metric(
-        row.get("sillage"), Decimal("1"), Decimal("4")
-    )
-    price_average, price_votes = _bounded_metric(
-        row.get("price_value"), Decimal("1"), Decimal("5")
-    )
+    sillage_average, sillage_votes = _bounded_metric(row.get("sillage"), Decimal("1"), Decimal("4"))
+    price_average, price_votes = _bounded_metric(row.get("price_value"), Decimal("1"), Decimal("5"))
     relation = _mapping(row.get("relation"))
     perceived = _mapping(row.get("community_gender"))
     daypart = _mapping(row.get("daypart"))

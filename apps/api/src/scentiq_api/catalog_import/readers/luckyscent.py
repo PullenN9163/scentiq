@@ -28,9 +28,7 @@ def _notes(value: object) -> tuple[NoteValue, ...]:
         return ()
     names = (item.strip() for item in text.split(","))
     return tuple(
-        NoteValue(name, fold(name), "general")
-        for name in names
-        if name and len(name) <= 100
+        NoteValue(name, fold(name), "general") for name in names if name and len(name) <= 100
     )
 
 
