@@ -21,21 +21,28 @@ export type Occasion =
   | "other";
 export type OwnershipType = "bottle" | "decant" | "sample";
 export type CollectionStatus = "owned" | "wishlist" | "finished" | "sold";
-export type NoteStage = "top" | "middle" | "base";
+export type NoteStage = "top" | "middle" | "base" | "general";
 export type LifecycleState = "active" | "deletion_pending";
 
 export interface Brand {
   id: string;
   name: string;
   slug: string;
+  country: string | null;
 }
 
 export interface FragranceSummary {
   id: string;
   name: string;
-  concentration: string;
+  concentration: string | null;
   release_year: number | null;
   image_blob_path: string | null;
+  image_url: string | null;
+  gender: "male" | "female" | "unisex" | null;
+  olfactory_family: string | null;
+  rating_average: number | null;
+  rating_count: number | null;
+  top_accords: string[];
   longevity_score: number | null;
   projection_level: Projection | null;
   brand: Brand;
@@ -47,6 +54,7 @@ export interface FragranceNote {
   name: string;
   slug: string;
   stage: NoteStage;
+  weight: number | null;
 }
 
 export interface FragranceAccord {
@@ -58,10 +66,54 @@ export interface FragranceAccord {
 
 export interface FragranceDetail extends FragranceSummary {
   description: string | null;
+  product_line: string | null;
   notes: FragranceNote[];
   accords: FragranceAccord[];
   seasons: { season: Season; weight: number }[];
   occasions: { occasion: Occasion; weight: number }[];
+  perfumers: { id: string; name: string; slug: string }[];
+  community: {
+    longevity_average: number | null;
+    longevity_votes: number | null;
+    sillage_average: number | null;
+    sillage_votes: number | null;
+    price_value_average: number | null;
+    price_value_votes: number | null;
+    have_count: number | null;
+    had_count: number | null;
+    want_count: number | null;
+    perceived_female: number | null;
+    perceived_female_leaning: number | null;
+    perceived_unisex: number | null;
+    perceived_male_leaning: number | null;
+    perceived_male: number | null;
+    day_votes: number | null;
+    night_votes: number | null;
+    voters: number | null;
+    captured_at: string | null;
+  } | null;
+  similar: FragranceSummary[];
+  sources: { source: string; url: string | null }[];
+}
+
+export interface DiscoveryResult {
+  fragrance: FragranceSummary;
+  taste_match: number;
+  collection_expansion: number;
+  redundancy_risk: number;
+  score: number;
+}
+
+export type LayeringMode = "safe" | "contrast" | "experimental";
+
+export interface LayeringSuggestion {
+  first: FragranceSummary;
+  second: FragranceSummary;
+  mode: LayeringMode;
+  score: number;
+  shared_notes: string[];
+  complementary_accords: string[];
+  season_overlap: number;
 }
 
 export interface CollectionItem {

@@ -1,12 +1,12 @@
 /**
  * A stable colour for a fragrance's card art.
  *
- * The demo data carried a hand-picked `tone` per fragrance; the API does not
- * store presentation colours. Deriving one from the id keeps the existing look
+ * The catalog does not store presentation colours. Deriving one from the id keeps
+ * the visual treatment stable
  * while guaranteeing the same fragrance always renders the same colour.
  */
 
-// Drawn from the palette the demo cards already used.
+// Drawn from the product's established card palette.
 const TONES = [
   "#5d7167",
   "#697a46",

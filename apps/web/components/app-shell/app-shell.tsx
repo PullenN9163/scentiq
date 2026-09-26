@@ -55,7 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Link href="/" className="brand"><span className="brand__mark">S</span><span>ScentIQ</span></Link>
         <Badge>Beta</Badge>
       </header>
-      <main className="app-main">{children}</main>
+      <main className="app-main">{children}<footer className="data-note">Catalogue data includes Fragrantica data via Kaggle (ledecanteur/fragrantica-perfumes), CC BY-NC-SA 4.0, and Parfumo and Luckyscent listings.</footer></main>
       <DialogContent title="More destinations" className="more-panel">
           <nav className="more-panel__grid" aria-label="Secondary navigation">
             {more.map((item) => <NavLink key={item.href} {...item} pathname={pathname} onNavigate={() => setMoreOpen(false)} />)}

@@ -26,6 +26,15 @@ resource requireSecureTransport 'Microsoft.DBforPostgreSQL/flexibleServers/confi
   }
 }
 
+resource catalogExtensions 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2024-08-01' = {
+  parent: server
+  name: 'azure.extensions'
+  properties: {
+    value: 'PG_TRGM'
+    source: 'user-override'
+  }
+}
+
 resource azureServicesFirewallRule 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2024-08-01' = if (allowAzureServicesFirewallRule) {
   parent: server
   name: azureServicesFirewallRuleName

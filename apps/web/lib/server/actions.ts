@@ -6,6 +6,11 @@ import { z } from "zod";
 
 import type { ActionState } from "@/lib/action-state";
 import { ApiError, apiClient } from "@/lib/server/api-client";
+import type {
+  FragranceSummary,
+  LayeringMode,
+  LayeringSuggestion,
+} from "@/types/api";
 
 /**
  * Refreshes the screens a collection or wear change affects.
@@ -17,6 +22,8 @@ function refreshCollectionScreens(): void {
   revalidatePath("/collection");
   revalidatePath("/insights");
   revalidatePath("/dashboard");
+  revalidatePath("/discover");
+  revalidatePath("/layering");
 }
 
 /** Refreshes the screens a profile or preference change affects. */
@@ -158,7 +165,7 @@ export async function updatePreferences(
 
 const customFragranceSchema = z.object({
   brand_name: z.string().trim().min(1, "Enter a brand").max(120),
-  name: z.string().trim().min(1, "Enter a fragrance name").max(160),
+  name: z.string().trim().min(1, "Enter a fragrance name").max(255),
   concentration: z.string().trim().min(1, "Enter a concentration").max(40),
   release_year: optionalNumber,
   description: optionalText,
@@ -252,6 +259,55 @@ export async function addToCollection(
 
   refreshCollectionScreens();
   return { status: "success", message: "Added to your collection." };
+}
+
+export async function addToWishlist(formData: FormData): Promise<void> {
+  const fragranceId = textOf(formData, "fragrance_id");
+  const parsed = z.string().uuid().safeParse(fragranceId);
+  if (!parsed.success) return;
+  await apiClient.post("/api/v1/collection", {
+    fragrance_id: parsed.data,
+    ownership_type: "sample",
+    status: "wishlist",
+    bottle_size_ml: null,
+    remaining_ml: null,
+    purchase_price: null,
+    purchase_date: null,
+    user_rating: null,
+  });
+  refreshCollectionScreens();
+}
+
+export async function searchCatalogPage(
+  query: string,
+  offset = 0,
+): Promise<FragranceSummary[]> {
+  const parameters = new URLSearchParams({
+    q: query.trim(),
+    limit: "25",
+    offset: String(Math.max(offset, 0)),
+    sort: "relevance",
+  });
+  return apiClient.get<FragranceSummary[]>(`/api/v1/fragrances?${parameters.toString()}`);
+}
+
+export async function getLayeringPair(
+  firstId: string,
+  secondId: string,
+  mode: LayeringMode,
+): Promise<LayeringSuggestion | null> {
+  const identifiers = z.array(z.string().uuid()).length(2).safeParse([firstId, secondId]);
+  if (!identifiers.success || firstId === secondId) return null;
+  const parameters = new URLSearchParams({
+    first_id: firstId,
+    second_id: secondId,
+    mode,
+    limit: "1",
+  });
+  const results = await apiClient.get<LayeringSuggestion[]>(
+    `/api/v1/layering/suggestions?${parameters.toString()}`,
+  );
+  return results[0] ?? null;
 }
 
 const updateCollectionSchema = z.object({

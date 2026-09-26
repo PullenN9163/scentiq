@@ -1,6 +1,6 @@
 """Catalog endpoints. Visibility is always the authenticated caller's."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -25,11 +25,23 @@ def create_fragrance_router(
         user: Annotated[AuthenticatedUser, Depends(current_user)],
         q: Annotated[str | None, Query(max_length=120)] = None,
         limit: Annotated[int, Query(ge=1, le=MAX_SEARCH_LIMIT)] = 25,
+        offset: Annotated[int, Query(ge=0)] = 0,
+        gender: Literal["male", "female", "unisex"] | None = None,
+        family: Annotated[str | None, Query(max_length=60)] = None,
+        season: Literal["spring", "summer", "fall", "winter"] | None = None,
+        accord: Annotated[str | None, Query(max_length=100)] = None,
+        sort: Literal["relevance", "popular", "rating", "name"] = "relevance",
     ) -> list[FragranceSummary]:
         return FragranceService(FragranceRepository(session)).search(
             user.user_id,
             query=q,
             limit=limit,
+            offset=offset,
+            gender=gender,
+            family=family,
+            season=season,
+            accord=accord,
+            sort=sort,
         )
 
     @router.post("", response_model=FragranceSummary, status_code=status.HTTP_201_CREATED)

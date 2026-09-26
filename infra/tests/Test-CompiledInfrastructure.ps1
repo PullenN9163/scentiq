@@ -452,7 +452,9 @@ if ($Mode -eq 'dev') {
 
     $postgresConfigurations = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforPostgreSQL/flexibleServers/configurations' })
     $tlsConfiguration = $postgresConfigurations | Where-Object { $_.name -eq "[format('{0}/{1}', parameters('serverName'), 'require_secure_transport')]" } | Select-Object -First 1
-    Assert-True ($postgresConfigurations.Count -eq 1 -and $null -ne $tlsConfiguration -and $tlsConfiguration.properties.value -eq 'on') 'PostgreSQL must require TLS without taking ownership of unrelated server configurations'
+    $extensionsConfiguration = $postgresConfigurations | Where-Object { $_.name -eq "[format('{0}/{1}', parameters('serverName'), 'azure.extensions')]" } | Select-Object -First 1
+    Assert-True ($postgresConfigurations.Count -eq 2 -and $null -ne $tlsConfiguration -and $tlsConfiguration.properties.value -eq 'on') 'PostgreSQL must require TLS and allow-list only the catalog extension configuration'
+    Assert-True ($null -ne $extensionsConfiguration -and $extensionsConfiguration.properties.value -eq 'PG_TRGM' -and $extensionsConfiguration.properties.source -eq 'user-override') 'PostgreSQL must allow-list pg_trgm for catalog search'
 
     $postgresFirewallRules = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules' })
     $azureServicesRule = $postgresFirewallRules | Select-Object -First 1
@@ -747,7 +749,9 @@ $postgresDatabases = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforP
 $scentiqDatabase = $postgresDatabases | Where-Object { $_.name -eq "[format('{0}/{1}', parameters('serverName'), 'scentiq_dev')]" } | Select-Object -First 1
 Assert-True ($postgresDatabases.Count -eq 1 -and $null -ne $scentiqDatabase -and $scentiqDatabase.properties.charset -eq 'UTF8' -and $scentiqDatabase.properties.collation -eq 'en_US.utf8') 'PostgreSQL must manage only the scentiq_dev database with its observed collation'
 $tlsConfiguration = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforPostgreSQL/flexibleServers/configurations' -and $_.name -eq "[format('{0}/{1}', parameters('serverName'), 'require_secure_transport')]" }) | Select-Object -First 1
+$extensionsConfiguration = @($resources | Where-Object { $_.type -eq 'Microsoft.DBforPostgreSQL/flexibleServers/configurations' -and $_.name -eq "[format('{0}/{1}', parameters('serverName'), 'azure.extensions')]" }) | Select-Object -First 1
 Assert-True ($null -ne $tlsConfiguration -and $tlsConfiguration.properties.value -eq 'on' -and $tlsConfiguration.properties.source -eq 'user-override') 'PostgreSQL must require TLS with the provider-required user-override source without taking ownership of unrelated server configurations'
+Assert-True ($null -ne $extensionsConfiguration -and $extensionsConfiguration.properties.value -eq 'PG_TRGM' -and $extensionsConfiguration.properties.source -eq 'user-override') 'PostgreSQL must allow-list pg_trgm with the provider-required source'
 
 $allowAzureServicesRuleExpression = "[and(equals(parameters('deploymentMode'), 'dev'), equals(parameters('networkMode'), 'publicDev'))]"
 Assert-True ($null -ne $azureServicesRule -and $azureServicesRule.name -eq "[format('{0}/{1}', parameters('serverName'), parameters('azureServicesFirewallRuleName'))]" -and $azureServicesRule.condition -eq "[parameters('allowAzureServicesFirewallRule')]") 'PostgreSQL must retain the exact conditional Azure-services firewall rule path'

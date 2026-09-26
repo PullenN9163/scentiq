@@ -24,6 +24,7 @@ from auth_harness import (
     token,
     unconfigured_settings,
 )
+from catalog_fixture import load_test_catalog
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, text
 
@@ -62,6 +63,7 @@ def _seed() -> None:
 @pytest.fixture
 def seeded() -> None:
     _reset_database()
+    load_test_catalog()
     _seed()
 
 
@@ -197,7 +199,7 @@ def test_two_shared_brands_cannot_share_a_name(seeded: None) -> None:
                 text(
                     """
                     INSERT INTO brands (id, name, slug, owner_user_id, created_at, updated_at)
-                    VALUES (:id, 'ScentIQ Atelier', 'duplicate-slug', NULL, now(), now())
+                    VALUES (:id, 'ScentIQ Test Atelier', 'duplicate-slug', NULL, now(), now())
                     """
                 ),
                 {"id": uuid4()},
@@ -303,6 +305,41 @@ def test_catalog_search_and_custom_creation(client: TestClient) -> None:
     )
     assert created.status_code == 201
     assert created.json()["is_custom"] is True
+
+
+def test_live_catalog_filters_discovery_and_owned_layering(client: TestClient) -> None:
+    headers = auth_headers("user_live_catalog")
+    filtered = client.get(
+        "/api/v1/fragrances",
+        params={"gender": "unisex", "family": "Woody", "sort": "rating"},
+        headers=headers,
+    )
+    assert filtered.status_code == 200
+    assert [item["id"] for item in filtered.json()] == [AMBER_ATLAS_ID]
+
+    catalog = client.get("/api/v1/fragrances", headers=headers).json()
+    owned_ids = [catalog[0]["id"], catalog[1]["id"]]
+    for fragrance_id in owned_ids:
+        added = client.post(
+            "/api/v1/collection",
+            json={"fragrance_id": fragrance_id, "ownership_type": "sample"},
+            headers=headers,
+        )
+        assert added.status_code == 201
+
+    discovered = client.get("/api/v1/discover", headers=headers)
+    assert discovered.status_code == 200
+    assert not ({item["fragrance"]["id"] for item in discovered.json()} & set(owned_ids))
+    assert all("taste_match" in item and "redundancy_risk" in item for item in discovered.json())
+
+    layering = client.get(
+        "/api/v1/layering/suggestions",
+        params={"mode": "contrast"},
+        headers=headers,
+    )
+    assert layering.status_code == 200
+    assert len(layering.json()) == 1
+    assert {layering.json()[0]["first"]["id"], layering.json()[0]["second"]["id"]} == set(owned_ids)
 
 
 def test_custom_fragrance_is_invisible_to_another_user(client: TestClient) -> None:

@@ -1,13 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 
 import { Field, FormMessage } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { idleState, type ActionState } from "@/lib/action-state";
-import { addToCollection, createCustomFragrance } from "@/lib/server/actions";
+import { addToCollection, createCustomFragrance, searchCatalogPage } from "@/lib/server/actions";
 import type { FragranceSummary } from "@/types/api";
 
 /**
@@ -29,6 +29,10 @@ export function AddFragranceDialog({
   ownedFragranceIds: string[];
 }) {
   const [mode, setMode] = useState<"catalog" | "custom">("catalog");
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState(catalog);
+  const [isSearching, startSearch] = useTransition();
+  const searchSequence = useRef(0);
   // Close once the save has actually resolved, never optimistically, and from
   // inside the action rather than an effect reacting to the result.
   const [addState, addAction, addPending] = useActionState(
@@ -45,7 +49,21 @@ export function AddFragranceDialog({
   );
 
   const owned = new Set(ownedFragranceIds);
-  const selectable = catalog.filter((item) => !owned.has(item.id));
+  const selectable = results.filter((item) => !owned.has(item.id));
+
+  useEffect(() => {
+    const sequence = ++searchSequence.current;
+    const handle = window.setTimeout(() => {
+      startSearch(async () => {
+        const next = await searchCatalogPage(query, 0);
+        if (searchSequence.current === sequence) setResults(next);
+      });
+    }, 250);
+    return () => {
+      window.clearTimeout(handle);
+      if (searchSequence.current === sequence) searchSequence.current += 1;
+    };
+  }, [query]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -77,6 +95,7 @@ export function AddFragranceDialog({
         {mode === "catalog" ? (
           <form className="form-grid" action={addAction} noValidate>
             <FormMessage state={addState} />
+            <div className="field field--full"><label htmlFor="catalog-search">Search the catalog</label><Input id="catalog-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Brand or fragrance" /><small>{isSearching ? "Searching…" : `${selectable.length} results`}</small></div>
             <div className="field field--full">
               <Field name="fragrance_id" label="Catalog fragrance" state={addState}>
                 {(props) => (
@@ -135,6 +154,18 @@ export function AddFragranceDialog({
               </Button>
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  startSearch(async () => {
+                    const more = await searchCatalogPage(query, results.length);
+                    setResults((current) => [...current, ...more]);
+                  })
+                }
+              >
+                Load more
               </Button>
             </div>
           </form>

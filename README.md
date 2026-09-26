@@ -1,10 +1,10 @@
 # ScentIQ
 
-ScentIQ is a fragrance intelligence application with a Next.js frontend, a FastAPI API, a PostgreSQL fragrance catalog and collection model, and an Azure Container Apps deployment foundation. Milestones 2 and 3 add persistent demo-domain data and continuously deployable infrastructure while preserving the original frontend presentation.
+ScentIQ is a fragrance intelligence application with a Next.js frontend, a FastAPI API, a source-backed PostgreSQL fragrance catalog and collection model, and an Azure Container Apps deployment foundation.
 
-Members sign in with Clerk and own persistent profiles, preferences, collections, wear history and private custom fragrances. Weekly planning, layering, discovery, the agent, and the weather, event and recommendation cards on Today remain clearly labelled previews.
+Members sign in with Clerk and own persistent profiles, preferences, collections, wear history and private custom fragrances. The shared catalog combines audited Fragrantica, Parfumo and Luckyscent-derived listings while preserving source identity. Weather, calendar, notifications and language-model agent calls remain previews or future integrations.
 
-Uploads, external fragrance datasets, live weather and calendar connections, notifications, recommendation scoring and language-model agent calls remain future work. See the [authenticated application architecture](docs/architecture/authenticated-personal-application.md) for the current boundaries and runtime contracts, and the [Milestones 2 and 3 architecture](docs/architecture/milestones-2-3-persistence-and-azure.md) for the persistence and Azure foundation beneath them.
+Image uploads, live weather and calendar connections, notifications and language-model agent calls remain future work. See the [authenticated application architecture](docs/architecture/authenticated-personal-application.md) for the current boundaries and runtime contracts, the [catalog import runbook](docs/runbooks/catalog-import.md) for source and operator controls, and the [Milestones 2 and 3 architecture](docs/architecture/milestones-2-3-persistence-and-azure.md) for the persistence and Azure foundation beneath them.
 
 ## Architecture
 
@@ -63,10 +63,11 @@ For the most reproducible start, use Docker Compose:
 docker compose --env-file .env.example build --pull api web
 docker compose --env-file .env.example up -d db
 docker compose --env-file .env.example run --rm api .venv/bin/alembic upgrade head
-docker compose --env-file .env.example run --rm api .venv/bin/python -m scentiq_api.seed
 docker compose --env-file .env.example up -d api web
 docker compose --env-file .env.example ps
 ```
+
+A fresh database starts with an empty shared catalog. Run the host-side procedure in the [catalog import runbook](docs/runbooks/catalog-import.md) before seeding the demo member; the API container intentionally does not embed or mount the source datasets.
 
 Open the frontend at [http://localhost:3000](http://localhost:3000). The API endpoints are:
 
@@ -99,7 +100,7 @@ The example password is for a developer-owned local database only. Do not reuse 
 | `pnpm typecheck` | Run mypy and TypeScript checks. |
 | `pnpm build` | Build the production frontend. |
 | `pnpm api:migrate` | Upgrade the configured database to the current Alembic head. |
-| `pnpm api:seed` | Idempotently seed the fictional demo catalog and collection. |
+| `pnpm api:seed` | Idempotently attach the demo member's collection to an already imported shared catalog. |
 | `pnpm api:reconcile-deletions` | Purge accounts whose deletion webhook never completed. Accepts `--dry-run`. |
 | `pnpm contracts` | Regenerate `apps/api/openapi.json` and the frontend types from it. |
 | `pnpm contracts:check` | Fail if the committed API contract has drifted from the application. |
@@ -136,3 +137,5 @@ The local PostgreSQL username and password are not Azure credentials. `AZURE_CLI
 The [local-development runbook](docs/runbooks/local-development.md) covers host development, a clean Compose start, migrations, smoke tests, logs, shutdown, safe database reset, and Docker Desktop troubleshooting.
 
 The [Azure deployment runbook](docs/runbooks/azure-deployment.md) covers Bicep adoption, OIDC configuration, immutable images, migration gating, smoke tests, and rollback.
+
+The [catalog import runbook](docs/runbooks/catalog-import.md) covers source hashes, dry runs, idempotent local and Azure development loads, member-data verification, temporary firewall cleanup, and rollback boundaries.

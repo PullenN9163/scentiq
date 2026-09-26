@@ -9,6 +9,7 @@ dependencies = [
   "psycopg[binary]>=3.3,<3.4",
   "pydantic-settings>=2.15,<2.16",
   "pyjwt[crypto]>=2.10,<3",
+  "rapidfuzz>=3.14,<4",
   "sqlalchemy>=2.0.51,<2.1",
 ]
 

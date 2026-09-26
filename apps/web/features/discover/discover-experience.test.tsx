@@ -1,29 +1,29 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { discoveryResult } from "@/test/catalog-fixtures";
 
 import { DiscoverExperience } from "./discover-experience";
+
+vi.mock("@/lib/server/actions", () => ({ addToWishlist: vi.fn() }));
 
 afterEach(cleanup);
 
 describe("DiscoverExperience", () => {
-  it("switches editorial discovery modes and filters by budget", async () => {
-    const user = userEvent.setup();
-    render(<DiscoverExperience />);
-    await user.click(screen.getByRole("button", { name: "Challenge My Taste" }));
-    expect(screen.getByText(/challenge mode/i)).toBeVisible();
-    expect(screen.getByText("Night Orchard")).toBeVisible();
-    await user.selectOptions(screen.getByLabelText(/redundancy tolerance/i), "High");
-    await user.selectOptions(screen.getByLabelText(/budget/i), "100");
-    expect(screen.getAllByTestId("discovery-card")).toHaveLength(1);
-    await user.selectOptions(screen.getByLabelText(/fragrance family/i), "Leather");
-    expect(screen.getByText(/no demo matches/i)).toBeVisible();
+  it("renders source-backed recommendations and supported filters", () => {
+    render(<DiscoverExperience results={[discoveryResult()]} />);
+
+    expect(screen.getByRole("heading", { name: "Source Scent" })).toBeVisible();
+    expect(screen.getByText("Taste match")).toBeVisible();
+    expect(screen.getByText("80%")).toBeVisible();
+    expect(screen.getByLabelText("Family")).toBeVisible();
+    expect(screen.getByRole("button", { name: /add to wishlist/i })).toBeVisible();
   });
 
-  it("marks a candidate in the preview without claiming it was saved", async () => {
-    const user = userEvent.setup();
-    render(<DiscoverExperience />);
-    await user.click(screen.getAllByRole("button", { name: /^mark in preview$/i })[0]);
-    expect(screen.getAllByRole("button", { name: /marked in preview/i })[0]).toBeDisabled();
+  it("is honest when no recommendation is supported", () => {
+    render(<DiscoverExperience results={[]} />);
+
+    expect(screen.getByText("No recommendations yet")).toBeVisible();
+    expect(screen.getByText(/will not invent a match/i)).toBeVisible();
   });
 });

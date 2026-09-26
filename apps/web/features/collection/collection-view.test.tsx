@@ -11,18 +11,25 @@ vi.mock("@/lib/server/actions", () => ({
   createCustomFragrance: vi.fn(),
   updateCollectionItem: vi.fn(),
   logWear: vi.fn(),
+  searchCatalogPage: vi.fn().mockResolvedValue([]),
 }));
 
 function fragrance(overrides: Partial<FragranceSummary> = {}): FragranceSummary {
   return {
     id: "11111111-1111-4111-8111-111111111111",
-    name: "Cedar After Rain",
+    name: "Source Scent",
     concentration: "eau_de_parfum",
     release_year: 2026,
     image_blob_path: null,
+    image_url: null,
+    gender: "unisex",
+    olfactory_family: "Woody",
+    rating_average: 4.2,
+    rating_count: 10,
+    top_accords: ["Woody"],
     longevity_score: 7,
     projection_level: "moderate",
-    brand: { id: "b1", name: "Atelier North", slug: "atelier-north" },
+    brand: { id: "b1", name: "Source House", slug: "source-house", country: null },
     is_custom: false,
     ...overrides,
   };
@@ -57,7 +64,7 @@ describe("CollectionView", () => {
   it("renders persisted collection items", () => {
     render(<CollectionView items={[item()]} catalog={[]} />);
 
-    expect(screen.getByRole("heading", { name: "Cedar After Rain" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Source Scent" })).toBeVisible();
     expect(screen.getByText("62ml of 100ml remaining")).toBeVisible();
     expect(screen.getByText("★ 4")).toBeVisible();
   });
@@ -92,7 +99,7 @@ describe("CollectionView", () => {
     await userEvent.type(screen.getByLabelText("Search collection"), "fig");
 
     expect(screen.getByRole("heading", { name: "Fig Circuit" })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Cedar After Rain" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Source Scent" })).not.toBeInTheDocument();
   });
 
   it("offers a way back when a filter matches nothing", async () => {
@@ -102,7 +109,7 @@ describe("CollectionView", () => {
 
     expect(screen.getByText("No fragrances found")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    expect(screen.getByRole("heading", { name: "Cedar After Rain" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Source Scent" })).toBeVisible();
   });
 
   it("shows retired status on the card", () => {

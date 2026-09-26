@@ -4,7 +4,6 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getDemoFragranceById, getDemoToday } from "@/lib/demo";
 
 const features = [
   [Sparkles, "Collection", "One considered view of every bottle, decant, and sample."],
@@ -16,8 +15,6 @@ const features = [
 ] as const;
 
 export default function Home() {
-  const today = getDemoToday();
-  const fragrance = getDemoFragranceById(today.recommendation.primary.fragranceId)!;
   return (
     <main className="landing">
       <nav className="landing-nav container" aria-label="Marketing navigation">
@@ -34,12 +31,12 @@ export default function Home() {
           <div className="cluster"><SignedIn><Button asChild><Link href="/dashboard">Open ScentIQ <ArrowRight size={17} /></Link></Button></SignedIn><SignedOut><Button asChild><Link href="/sign-in">Sign in <ArrowRight size={17} /></Link></Button></SignedOut><Button asChild variant="ghost"><Link href="#how-it-works">See how it works</Link></Button></div>
         </div>
         <div className="hero__preview" aria-label="Today recommendation preview">
-          <div className="preview-top"><span>{today.weather.condition} · {today.weather.high}°</span><Badge>{today.recommendation.primary.score}% match</Badge></div>
-          <div className="bottle-art" style={{ "--bottle-tone": fragrance.tone } as React.CSSProperties}><span>{fragrance.brand}</span><strong>{fragrance.name}</strong></div>
-          <p className="eyebrow">Recommended today</p>
-          <h2 className="serif">{fragrance.name}</h2>
-          <p>{today.recommendation.primary.reason}</p>
-          <div className="preview-reasons">{today.recommendation.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
+          <div className="preview-top"><span>Static product example</span><Badge>Source-backed catalog</Badge></div>
+          <div className="bottle-art" style={{ "--bottle-tone": "#7b513d" } as React.CSSProperties}><span>Tom Ford</span><strong>Tobacco Vanille</strong></div>
+          <p className="eyebrow">Clearly labelled example</p>
+          <h2 className="serif">Tobacco Vanille</h2>
+          <p>A real catalog listing shown without making an authenticated request.</p>
+          <div className="preview-reasons"><span>Collection-aware in the signed-in app</span><span>Unknown data stays unknown</span></div>
         </div>
       </section>
       <section className="value-strip"><div className="container"><strong>Collection + schedule + weather</strong><span>→</span><em>What should I wear?</em></div></section>
@@ -48,8 +45,8 @@ export default function Home() {
         <h2 className="serif">Less scrolling. Better choices.</h2>
         <div className="feature-grid">{features.map(([Icon, title, copy]) => <article key={title}><Icon size={22} /><h3>{title}</h3><p>{copy}</p></article>)}</div>
       </section>
-      <section id="how-it-works" className="landing-section landing-how"><div className="container"><p className="eyebrow">How it works</p><h2 className="serif">Your taste becomes useful context.</h2><ol><li><span>01</span><strong>Add your collection</strong><p>Bottles, decants, samples, and ratings.</p></li><li><span>02</span><strong>Set the scene</strong><p>Schedule connections arrive later; the demo shows the idea now.</p></li><li><span>03</span><strong>Choose with confidence</strong><p>Wear, log, and let future recommendations improve.</p></li></ol></div></section>
-      <footer className="landing-footer container"><span className="serif">ScentIQ</span><span>Interactive demo · Product data is illustrative</span></footer>
+      <section id="how-it-works" className="landing-section landing-how"><div className="container"><p className="eyebrow">How it works</p><h2 className="serif">Your taste becomes useful context.</h2><ol><li><span>01</span><strong>Add your collection</strong><p>Bottles, decants, samples, and ratings.</p></li><li><span>02</span><strong>Set the scene</strong><p>Weather and schedule connections are planned; preview inputs explain the experience today.</p></li><li><span>03</span><strong>Choose with confidence</strong><p>Wear, log, and let future recommendations improve.</p></li></ol></div></section>
+      <footer className="landing-footer container"><span className="serif">ScentIQ</span><span>Public product example · No account data loaded</span></footer>
     </main>
   );
 }

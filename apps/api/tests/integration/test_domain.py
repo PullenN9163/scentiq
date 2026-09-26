@@ -9,6 +9,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from auth_harness import auth_headers, resolver, settings
+from catalog_fixture import load_test_catalog
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect
 
@@ -25,13 +26,19 @@ REQUIRED_TABLES = {
     "identity_events",
     "brands",
     "calendar_events",
+    "catalog_import_runs",
     "fragrance_accords",
+    "fragrance_community_stats",
     "fragrance_notes",
     "fragrance_occasions",
+    "fragrance_perfumers",
     "fragrance_seasons",
+    "fragrance_similarities",
+    "fragrance_sources",
     "fragrances",
     "layering_logs",
     "notes",
+    "perfumers",
     "recommendation_candidates",
     "recommendations",
     "user_collection",
@@ -78,6 +85,7 @@ def _settings() -> Settings:
 
 def _prepare_seeded_database() -> None:
     _reset_database()
+    load_test_catalog()
     result = _run_seed()
     assert result.returncode == 0, result.stderr
 
@@ -97,17 +105,19 @@ def test_domain_migration_creates_exact_required_table_set() -> None:
 def test_seed_is_idempotent_and_reports_stable_counts() -> None:
     _reset_database()
 
+    missing_catalog = _run_seed()
+    assert missing_catalog.returncode == 1
+    assert "shared catalog has not been imported" in missing_catalog.stderr
+
+    load_test_catalog()
     first = _run_seed()
     second = _run_seed()
 
     assert first.returncode == 0, first.stderr
     assert second.returncode == 0, second.stderr
     expected = {
-        "accords": 10,
-        "brands": 3,
-        "collection_items": 8,
+        "collection_items": 12,
         "fragrances": 15,
-        "notes": 18,
         "users": 1,
     }
     assert json.loads(first.stdout) == expected
@@ -125,18 +135,25 @@ def test_fragrance_list_returns_seeded_catalog_in_stable_order() -> None:
     assert len(payload) == 15
     assert payload[0] == {
         "brand": {
-            "id": "01000000-0000-4000-8000-000000000001",
-            "name": "ScentIQ Atelier",
-            "slug": "scentiq-atelier",
+            "id": payload[0]["brand"]["id"],
+            "name": "ScentIQ Test Atelier",
+            "slug": "scentiq-test-atelier",
+            "country": None,
         },
         "concentration": "eau_de_parfum",
+        "gender": "unisex",
         "id": AMBER_ATLAS_ID,
         "image_blob_path": None,
+        "image_url": None,
         "is_custom": False,
         "longevity_score": 8.2,
         "name": "Amber Atlas",
+        "olfactory_family": "Woody",
         "projection_level": "moderate",
+        "rating_average": 4.2,
+        "rating_count": 100,
         "release_year": 2026,
+        "top_accords": ["Amber"],
     }
 
 
@@ -154,29 +171,32 @@ def test_fragrance_detail_returns_nested_catalog_relationships() -> None:
     assert payload["id"] == AMBER_ATLAS_ID
     assert payload["name"] == "Amber Atlas"
     assert payload["is_custom"] is False
-    assert payload["description"] == "A warm amber study from the fictional ScentIQ demo catalog."
+    assert payload["description"] == "A warm amber study from the fictional ScentIQ test catalog."
     assert payload["notes"] == [
         {
-            "id": "02000000-0000-4000-8000-000000000001",
+            "id": payload["notes"][0]["id"],
             "name": "Bergamot",
             "slug": "bergamot",
             "stage": "top",
+            "weight": None,
         },
         {
-            "id": "02000000-0000-4000-8000-000000000006",
+            "id": payload["notes"][1]["id"],
             "name": "Labdanum",
             "slug": "labdanum",
             "stage": "middle",
+            "weight": None,
         },
         {
-            "id": "02000000-0000-4000-8000-000000000007",
+            "id": payload["notes"][2]["id"],
             "name": "Vanilla",
             "slug": "vanilla",
             "stage": "base",
+            "weight": None,
         },
     ]
     assert payload["accords"][0] == {
-        "id": "03000000-0000-4000-8000-000000000001",
+        "id": payload["accords"][0]["id"],
         "name": "Amber",
         "slug": "amber",
         "weight": 0.9,
@@ -185,10 +205,7 @@ def test_fragrance_detail_returns_nested_catalog_relationships() -> None:
         {"season": "fall", "weight": 0.9},
         {"season": "winter", "weight": 1.0},
     ]
-    assert payload["occasions"] == [
-        {"occasion": "date", "weight": 0.8},
-        {"occasion": "dinner", "weight": 0.9},
-    ]
+    assert payload["occasions"] == []
 
 
 def test_unknown_fragrance_returns_the_standard_error_envelope() -> None:

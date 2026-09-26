@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AddFragranceDialog } from "@/features/collection/add-fragrance-dialog";
+import { CatalogImage } from "@/components/catalog-image";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { toneFor } from "@/lib/tone";
 import type { CollectionItem, FragranceSummary } from "@/types/api";
 
 /**
@@ -151,12 +151,7 @@ export function CollectionView({
                 href={`/collection/${item.fragrance.id}`}
                 aria-label={`Open ${item.fragrance.name}`}
               >
-                <div
-                  className="fragrance-card__art"
-                  style={{ "--scent-tone": toneFor(item.fragrance.id) } as React.CSSProperties}
-                >
-                  <span>{item.fragrance.brand.name}</span>
-                </div>
+                <CatalogImage className="fragrance-card__art" id={item.fragrance.id} name={item.fragrance.name} brand={item.fragrance.brand.name} imageUrl={item.fragrance.image_url} />
                 <CardContent>
                   <div className="cluster">
                     <Badge>{OWNERSHIP_LABELS[item.ownership_type] ?? item.ownership_type}</Badge>
@@ -166,7 +161,7 @@ export function CollectionView({
                   </div>
                   <h2 className="serif">{item.fragrance.name}</h2>
                   <p>
-                    {item.fragrance.brand.name} · {item.fragrance.concentration}
+                    {item.fragrance.brand.name} · {item.fragrance.concentration ?? "Concentration unknown"}
                   </p>
                   <div className="cluster">
                     {item.status !== "owned" ? (
