@@ -43,6 +43,7 @@ def load_test_catalog() -> None:
             name_key=name.casefold(),
             concentration="eau_de_parfum",
             release_year=2026,
+            gender="unisex",
             description=(
                 "A warm amber study from the fictional ScentIQ test catalog."
                 if index == 0
@@ -50,6 +51,11 @@ def load_test_catalog() -> None:
             ),
             longevity_score=Decimal("8.2"),
             projection_level="moderate",
+            olfactory_family="Woody" if index == 0 else "Floral",
+            rating_average=Decimal("4.2"),
+            rating_scale=Decimal("5"),
+            rating_count=100 - index,
+            popularity_score=1000 - index,
             notes=(
                 NoteValue("Bergamot", "bergamot", "top"),
                 NoteValue("Labdanum", "labdanum", "middle"),
@@ -57,12 +63,8 @@ def load_test_catalog() -> None:
             )
             if index == 0
             else (),
-            accords=(AccordValue("Amber", "amber", Decimal("0.9")),)
-            if index == 0
-            else (),
-            seasons={"fall": Decimal("0.9"), "winter": Decimal("1.0")}
-            if index == 0
-            else {},
+            accords=(AccordValue("Amber", "amber", Decimal("0.9")),) if index == 0 else (),
+            seasons={"fall": Decimal("0.9"), "winter": Decimal("1.0")} if index == 0 else {},
         )
         for index, (source_id, name) in enumerate(zip(source_ids, names, strict=True))
     ]
@@ -75,7 +77,9 @@ def load_test_catalog() -> None:
     try:
         connection = engine.raw_connection()
         try:
-            load_catalog(connection.driver_connection, catalog, inputs={"fixture": {}})
+            driver_connection = connection.driver_connection
+            assert driver_connection is not None
+            load_catalog(driver_connection, catalog, inputs={"fixture": {}})
         finally:
             connection.close()
     finally:

@@ -39,6 +39,23 @@ export interface paths {
         patch: operations["update_collection_item_api_v1_collection__item_id__patch"];
         trace?: never;
     };
+    "/api/v1/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Discover */
+        get: operations["discover_api_v1_discover_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/fragrances": {
         parameters: {
             query?: never;
@@ -83,6 +100,23 @@ export interface paths {
         };
         /** Collection Insights */
         get: operations["collection_insights_api_v1_insights_collection_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/layering/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Suggestions */
+        get: operations["suggestions_api_v1_layering_suggestions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -258,6 +292,8 @@ export interface components {
         };
         /** BrandResponse */
         BrandResponse: {
+            /** Country */
+            country?: string | null;
             /**
              * Id
              * Format: uuid
@@ -400,6 +436,45 @@ export interface components {
             /** User Rating */
             user_rating?: number | null;
         };
+        /** CommunityResponse */
+        CommunityResponse: {
+            /** Captured At */
+            captured_at?: string | null;
+            /** Day Votes */
+            day_votes?: number | null;
+            /** Had Count */
+            had_count?: number | null;
+            /** Have Count */
+            have_count?: number | null;
+            /** Longevity Average */
+            longevity_average?: number | null;
+            /** Longevity Votes */
+            longevity_votes?: number | null;
+            /** Night Votes */
+            night_votes?: number | null;
+            /** Perceived Female */
+            perceived_female?: number | null;
+            /** Perceived Female Leaning */
+            perceived_female_leaning?: number | null;
+            /** Perceived Male */
+            perceived_male?: number | null;
+            /** Perceived Male Leaning */
+            perceived_male_leaning?: number | null;
+            /** Perceived Unisex */
+            perceived_unisex?: number | null;
+            /** Price Value Average */
+            price_value_average?: number | null;
+            /** Price Value Votes */
+            price_value_votes?: number | null;
+            /** Sillage Average */
+            sillage_average?: number | null;
+            /** Sillage Votes */
+            sillage_votes?: number | null;
+            /** Voters */
+            voters?: number | null;
+            /** Want Count */
+            want_count?: number | null;
+        };
         /** CountSlice */
         CountSlice: {
             /** Count */
@@ -419,6 +494,18 @@ export interface components {
              * @enum {string}
              */
             lifecycle_state: "active" | "deletion_pending";
+        };
+        /** DiscoveryResult */
+        DiscoveryResult: {
+            /** Collection Expansion */
+            collection_expansion: number;
+            fragrance: components["schemas"]["FragranceSummary"];
+            /** Redundancy Risk */
+            redundancy_risk: number;
+            /** Score */
+            score: number;
+            /** Taste Match */
+            taste_match: number;
         };
         /**
          * FragranceCreateRequest
@@ -449,10 +536,13 @@ export interface components {
             /** Accords */
             accords: components["schemas"]["AccordResponse"][];
             brand: components["schemas"]["BrandResponse"];
+            community: components["schemas"]["CommunityResponse"] | null;
             /** Concentration */
-            concentration: string;
+            concentration: string | null;
             /** Description */
             description: string | null;
+            /** Gender */
+            gender?: ("male" | "female" | "unisex") | null;
             /**
              * Id
              * Format: uuid
@@ -460,6 +550,8 @@ export interface components {
             id: string;
             /** Image Blob Path */
             image_blob_path: string | null;
+            /** Image Url */
+            image_url?: string | null;
             /**
              * Is Custom
              * @default false
@@ -473,18 +565,36 @@ export interface components {
             notes: components["schemas"]["NoteResponse"][];
             /** Occasions */
             occasions: components["schemas"]["OccasionResponse"][];
+            /** Olfactory Family */
+            olfactory_family?: string | null;
+            /** Perfumers */
+            perfumers: components["schemas"]["PerfumerResponse"][];
+            /** Product Line */
+            product_line: string | null;
             /** Projection Level */
             projection_level: ("intimate" | "moderate" | "strong") | null;
+            /** Rating Average */
+            rating_average?: number | null;
+            /** Rating Count */
+            rating_count?: number | null;
             /** Release Year */
             release_year: number | null;
             /** Seasons */
             seasons: components["schemas"]["SeasonResponse"][];
+            /** Similar */
+            similar: components["schemas"]["FragranceSummary"][];
+            /** Sources */
+            sources: components["schemas"]["SourceResponse"][];
+            /** Top Accords */
+            top_accords?: string[];
         };
         /** FragranceSummary */
         FragranceSummary: {
             brand: components["schemas"]["BrandResponse"];
             /** Concentration */
-            concentration: string;
+            concentration: string | null;
+            /** Gender */
+            gender?: ("male" | "female" | "unisex") | null;
             /**
              * Id
              * Format: uuid
@@ -492,6 +602,8 @@ export interface components {
             id: string;
             /** Image Blob Path */
             image_blob_path: string | null;
+            /** Image Url */
+            image_url?: string | null;
             /**
              * Is Custom
              * @default false
@@ -501,15 +613,41 @@ export interface components {
             longevity_score: number | null;
             /** Name */
             name: string;
+            /** Olfactory Family */
+            olfactory_family?: string | null;
             /** Projection Level */
             projection_level: ("intimate" | "moderate" | "strong") | null;
+            /** Rating Average */
+            rating_average?: number | null;
+            /** Rating Count */
+            rating_count?: number | null;
             /** Release Year */
             release_year: number | null;
+            /** Top Accords */
+            top_accords?: string[];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** LayeringSuggestion */
+        LayeringSuggestion: {
+            /** Complementary Accords */
+            complementary_accords: string[];
+            first: components["schemas"]["FragranceSummary"];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "safe" | "contrast" | "experimental";
+            /** Score */
+            score: number;
+            /** Season Overlap */
+            season_overlap: number;
+            second: components["schemas"]["FragranceSummary"];
+            /** Shared Notes */
+            shared_notes: string[];
         };
         /** MeResponse */
         MeResponse: {
@@ -573,7 +711,9 @@ export interface components {
              * Stage
              * @enum {string}
              */
-            stage: "top" | "middle" | "base";
+            stage: "top" | "middle" | "base" | "general";
+            /** Weight */
+            weight?: number | null;
         };
         /** OccasionResponse */
         OccasionResponse: {
@@ -584,6 +724,18 @@ export interface components {
             occasion: "work" | "casual" | "date" | "dinner" | "party" | "formal" | "gym" | "travel" | "other";
             /** Weight */
             weight: number;
+        };
+        /** PerfumerResponse */
+        PerfumerResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
         };
         /** PreferencesResponse */
         PreferencesResponse: {
@@ -627,6 +779,13 @@ export interface components {
             season: "spring" | "summer" | "fall" | "winter";
             /** Weight */
             weight: number;
+        };
+        /** SourceResponse */
+        SourceResponse: {
+            /** Source */
+            source: string;
+            /** Url */
+            url: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -818,11 +977,56 @@ export interface operations {
             };
         };
     };
+    discover_api_v1_discover_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                gender?: ("male" | "female" | "unisex") | null;
+                family?: string | null;
+                season?: ("spring" | "summer" | "fall" | "winter") | null;
+                accord?: string | null;
+                minimum_value?: number | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryResult"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_fragrances_api_v1_fragrances_get: {
         parameters: {
             query?: {
                 q?: string | null;
                 limit?: number;
+                offset?: number;
+                gender?: ("male" | "female" | "unisex") | null;
+                family?: string | null;
+                season?: ("spring" | "summer" | "fall" | "winter") | null;
+                accord?: string | null;
+                sort?: "relevance" | "popular" | "rating" | "name";
             };
             header?: {
                 authorization?: string | null;
@@ -938,6 +1142,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CollectionInsightsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suggestions_api_v1_layering_suggestions_get: {
+        parameters: {
+            query?: {
+                mode?: "safe" | "contrast" | "experimental";
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LayeringSuggestion"][];
                 };
             };
             /** @description Validation Error */

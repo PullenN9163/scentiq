@@ -138,15 +138,22 @@ def test_fragrance_list_returns_seeded_catalog_in_stable_order() -> None:
             "id": payload[0]["brand"]["id"],
             "name": "ScentIQ Test Atelier",
             "slug": "scentiq-test-atelier",
+            "country": None,
         },
         "concentration": "eau_de_parfum",
+        "gender": "unisex",
         "id": AMBER_ATLAS_ID,
         "image_blob_path": None,
+        "image_url": None,
         "is_custom": False,
         "longevity_score": 8.2,
         "name": "Amber Atlas",
+        "olfactory_family": "Woody",
         "projection_level": "moderate",
+        "rating_average": 4.2,
+        "rating_count": 100,
         "release_year": 2026,
+        "top_accords": ["Amber"],
     }
 
 
@@ -171,18 +178,21 @@ def test_fragrance_detail_returns_nested_catalog_relationships() -> None:
             "name": "Bergamot",
             "slug": "bergamot",
             "stage": "top",
+            "weight": None,
         },
         {
             "id": payload["notes"][1]["id"],
             "name": "Labdanum",
             "slug": "labdanum",
             "stage": "middle",
+            "weight": None,
         },
         {
             "id": payload["notes"][2]["id"],
             "name": "Vanilla",
             "slug": "vanilla",
             "stage": "base",
+            "weight": None,
         },
     ]
     assert payload["accords"][0] == {

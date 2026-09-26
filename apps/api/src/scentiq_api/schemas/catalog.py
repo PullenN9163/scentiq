@@ -1,3 +1,5 @@
+from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -11,6 +13,7 @@ class BrandResponse(BaseModel):
     id: UUID
     name: str
     slug: str
+    country: str | None = None
 
 
 class FragranceSummary(BaseModel):
@@ -21,6 +24,12 @@ class FragranceSummary(BaseModel):
     concentration: str | None
     release_year: int | None
     image_blob_path: str | None
+    image_url: str | None = None
+    gender: Literal["male", "female", "unisex"] | None = None
+    olfactory_family: str | None = None
+    rating_average: float | None = None
+    rating_count: int | None = None
+    top_accords: list[str] = Field(default_factory=list)
     longevity_score: float | None
     projection_level: Projection | None
     brand: BrandResponse
@@ -33,6 +42,7 @@ class NoteResponse(BaseModel):
     name: str
     slug: str
     stage: NoteStage
+    weight: float | None = None
 
 
 class AccordResponse(BaseModel):
@@ -52,12 +62,49 @@ class OccasionResponse(BaseModel):
     weight: float
 
 
+class PerfumerResponse(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+
+
+class CommunityResponse(BaseModel):
+    longevity_average: float | None = None
+    longevity_votes: int | None = None
+    sillage_average: float | None = None
+    sillage_votes: int | None = None
+    price_value_average: float | None = None
+    price_value_votes: int | None = None
+    have_count: int | None = None
+    had_count: int | None = None
+    want_count: int | None = None
+    perceived_female: int | None = None
+    perceived_female_leaning: int | None = None
+    perceived_unisex: int | None = None
+    perceived_male_leaning: int | None = None
+    perceived_male: int | None = None
+    day_votes: int | None = None
+    night_votes: int | None = None
+    voters: int | None = None
+    captured_at: datetime | None = None
+
+
+class SourceResponse(BaseModel):
+    source: str
+    url: str | None
+
+
 class FragranceDetail(FragranceSummary):
     description: str | None
+    product_line: str | None
     notes: list[NoteResponse]
     accords: list[AccordResponse]
     seasons: list[SeasonResponse]
     occasions: list[OccasionResponse]
+    perfumers: list[PerfumerResponse]
+    community: CommunityResponse | None
+    similar: list[FragranceSummary]
+    sources: list[SourceResponse]
 
 
 class FragranceCreateRequest(BaseModel):
@@ -71,7 +118,7 @@ class FragranceCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     brand_name: str = Field(min_length=1, max_length=120)
-    name: str = Field(min_length=1, max_length=160)
+    name: str = Field(min_length=1, max_length=255)
     concentration: str = Field(min_length=1, max_length=40)
     release_year: int | None = Field(default=None, ge=1700, le=2100)
     description: str | None = Field(default=None, max_length=4000)
