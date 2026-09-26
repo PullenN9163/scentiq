@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented September 23, 2026, extended September 25, 2026 with the source-backed shared catalog, September 27, 2026 with live weather, and September 28, 2026 with Google calendar connections. Targets the existing Azure development topology as a private beta, not a production environment.
+Implemented September 23, 2026, extended September 25, 2026 with the source-backed shared catalog, September 27, 2026 with live weather, and September 28, 2026 with Google and Outlook calendar connections. Targets the existing Azure development topology as a private beta, not a production environment.
 
 ## Objective
 
@@ -158,7 +158,7 @@ Clerk keys, the webhook secret, token-validation settings and the internal servi
 | `OPEN_METEO_API_KEY` | API; optional, for Open-Meteo's commercial plan |
 | `PUBLIC_APP_URL` | API; the web origin OAuth providers redirect back to |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | API |
-| `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET` | API (Outlook, next phase) |
+| `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET` | API (Outlook) |
 | `INTEGRATION_TOKEN_ENCRYPTION_KEY`, `INTEGRATION_TOKEN_PREVIOUS_KEYS` | API; seal stored refresh tokens |
 
 ## Weather
@@ -174,7 +174,7 @@ Forecasts come from [Open-Meteo](https://open-meteo.com/) through the API; the b
 
 ## Calendar connections
 
-Members connect Google calendars from Settings. ScentIQ runs its own OAuth flow, separate from Clerk sign-in, so any member can connect any account. Setup and operations are in the [calendar and weather runbook](../runbooks/calendar-and-weather.md).
+Members connect Google and Outlook (Microsoft Graph) calendars from Settings. Both providers implement one `CalendarProvider` contract, so the flow, sync and classification below are shared. ScentIQ runs its own OAuth flow, separate from Clerk sign-in, so any member can connect any account. Setup and operations are in the [calendar and weather runbook](../runbooks/calendar-and-weather.md).
 
 **The flow.** The browser only ever visits Next.js and the provider.
 

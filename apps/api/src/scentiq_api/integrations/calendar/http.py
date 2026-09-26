@@ -20,6 +20,17 @@ from scentiq_api.integrations.calendar.base import (
 )
 
 MAX_PAGES = 20
+# OAuth error codes meaning the grant itself is unusable and only the member
+# can fix it by reconnecting.
+_REAUTH_ERRORS = frozenset(
+    {
+        "invalid_grant",
+        "invalid_token",
+        "unauthorized_client",
+        "interaction_required",
+        "consent_required",
+    }
+)
 
 
 class ProviderHttp:
@@ -45,7 +56,7 @@ class ProviderHttp:
         if response.status_code >= 500:
             raise CalendarProviderError("provider_unavailable")
         if response.status_code >= 400:
-            if payload.get("error") in ("invalid_grant", "invalid_token", "unauthorized_client"):
+            if payload.get("error") in _REAUTH_ERRORS:
                 raise CalendarAuthError()
             raise CalendarProviderError("token_request_failed")
         access_token = payload.get("access_token")

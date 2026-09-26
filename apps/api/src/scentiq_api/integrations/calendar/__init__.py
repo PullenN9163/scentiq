@@ -9,6 +9,7 @@ from scentiq_api.integrations.calendar.base import (
     TokenSet,
 )
 from scentiq_api.integrations.calendar.google import GoogleCalendarProvider
+from scentiq_api.integrations.calendar.microsoft import MicrosoftCalendarProvider
 
 __all__ = [
     "PROVIDERS",
@@ -17,6 +18,7 @@ __all__ = [
     "CalendarProviderError",
     "CalendarProviderName",
     "GoogleCalendarProvider",
+    "MicrosoftCalendarProvider",
     "ProviderCalendar",
     "ProviderEvent",
     "TokenSet",

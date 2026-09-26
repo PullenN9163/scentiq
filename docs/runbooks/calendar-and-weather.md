@@ -92,7 +92,7 @@ az keyvault secret set --vault-name "$vault" --name integration-token-encryption
 
 ### Outlook Calendar (Microsoft Entra ID)
 
-Outlook support ships with the next phase. The configuration below is already wired through, so the app registration can be prepared now.
+This uses the `common` endpoint, so it works with work, school and personal (outlook.com) accounts. Microsoft has no per-grant revocation endpoint, so **Disconnect** deletes the stored grant; members can also remove ScentIQ at `https://myapps.microsoft.com` (work accounts) or `https://account.live.com/consent/Manage` (personal accounts).
 
 1. In Entra ID, go to **App registrations → New registration**.
    - Supported account types: *Accounts in any organizational directory and personal Microsoft accounts*.
@@ -123,7 +123,7 @@ Only the API container receives these. An empty URI omits that secret from the r
    - the Google client ID and secret;
    - a generated `INTEGRATION_TOKEN_ENCRYPTION_KEY`.
 2. Restart the API.
-3. Open Settings and choose **Connect Google Calendar**.
+3. Open Settings and choose **Connect Google Calendar** or **Connect Outlook Calendar**.
 
 ### How sync behaves
 

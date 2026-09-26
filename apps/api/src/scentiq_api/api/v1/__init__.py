@@ -19,7 +19,11 @@ from scentiq_api.auth import (
     require_internal_service_token,
 )
 from scentiq_api.config import Settings
-from scentiq_api.integrations.calendar import CalendarProvider, GoogleCalendarProvider
+from scentiq_api.integrations.calendar import (
+    CalendarProvider,
+    GoogleCalendarProvider,
+    MicrosoftCalendarProvider,
+)
 from scentiq_api.integrations.crypto import TokenCipher
 from scentiq_api.integrations.weather import OpenMeteoClient, WeatherProvider
 
@@ -96,5 +100,10 @@ def configured_calendar_providers(settings: Settings) -> dict[str, CalendarProvi
     if settings.google_oauth_client_id and google_secret:
         providers["google"] = GoogleCalendarProvider(
             client_id=settings.google_oauth_client_id, client_secret=google_secret
+        )
+    microsoft_secret = settings.microsoft_oauth_client_secret_value
+    if settings.microsoft_oauth_client_id and microsoft_secret:
+        providers["microsoft"] = MicrosoftCalendarProvider(
+            client_id=settings.microsoft_oauth_client_id, client_secret=microsoft_secret
         )
     return providers
