@@ -1,0 +1,106 @@
+name: Refresh datasets
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays at 06:17 UTC. Off the hour, when GitHub's scheduler is least
+    # congested; the Kaggle maintainer publishes irregularly, so weekly is ample.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: scentiq-dataset-refresh
+  cancel-in-progress: false
+
+env:
+  STORAGE_ACCOUNT: scentiqstrgdevus
+  DATASETS_CONTAINER: datasets
+  LATEST_MANIFEST_BLOB: fragrantica/latest.json
+
+jobs:
+  refresh:
+    name: Refresh Fragrantica dataset
+    runs-on: ubuntu-latest
+    environment: development
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "0.12.2"
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --directory apps/api --frozen --no-dev
+
+      - name: Authenticate with Azure OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read the stored manifest
+        run: |
+          exists=$(az storage blob exists --auth-mode login \
+            --account-name "$STORAGE_ACCOUNT" --container-name "$DATASETS_CONTAINER" \
+            --name "$LATEST_MANIFEST_BLOB" --query exists --output tsv)
+          if [ "$exists" = "true" ]; then
+            az storage blob download --auth-mode login --no-progress --only-show-errors \
+              --account-name "$STORAGE_ACCOUNT" --container-name "$DATASETS_CONTAINER" \
+              --name "$LATEST_MANIFEST_BLOB" --file "${RUNNER_TEMP}/stored-manifest.json"
+          else
+            echo "No stored copy yet; the published version will be stored."
+          fi
+
+      - name: Check, download and validate the published version
+        id: refresh
+        run: |
+          uv run --directory apps/api --frozen --no-dev python -m scentiq_api.dataset_refresh \
+            --current-manifest "${RUNNER_TEMP}/stored-manifest.json" \
+            --output-dir "${RUNNER_TEMP}/dataset" > "${RUNNER_TEMP}/summary.json"
+          cat "${RUNNER_TEMP}/summary.json"
+          echo "changed=$(jq -r .changed "${RUNNER_TEMP}/summary.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the new version
+        if: steps.refresh.outputs.changed == 'true'
+        run: |
+          dataset="${RUNNER_TEMP}/dataset"
+          archive_blob=$(jq -r .archive_blob "${dataset}/manifest.json")
+          manifest_blob=$(jq -r .manifest_blob "${dataset}/manifest.json")
+          upload() {
+            az storage blob upload --auth-mode login --no-progress --only-show-errors --overwrite \
+              --account-name "$STORAGE_ACCOUNT" --container-name "$DATASETS_CONTAINER" "$@"
+          }
+          # The pointer moves last, so readers never see a manifest whose
+          # archive has not finished uploading.
+          upload --name "$archive_blob" --file "${dataset}/fragrantica-perfumes.zip" \
+            --content-type application/zip
+          upload --name "$manifest_blob" --file "${dataset}/manifest.json" \
+            --content-type application/json
+          upload --name "$LATEST_MANIFEST_BLOB" --file "${dataset}/manifest.json" \
+            --content-type application/json
+
+      - name: Summarise
+        run: |
+          jq -r '
+            if .changed then
+              "Stored Fragrantica v\(.version) (\(.record_count) perfumes, published \(.published_at)) at `\(.archive_blob)`."
+            else
+              "Fragrantica is unchanged at v\(.stored_version); nothing was downloaded."
+            end
+          ' "${RUNNER_TEMP}/summary.json" >> "$GITHUB_STEP_SUMMARY"
