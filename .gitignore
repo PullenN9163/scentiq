@@ -3,6 +3,8 @@
 .env.*
 !.env.example
 *.local
+*.pem
+*.key
 
 # Python
 __pycache__/
@@ -20,6 +22,8 @@ node_modules/
 .next/
 out/
 coverage/
+playwright-report/
+test-results/
 *.tsbuildinfo
 
 # Local tooling and generated artifacts
@@ -32,3 +36,7 @@ Thumbs.db
 # OS / temp files
 *.tmp
 *.bak
+
+# Unzipped datasets (raw zips live in datasets/raw)
+datasets/extracted/
+datasets/reports/
