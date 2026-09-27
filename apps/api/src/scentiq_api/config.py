@@ -117,6 +117,24 @@ class Settings(BaseSettings):
             return None
         return value
 
+    @field_validator(
+        "google_oauth_client_id",
+        "google_oauth_client_secret",
+        "microsoft_oauth_client_id",
+        "microsoft_oauth_client_secret",
+    )
+    @classmethod
+    def strip_oauth_credentials(cls, value: str | SecretStr | None) -> str | SecretStr | None:
+        """Drop surrounding whitespace from OAuth client credentials.
+
+        A secret pasted or piped into Key Vault easily picks up a trailing
+        newline, and the provider then rejects the client as `invalid_client`
+        even though the value looks right.
+        """
+        if isinstance(value, SecretStr):
+            return SecretStr(value.get_secret_value().strip())
+        return value.strip() if isinstance(value, str) else value
+
     @field_validator("weather_api_base_url", mode="before")
     @classmethod
     def default_weather_api_base_url(cls, value: object) -> object:

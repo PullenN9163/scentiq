@@ -296,3 +296,15 @@ def test_public_app_url_requires_https_outside_local_development(
     else:
         with pytest.raises(ValidationError):
             _calendar_settings(PUBLIC_APP_URL=value)
+
+
+def test_oauth_credentials_are_trimmed() -> None:
+    settings = _calendar_settings(
+        GOOGLE_OAUTH_CLIENT_ID=" client-id.apps.googleusercontent.com\n",
+        GOOGLE_OAUTH_CLIENT_SECRET="GOCSPX-secret\n",
+        MICROSOFT_OAUTH_CLIENT_SECRET="  ms-secret\r\n",
+    )
+
+    assert settings.google_oauth_client_id == "client-id.apps.googleusercontent.com"
+    assert settings.google_oauth_client_secret_value == "GOCSPX-secret"
+    assert settings.microsoft_oauth_client_secret_value == "ms-secret"
