@@ -20,15 +20,24 @@ from scentiq_api.integrations.calendar.base import (
 )
 
 MAX_PAGES = 20
-# OAuth error codes meaning the grant itself is unusable and only the member
-# can fix it by reconnecting.
+# OAuth error codes meaning the member's grant is unusable and only they can
+# fix it, by reconnecting.
 _REAUTH_ERRORS = frozenset(
+    {"invalid_grant", "invalid_token", "interaction_required", "consent_required"}
+)
+# Other OAuth error codes worth reporting by name. They point at ScentIQ's own
+# client configuration (credentials, redirect URI, scopes), not the member's
+# grant. Anything outside this list is reported as `token_request_failed`, so
+# nothing the provider sends is ever echoed verbatim.
+_REPORTED_ERRORS = frozenset(
     {
-        "invalid_grant",
-        "invalid_token",
+        "invalid_client",
         "unauthorized_client",
-        "interaction_required",
-        "consent_required",
+        "redirect_uri_mismatch",
+        "invalid_request",
+        "invalid_scope",
+        "access_denied",
+        "unsupported_grant_type",
     }
 )
 
@@ -56,8 +65,11 @@ class ProviderHttp:
         if response.status_code >= 500:
             raise CalendarProviderError("provider_unavailable")
         if response.status_code >= 400:
-            if payload.get("error") in _REAUTH_ERRORS:
-                raise CalendarAuthError()
+            error = payload.get("error")
+            if error in _REAUTH_ERRORS:
+                raise CalendarAuthError(str(error))
+            if error in _REPORTED_ERRORS:
+                raise CalendarProviderError(str(error))
             raise CalendarProviderError("token_request_failed")
         access_token = payload.get("access_token")
         if not isinstance(access_token, str) or not access_token:

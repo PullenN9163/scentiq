@@ -25,6 +25,7 @@ from sqlalchemy import create_engine, text
 from scentiq_api.config import Settings
 from scentiq_api.integrations.calendar import (
     CalendarAuthError,
+    CalendarProviderError,
     CalendarProviderName,
     ProviderCalendar,
     ProviderEvent,
@@ -70,6 +71,8 @@ class FakeGoogle:
         return f"https://consent.test/?state={state}&redirect_uri={redirect_uri}"
 
     def exchange_code(self, *, code: str, code_verifier: str, redirect_uri: str) -> TokenSet:
+        if code == "misconfigured":
+            raise CalendarProviderError("invalid_client")
         if code != "good-code":
             raise CalendarAuthError()
         return TokenSet("access", "refresh", frozenset({"openid", CALENDAR_SCOPE}))
@@ -261,3 +264,20 @@ def test_an_unconfigured_provider_is_unavailable(client: TestClient) -> None:
     )
     assert response.status_code == 503
     assert response.json()["code"] == "calendar_provider_not_configured"
+
+
+def test_rejected_app_credentials_are_not_reported_as_an_outage(client: TestClient) -> None:
+    headers = auth_headers("user_misconfigured")
+    url = client.post("/api/v1/calendar/connections/google/authorize", headers=headers).json()[
+        "authorization_url"
+    ]
+    state = parse_qs(urlparse(url).query)["state"][0]
+
+    response = client.post(
+        "/api/v1/calendar/connections/google/callback",
+        json={"code": "misconfigured", "state": state},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "calendar_client_rejected"

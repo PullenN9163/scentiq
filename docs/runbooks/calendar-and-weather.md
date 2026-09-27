@@ -143,3 +143,21 @@ Only the API container receives these. An empty URI omits that secret from the r
 | "Calendar access wasn't allowed" | The member unticked the calendar permission on Google's granular consent screen. |
 | **Reconnect needed** | The grant was revoked or expired (weekly in Google's Testing mode), or the encryption key changed. The member reconnects from Settings; their calendar choices are kept. |
 | "the last sync failed" | The provider was unreachable or rate-limited. Saved events are still shown, and the next read retries. |
+| "Google rejected ScentIQ's app credentials" after consent | Google answered the code exchange with `invalid_client`: the stored client secret doesn't belong to the configured client ID. Re-copy the secret from the OAuth client (or create a new one), store it again as `google-oauth-client-secret`, and re-run Deploy. |
+| "didn't accept ScentIQ's redirect address" after consent | `redirect_uri_mismatch` at the code exchange. `PUBLIC_APP_URL` + `/integrations/calendar/<provider>/callback` must be registered exactly on the OAuth client. |
+| "The calendar service is unavailable right now" | Only a real outage or rate limit shows this: the API couldn't reach the provider. Check the container's outbound access to `oauth2.googleapis.com` / `login.microsoftonline.com`. |
+
+Every failed connection attempt writes one line to the API log with the provider's error code and the stage (`exchange` or `account`). Tokens, codes and messages are never logged:
+
+```bash
+az containerapp logs show -n scentiq-api-dev-eus -g scentiq-rg-dev-eus --type console --tail 300 \
+  | grep calendar_authorization_failed
+```
+
+To test a Google client ID and secret pair without the app, send a deliberately fake code. `invalid_grant` means the credentials are good; `invalid_client` means the secret is wrong:
+
+```bash
+read -rs SECRET; curl -s https://oauth2.googleapis.com/token -d client_id=<client id> \
+  -d client_secret="$SECRET" -d grant_type=authorization_code -d code=fake \
+  -d redirect_uri=https://<web-fqdn>/integrations/calendar/google/callback; unset SECRET
+```

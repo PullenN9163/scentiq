@@ -105,3 +105,16 @@ describe("CalendarConnectionsCard", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/can't be loaded/);
   });
 });
+
+describe("CalendarConnectionsCard connection errors", () => {
+  it("explains rejected app credentials", () => {
+    render(
+      <CalendarConnectionsCard
+        providers={providers}
+        connections={[]}
+        notice="calendar_client_rejected"
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/client secret/);
+  });
+});

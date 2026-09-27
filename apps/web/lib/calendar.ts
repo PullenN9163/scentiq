@@ -130,6 +130,16 @@ export const CALENDAR_NOTICES: Record<string, { tone: "success" | "error"; messa
     tone: "error",
     message: "The calendar provider rejected the connection. Please try again.",
   },
+  calendar_client_rejected: {
+    tone: "error",
+    message:
+      "Google rejected ScentIQ's app credentials, so nothing was connected. The client secret on the server doesn't match the OAuth client ID.",
+  },
+  calendar_redirect_mismatch: {
+    tone: "error",
+    message:
+      "The calendar provider didn't accept ScentIQ's redirect address. Check the OAuth client's authorized redirect URIs.",
+  },
   unavailable: {
     tone: "error",
     message: "The calendar service is unavailable right now. Please try again shortly.",

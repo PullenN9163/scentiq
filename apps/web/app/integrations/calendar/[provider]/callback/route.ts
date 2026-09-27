@@ -24,7 +24,12 @@ export async function GET(
   if (!code || !state) return settingsRedirect("calendar_error", "authorization_failed");
 
   try {
-    await apiClient.post(`/api/v1/calendar/connections/${provider}/callback`, { code, state });
+    // Longer than the default: finishing a connection includes the first sync.
+    await apiClient.post(
+      `/api/v1/calendar/connections/${provider}/callback`,
+      { code, state },
+      { signal: AbortSignal.timeout(30_000) },
+    );
   } catch (error) {
     return settingsRedirect("calendar_error", noticeCodeFor(error));
   }

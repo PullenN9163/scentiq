@@ -88,10 +88,11 @@ describe("calendar OAuth routes", () => {
       params("google"),
     );
 
-    expect(post).toHaveBeenCalledWith("/api/v1/calendar/connections/google/callback", {
-      code: "abc",
-      state: "xyz",
-    });
+    expect(post).toHaveBeenCalledWith(
+      "/api/v1/calendar/connections/google/callback",
+      { code: "abc", state: "xyz" },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     const target = location(response);
     expect(target.pathname).toBe("/settings");
     expect(target.searchParams.get("calendar")).toBe("connected");
@@ -136,5 +137,21 @@ describe("calendar OAuth routes", () => {
     );
 
     expect(response.headers.get("location")).toBe("/settings?calendar=connected#calendar");
+  });
+
+  it("names a credential rejection instead of calling it an outage", async () => {
+    post.mockImplementation(async () => {
+      throw new ApiError("validation", 422, {
+        code: "calendar_client_rejected",
+        message: "rejected",
+      });
+    });
+    const response = await callback(
+      new Request("https://app.test/integrations/calendar/google/callback?code=a&state=b"),
+      params("google"),
+    );
+    expect(location(response).searchParams.get("calendar_error")).toBe(
+      "calendar_client_rejected",
+    );
   });
 });

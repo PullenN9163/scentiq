@@ -25,6 +25,7 @@ from scentiq_api.integrations.calendar import (
     ProviderEvent,
 )
 from scentiq_api.integrations.crypto import TokenCipher, TokenDecryptionError
+from scentiq_api.logging import diagnostic_logger, format_runtime_event
 from scentiq_api.models import CalendarConnection, CalendarEvent, CalendarSource, OAuthState
 from scentiq_api.repositories import CalendarRepository
 from scentiq_api.schemas import (
@@ -48,6 +49,40 @@ _OCCASIONS = frozenset(get_args(Occasion))
 def provider_unavailable() -> ApiError:
     return service_unavailable(
         "calendar_provider_unavailable", "That calendar service is unavailable right now"
+    )
+
+
+def _authorization_error(code: str) -> ApiError:
+    """What the member is told when finishing a connection fails.
+
+    Only a provider outage is "unavailable"; a rejection says what was
+    rejected, so a misconfigured client isn't mistaken for downtime.
+    """
+    if code in ("provider_unavailable", "rate_limited"):
+        return provider_unavailable()
+    if code in ("invalid_client", "unauthorized_client"):
+        return unprocessable(
+            "calendar_client_rejected",
+            "The calendar provider rejected ScentIQ's app credentials",
+        )
+    if code == "redirect_uri_mismatch":
+        return unprocessable(
+            "calendar_redirect_mismatch",
+            "The calendar provider did not accept ScentIQ's redirect address",
+        )
+    return unprocessable("authorization_failed", "The calendar provider rejected the connection")
+
+
+def _log_authorization_failure(provider: str, stage: str, code: str) -> None:
+    # Codes only: never the authorization code, tokens or provider messages.
+    diagnostic_logger.warning(
+        format_runtime_event(
+            "calendar_authorization_failed",
+            "WARNING",
+            provider=provider,
+            stage=stage,
+            code=code,
+        )
     )
 
 
@@ -156,26 +191,28 @@ class CalendarService:
         self, user_id: UUID, provider_name: str, code: str, code_verifier: str
     ) -> CalendarConnectionResponse:
         provider, cipher, redirect_uri = self._require_provider(provider_name)
+        stage = "exchange"
         try:
             tokens = provider.exchange_code(
                 code=code, code_verifier=code_verifier, redirect_uri=redirect_uri
             )
             if tokens.scopes and not provider.required_scopes <= tokens.scopes:
+                _log_authorization_failure(provider_name, stage, "scope_not_granted")
                 raise unprocessable(
                     "calendar_scope_not_granted",
                     "Calendar access was not granted. Connect again and allow calendar access.",
                 )
             if tokens.refresh_token is None:
+                _log_authorization_failure(provider_name, stage, "no_refresh_token")
                 raise unprocessable(
                     "authorization_failed", "The calendar provider did not grant offline access"
                 )
+            stage = "account"
             email = provider.account_email(tokens.access_token)
-        except CalendarAuthError:
-            raise unprocessable(
-                "authorization_failed", "The calendar provider rejected the connection"
-            ) from None
-        except CalendarProviderError:
-            raise provider_unavailable() from None
+        except CalendarProviderError as error:
+            # CalendarAuthError is a subclass, so this covers rejected codes too.
+            _log_authorization_failure(provider_name, stage, error.code)
+            raise _authorization_error(error.code) from None
 
         sealed = cipher.encrypt(
             tokens.refresh_token, context=_token_context(user_id, provider_name)

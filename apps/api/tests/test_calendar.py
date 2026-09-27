@@ -727,3 +727,76 @@ def test_deleting_a_member_removes_their_calendar_data(session: Session) -> None
 
     for model in (CalendarConnection, CalendarSource, CalendarEvent, OAuthState):
         assert session.query(model).count() == 0
+
+
+# --- reporting why a connection failed ----------------------------------
+
+
+@pytest.mark.parametrize(
+    ("status", "error", "expected"),
+    [
+        (401, "invalid_client", "invalid_client"),
+        (400, "unauthorized_client", "unauthorized_client"),
+        (400, "redirect_uri_mismatch", "redirect_uri_mismatch"),
+        (400, "something_new", "token_request_failed"),
+    ],
+)
+def test_token_endpoint_rejections_are_reported_by_code(
+    status: int, error: str, expected: str
+) -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            status, json={"error": error, "error_description": "secret-looking detail"}
+        )
+
+    with pytest.raises(CalendarProviderError) as raised:
+        _google(handler).exchange_code(code="c", code_verifier="v", redirect_uri="r")
+
+    assert not isinstance(raised.value, CalendarAuthError)
+    assert raised.value.code == expected
+    assert "secret-looking detail" not in str(raised.value)
+
+
+def test_an_expired_code_is_an_auth_error_with_its_code() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"error": "invalid_grant"})
+
+    with pytest.raises(CalendarAuthError) as raised:
+        _google(handler).exchange_code(code="c", code_verifier="v", redirect_uri="r")
+    assert raised.value.code == "invalid_grant"
+
+
+@pytest.mark.parametrize(
+    ("failure", "status", "code"),
+    [
+        (CalendarProviderError("invalid_client"), 422, "calendar_client_rejected"),
+        (CalendarProviderError("unauthorized_client"), 422, "calendar_client_rejected"),
+        (CalendarProviderError("redirect_uri_mismatch"), 422, "calendar_redirect_mismatch"),
+        (CalendarProviderError("token_request_failed"), 422, "authorization_failed"),
+        (CalendarAuthError("invalid_grant"), 422, "authorization_failed"),
+        (CalendarProviderError("provider_unavailable"), 503, "calendar_provider_unavailable"),
+        (CalendarProviderError("rate_limited"), 503, "calendar_provider_unavailable"),
+    ],
+)
+def test_only_outages_are_reported_as_unavailable(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: CalendarProviderError,
+    status: int,
+    code: str,
+) -> None:
+    logged: list[str] = []
+    monkeypatch.setattr("scentiq_api.services.calendar.diagnostic_logger.warning", logged.append)
+    user = make_user(session, email="a@example.com")
+    provider = FakeGoogle()
+    provider.fail = failure
+
+    with pytest.raises(ApiError) as error:
+        _connect(session, user.id, provider, Clock())
+
+    assert (error.value.status_code, error.value.code) == (status, code)
+    assert len(logged) == 1
+    assert '"event":"calendar_authorization_failed"' in logged[0]
+    assert f'"code":"{failure.code}"' in logged[0]
+    assert '"stage":"exchange"' in logged[0]
+    assert "auth-code" not in logged[0]
