@@ -2,6 +2,7 @@ from scentiq_api.repositories.calendar import CalendarRepository
 from scentiq_api.repositories.collection import CollectionRepository
 from scentiq_api.repositories.discovery import DiscoveryRepository
 from scentiq_api.repositories.fragrances import FragranceRepository
+from scentiq_api.repositories.hybrid_jobs import HybridJobRepository
 from scentiq_api.repositories.insights import InsightsRepository
 from scentiq_api.repositories.layering import LayeringRepository
 from scentiq_api.repositories.users import IdentityRepository, UserRepository
@@ -13,6 +14,7 @@ __all__ = [
     "CollectionRepository",
     "DiscoveryRepository",
     "FragranceRepository",
+    "HybridJobRepository",
     "IdentityRepository",
     "InsightsRepository",
     "LayeringRepository",

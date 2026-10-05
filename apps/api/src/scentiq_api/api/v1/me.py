@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from scentiq_api.auth import AuthenticatedUser, CurrentUserDependency
 from scentiq_api.integrations.weather import WeatherProvider
-from scentiq_api.repositories import IdentityRepository, UserRepository
+from scentiq_api.repositories import HybridJobRepository, IdentityRepository, UserRepository
 from scentiq_api.schemas import (
     DeletionResponse,
     MeResponse,
@@ -15,7 +15,7 @@ from scentiq_api.schemas import (
     PreferencesResponse,
     PreferencesUpdateRequest,
 )
-from scentiq_api.services import AccountDeletionService, ProfileService
+from scentiq_api.services import AccountDeletionService, HybridJobService, ProfileService
 
 
 def create_me_router(
@@ -56,7 +56,11 @@ def create_me_router(
         `location_not_found` field error. If the weather provider is
         unreachable the location is saved and resolved later.
         """
-        updated = ProfileService(UserRepository(session), weather_provider).replace_preferences(
+        updated = ProfileService(
+            UserRepository(session),
+            weather_provider,
+            HybridJobService(HybridJobRepository(session)),
+        ).replace_preferences(
             user.user_id,
             payload,
         )

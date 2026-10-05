@@ -14,6 +14,7 @@ from scentiq_api.schemas import (
     CollectionItemUpdateRequest,
 )
 from scentiq_api.services.fragrances import to_fragrance_summary
+from scentiq_api.services.hybrid_jobs import HybridJobService
 
 
 def _money(value: Decimal | None) -> str | None:
@@ -46,9 +47,11 @@ class CollectionService:
         self,
         repository: CollectionRepository,
         fragrances: FragranceRepository,
+        hybrid_jobs: HybridJobService | None = None,
     ) -> None:
         self._repository = repository
         self._fragrances = fragrances
+        self._hybrid_jobs = hybrid_jobs
 
     def list_for_user(self, user_id: UUID) -> list[CollectionItemResponse]:
         return [_response(item) for item in self._repository.list_for_user(user_id)]
@@ -91,6 +94,11 @@ class CollectionService:
         )
         created = self._repository.add(item)
         created.fragrance = fragrance
+        if self._hybrid_jobs is not None:
+            self._hybrid_jobs.invalidate_recommendations(
+                user_id,
+                reason="collection_changed",
+            )
         return _response(created)
 
     def update(
@@ -110,4 +118,9 @@ class CollectionService:
             return _response(item)
 
         updated = self._repository.apply_changes(item, changes)
+        if self._hybrid_jobs is not None:
+            self._hybrid_jobs.invalidate_recommendations(
+                user_id,
+                reason="collection_changed",
+            )
         return _response(updated)

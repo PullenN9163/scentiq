@@ -33,12 +33,15 @@ def test_catalog_import_migration_creates_postgresql_contract() -> None:
     try:
         inspector = inspect(engine)
         assert {
+            "async_jobs",
             "catalog_import_runs",
             "fragrance_community_stats",
             "fragrance_perfumers",
             "fragrance_similarities",
             "fragrance_sources",
             "perfumers",
+            "recommendation_snapshots",
+            "recommendation_states",
         } <= set(inspector.get_table_names())
 
         fragrance_columns = {

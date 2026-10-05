@@ -7,13 +7,13 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from scentiq_api.auth import AuthenticatedUser, CurrentUserDependency
-from scentiq_api.repositories import CollectionRepository, FragranceRepository
+from scentiq_api.repositories import CollectionRepository, FragranceRepository, HybridJobRepository
 from scentiq_api.schemas import (
     CollectionItemCreateRequest,
     CollectionItemResponse,
     CollectionItemUpdateRequest,
 )
-from scentiq_api.services import CollectionService
+from scentiq_api.services import CollectionService, HybridJobService
 
 
 def create_collection_router(
@@ -23,7 +23,11 @@ def create_collection_router(
     router = APIRouter(prefix="/collection", tags=["collection"])
 
     def _service(session: Session) -> CollectionService:
-        return CollectionService(CollectionRepository(session), FragranceRepository(session))
+        return CollectionService(
+            CollectionRepository(session),
+            FragranceRepository(session),
+            HybridJobService(HybridJobRepository(session)),
+        )
 
     @router.get("", response_model=list[CollectionItemResponse])
     def list_collection(

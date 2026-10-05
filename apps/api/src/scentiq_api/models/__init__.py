@@ -15,6 +15,7 @@ from scentiq_api.models.catalog import (
     Note,
     Perfumer,
 )
+from scentiq_api.models.hybrid_jobs import AsyncJob, RecommendationSnapshot, RecommendationState
 from scentiq_api.models.identity import IdentityEvent, UserIdentity
 from scentiq_api.models.planning import (
     CalendarConnection,
@@ -37,6 +38,7 @@ from scentiq_api.models.users import (
 
 __all__ = [
     "Accord",
+    "AsyncJob",
     "Base",
     "Brand",
     "CalendarConnection",
@@ -59,6 +61,8 @@ __all__ = [
     "Perfumer",
     "Recommendation",
     "RecommendationCandidate",
+    "RecommendationSnapshot",
+    "RecommendationState",
     "User",
     "UserCollectionItem",
     "UserIdentity",

@@ -17,6 +17,7 @@ from scentiq_api.schemas import (
     PreferencesUpdateRequest,
 )
 from scentiq_api.services.weather import location_not_found, resolve_place
+from scentiq_api.services.hybrid_jobs import HybridJobService
 
 # How long a deletion-pending user waits before reconciliation cleans it up.
 RECONCILIATION_GRACE = timedelta(hours=24)
@@ -35,9 +36,11 @@ class ProfileService:
         self,
         repository: UserRepository,
         weather: WeatherProvider | None = None,
+        hybrid_jobs: HybridJobService | None = None,
     ) -> None:
         self._repository = repository
         self._weather = weather
+        self._hybrid_jobs = hybrid_jobs
 
     def get(self, user_id: UUID) -> MeResponse:
         user = self._repository.get(user_id)
@@ -100,6 +103,11 @@ class ProfileService:
         elif location_changed:
             self._repository.set_resolved_location(
                 preferences, label=None, latitude=None, longitude=None, timezone=None
+            )
+        if self._hybrid_jobs is not None:
+            self._hybrid_jobs.invalidate_recommendations(
+                user_id,
+                reason="preferences_changed",
             )
         return PreferencesResponse.model_validate(preferences)
 
