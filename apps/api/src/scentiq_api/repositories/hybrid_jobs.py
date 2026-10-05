@@ -38,6 +38,11 @@ class HybridJobRepository:
         self._session.flush()
         return snapshot
 
+    def snapshot_for_job(self, job_id: UUID) -> RecommendationSnapshot | None:
+        return self._session.scalar(
+            select(RecommendationSnapshot).where(RecommendationSnapshot.source_job_id == job_id)
+        )
+
     def latest_snapshot(self, user_id: UUID) -> RecommendationSnapshot | None:
         return self._session.scalar(
             select(RecommendationSnapshot)

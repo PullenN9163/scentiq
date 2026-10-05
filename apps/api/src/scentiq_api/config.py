@@ -243,6 +243,14 @@ class Settings(BaseSettings):
         return self.database_url.get_secret_value()
 
     @property
+    def azure_storage_queue_account_url(self) -> str:
+        if self.azure_storage_account_url is None:
+            raise RuntimeError("AZURE_STORAGE_ACCOUNT_URL is not configured")
+        if ".blob." not in self.azure_storage_account_url:
+            raise RuntimeError("AZURE_STORAGE_ACCOUNT_URL must be an Azure Blob service URL")
+        return self.azure_storage_account_url.replace(".blob.", ".queue.", 1)
+
+    @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 

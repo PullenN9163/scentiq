@@ -56,6 +56,17 @@ def test_settings_parse_safe_development_values() -> None:
     ]
 
 
+def test_storage_blob_url_derives_the_queue_service_url() -> None:
+    settings = Settings(
+        SCENTIQ_ENV="test",
+        DATABASE_URL="postgresql+psycopg://user:password@localhost/scentiq",
+        CORS_ORIGINS="http://localhost:3000",
+        AZURE_STORAGE_ACCOUNT_URL="https://account.blob.core.windows.net/",
+    )
+
+    assert settings.azure_storage_queue_account_url == ("https://account.queue.core.windows.net/")
+
+
 def test_settings_normalize_development_resource_suffix() -> None:
     settings = Settings(
         SCENTIQ_ENV="dev",

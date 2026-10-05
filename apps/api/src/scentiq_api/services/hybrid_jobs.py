@@ -55,6 +55,9 @@ class HybridJobService:
         job = self._repository.get_job(job_id)
         if job is None or job.user_id is None or job.input_version is None:
             return None
+        existing = self._repository.snapshot_for_job(job_id)
+        if existing is not None:
+            return existing
         state = self._repository.state_for_update(job.user_id)
         if job.input_version != state.input_version:
             job.status = "superseded"
