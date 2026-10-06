@@ -83,6 +83,10 @@ $resources = @(Get-ArmResources $template.resources)
 Assert-True ($resources.Count -gt 0) 'compiled template contains no resources'
 Assert-True (-not ($template | ConvertTo-Json -Depth 100 | Select-String -Quiet 'latest')) 'mutable latest image tag is forbidden'
 Assert-True (-not ($template | ConvertTo-Json -Depth 100 | Select-String -Quiet '0\.0\.0\.0/0')) 'unrestricted CIDR is forbidden'
+Assert-True (
+    $template.parameters.hybridBridgeJobName.minLength -eq 2 -and
+    $template.parameters.hybridBridgeJobName.maxLength -eq 32
+) 'the hybrid bridge job name parameter must enforce the Azure Container Apps job length contract'
 
 $restoreScriptPath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'scripts/azure/Test-PostgresRestore.ps1'
 if (-not (Test-Path -LiteralPath $restoreScriptPath)) {
@@ -130,6 +134,13 @@ else {
 }
 
 if ($Mode -eq 'dev') {
+    $hybridBridgeDeploymentName = [string] $deploymentParameters.hybridBridgeJobName.value
+    Assert-True (
+        $hybridBridgeDeploymentName.Length -ge 2 -and
+        $hybridBridgeDeploymentName.Length -le 32 -and
+        $hybridBridgeDeploymentName -cmatch '^[a-z][a-z0-9-]*[a-z0-9]$' -and
+        $hybridBridgeDeploymentName -notmatch '--'
+    ) 'the development hybrid bridge job name must satisfy the Azure Container Apps job naming contract'
     $createdWorkloadIdentities = @($resources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities' -and -not $_.existing })
     $adoptedWorkloadIdentities = @($resources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities' -and $_.existing })
     Assert-True ($createdWorkloadIdentities.Count -eq 3 -and $adoptedWorkloadIdentities.Count -eq 3) 'development must declare dedicated API, web, migration, and GitHub deployment identities without duplicate create/adopt declarations'

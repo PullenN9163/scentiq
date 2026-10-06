@@ -63,7 +63,9 @@ param applicationInsightsName string
 param apiAppName string
 param webAppName string
 param migrationJobName string
-param hybridBridgeJobName string = '${apiAppName}-hybrid-bridge'
+@minLength(2)
+@maxLength(32)
+param hybridBridgeJobName string = 'scentiq-hybrid-bridge-${environmentName}'
 param hybridWorkerPrincipalId string = ''
 param hybridCatalogVersion string = 'catalog-v1'
 param hybridAlgorithmVersion string = 'v1'
