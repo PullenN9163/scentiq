@@ -53,3 +53,6 @@ class HybridJobRepository:
             )
             .limit(1)
         )
+
+    def current_input_version(self, user_id: UUID) -> int:
+        return self.state_for_update(user_id).input_version

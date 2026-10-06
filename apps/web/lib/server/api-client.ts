@@ -1,6 +1,7 @@
 import "server-only";
 
 import { auth } from "@clerk/nextjs/server";
+import { cache } from "react";
 
 /**
  * The single server-only route to FastAPI.
@@ -155,9 +156,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return (await response.json()) as T;
 }
 
+// React clears this memoization between server renders. It only deduplicates
+// identical reads inside one member request; it never becomes a shared cache.
+const cachedGet = cache((path: string, signal?: AbortSignal) =>
+  request<unknown>(path, { method: "GET", signal }),
+);
+
 export const apiClient = {
   get: <T>(path: string, options?: Omit<RequestOptions, "method" | "body">) =>
-    request<T>(path, { ...options, method: "GET" }),
+    cachedGet(path, options?.signal) as Promise<T>,
   post: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "method" | "body">) =>
     request<T>(path, { ...options, method: "POST", body }),
   patch: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "method" | "body">) =>

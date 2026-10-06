@@ -140,6 +140,17 @@ class FragranceRepository:
         )
         return self._session.scalar(statement)
 
+    def get_many(self, user_id: UUID, fragrance_ids: set[UUID]) -> list[Fragrance]:
+        if not fragrance_ids:
+            return []
+        statement = (
+            select(Fragrance)
+            .where(Fragrance.id.in_(fragrance_ids), _visible_to(user_id))
+            .options(*_catalog_options())
+            .order_by(Fragrance.name, Fragrance.id)
+        )
+        return list(self._session.scalars(statement).unique())
+
     def similar(self, user_id: UUID, fragrance_id: UUID, *, limit: int = 8) -> list[Fragrance]:
         net_votes = func.coalesce(FragranceSimilarity.up_votes, 0) - func.coalesce(
             FragranceSimilarity.down_votes, 0

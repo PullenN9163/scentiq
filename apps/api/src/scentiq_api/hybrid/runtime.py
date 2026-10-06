@@ -4,6 +4,7 @@ import json
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from scentiq_api.hybrid.contracts import (
     HybridCollectionItem,
+    HybridFragrance,
     HybridPreferences,
     JobPointer,
     PoisonMessage,
@@ -18,10 +20,11 @@ from scentiq_api.hybrid.contracts import (
     RecommendationJobResult,
     ResultPointer,
 )
-from scentiq_api.hybrid.transport import HybridTransport
-from scentiq_api.models import AsyncJob, UserCollectionItem, UserPreference
-from scentiq_api.repositories import HybridJobRepository
+from scentiq_api.hybrid.transport import HybridQueueMessage, HybridTransport
+from scentiq_api.models import AsyncJob, Fragrance, UserCollectionItem, UserPreference
+from scentiq_api.repositories import DiscoveryRepository, HybridJobRepository, LayeringRepository
 from scentiq_api.services import HybridJobService
+from scentiq_api.services.fragrances import to_fragrance_summary
 
 JOB_QUEUE = "hybrid-jobs"
 RESULT_QUEUE = "hybrid-results"
@@ -31,6 +34,32 @@ MAX_DELIVERIES = 5
 
 def _model_json(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(mode="json")
+
+
+def _hybrid_fragrance(
+    item: Fragrance,
+    *,
+    similarities: dict[tuple[Any, Any], float] | None = None,
+    owned_ids: set[Any] | None = None,
+    include_seasons: bool = True,
+) -> HybridFragrance:
+    similarity_map = {
+        owned_id: strength
+        for owned_id in (owned_ids or set())
+        if (strength := (similarities or {}).get((item.id, owned_id))) is not None
+    }
+    return HybridFragrance(
+        fragrance=to_fragrance_summary(item),
+        accords={link.accord.slug: float(link.weight) for link in item.accord_links},
+        notes={link.note.slug: float(link.weight or 0.5) for link in item.note_links},
+        seasons=(
+            {link.season: float(link.weight) for link in item.seasons}
+            if include_seasons
+            else {}
+        ),
+        family=item.olfactory_family,
+        similarities=similarity_map,
+    )
 
 
 class HybridDispatcher:
@@ -83,9 +112,15 @@ class HybridDispatcher:
             )
         )
         preferences = self._session.get(UserPreference, job.user_id)
+        discovery_repository = DiscoveryRepository(self._session)
+        owned = LayeringRepository(self._session).owned(job.user_id)
+        candidates = discovery_repository.candidates(job.user_id)
+        owned_ids = {item.id for item in owned}
+        similarities = discovery_repository.similarity_strengths(
+            {item.id for item in candidates}, owned_ids
+        )
         return RecommendationJobInput(
             job_id=job.id,
-            user_id=job.user_id,
             input_version=job.input_version,
             catalog_version=self._catalog_version,
             collection=[
@@ -111,6 +146,16 @@ class HybridDispatcher:
                 if preferences is not None
                 else None
             ),
+            owned=[_hybrid_fragrance(item) for item in owned],
+            candidates=[
+                _hybrid_fragrance(
+                    item,
+                    similarities=similarities,
+                    owned_ids=owned_ids,
+                    include_seasons=False,
+                )
+                for item in candidates
+            ],
         )
 
 
@@ -125,6 +170,30 @@ class HybridWorker:
         self._transport = transport
         self._processor = processor
         self._algorithm_version = algorithm_version
+
+    def _handle_failure(
+        self,
+        message: HybridQueueMessage,
+        job_id: UUID | None,
+        *,
+        error_code: str,
+    ) -> bool:
+        if message.dequeue_count < MAX_DELIVERIES:
+            return False
+        if job_id is None:
+            try:
+                job_id = JobPointer.model_validate_json(message.body).job_id
+            except ValueError, ValidationError:
+                self._transport.delete(JOB_QUEUE, message)
+                return False
+        poison = PoisonMessage(
+            job_id=job_id,
+            error_code=error_code,
+            dequeue_count=message.dequeue_count,
+        )
+        self._transport.enqueue(POISON_QUEUE, _model_json(poison))
+        self._transport.delete(JOB_QUEUE, message)
+        return False
 
     def process_next(self) -> bool:
         message = self._transport.receive(JOB_QUEUE)
@@ -156,20 +225,9 @@ class HybridWorker:
             self._transport.delete(JOB_QUEUE, message)
             return True
         except KeyError, ValueError, ValidationError, json.JSONDecodeError:
-            if message.dequeue_count >= MAX_DELIVERIES:
-                if job_id is None:
-                    try:
-                        job_id = JobPointer.model_validate_json(message.body).job_id
-                    except ValueError, ValidationError:
-                        return False
-                poison = PoisonMessage(
-                    job_id=job_id,
-                    error_code="invalid_job_input",
-                    dequeue_count=message.dequeue_count,
-                )
-                self._transport.enqueue(POISON_QUEUE, _model_json(poison))
-                self._transport.delete(JOB_QUEUE, message)
-            return False
+            return self._handle_failure(message, job_id, error_code="invalid_job_input")
+        except Exception:
+            return self._handle_failure(message, job_id, error_code="processing_failed")
 
 
 class HybridResultApplier:
@@ -181,18 +239,42 @@ class HybridResultApplier:
         message = self._transport.receive(RESULT_QUEUE)
         if message is None:
             return False
-        pointer = ResultPointer.model_validate_json(message.body)
-        result = RecommendationJobResult.model_validate(
-            self._transport.download_json(pointer.output_blob)
-        )
-        if result.job_id != pointer.job_id:
-            raise ValueError("Result pointer does not match output")
-        HybridJobService(HybridJobRepository(self._session)).promote_recommendation_result(
-            result.job_id,
-            payload=result.payload,
-            algorithm_version=result.algorithm_version,
-            catalog_version=result.catalog_version,
-        )
-        self._transport.delete(RESULT_QUEUE, message)
-        self._session.flush()
-        return True
+        job_id: UUID | None = None
+        try:
+            pointer = ResultPointer.model_validate_json(message.body)
+            job_id = pointer.job_id
+            result = RecommendationJobResult.model_validate(
+                self._transport.download_json(pointer.output_blob)
+            )
+            if result.job_id != pointer.job_id:
+                raise ValueError("Result pointer does not match output")
+            HybridJobService(HybridJobRepository(self._session)).promote_recommendation_result(
+                result.job_id,
+                payload=result.payload,
+                algorithm_version=result.algorithm_version,
+                catalog_version=result.catalog_version,
+            )
+            self._transport.delete(RESULT_QUEUE, message)
+            self._session.flush()
+            return True
+        except KeyError, ValueError, ValidationError, json.JSONDecodeError:
+            if message.dequeue_count < MAX_DELIVERIES:
+                return False
+            if job_id is None:
+                try:
+                    job_id = ResultPointer.model_validate_json(message.body).job_id
+                except ValueError, ValidationError:
+                    self._transport.delete(RESULT_QUEUE, message)
+                    return False
+            self._transport.enqueue(
+                POISON_QUEUE,
+                _model_json(
+                    PoisonMessage(
+                        job_id=job_id,
+                        error_code="invalid_job_result",
+                        dequeue_count=message.dequeue_count,
+                    )
+                ),
+            )
+            self._transport.delete(RESULT_QUEUE, message)
+            return False

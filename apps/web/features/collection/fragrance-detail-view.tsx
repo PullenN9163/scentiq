@@ -83,7 +83,7 @@ export function FragranceDetailView({
       </Link>
 
       <div className="detail-hero">
-        <CatalogImage className="detail-art" id={fragrance.id} name={fragrance.name} brand={fragrance.brand.name} imageUrl={fragrance.image_url} />
+        <CatalogImage className="detail-art" id={fragrance.id} name={fragrance.name} brand={fragrance.brand.name} imageUrl={fragrance.image_url} priority />
         <div>
           <p className="eyebrow">{fragrance.brand.name}</p>
           <h1 className="serif">{fragrance.name}</h1>

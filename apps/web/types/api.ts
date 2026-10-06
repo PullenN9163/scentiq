@@ -117,6 +117,19 @@ export interface LayeringSuggestion {
   season_overlap: number;
 }
 
+export interface RecommendationPayload {
+  discovery: DiscoveryResult[];
+  layering: Record<LayeringMode, LayeringSuggestion[]>;
+}
+
+export interface RecommendationBundle {
+  payload: RecommendationPayload;
+  input_version: number;
+  generated_at: string | null;
+  is_stale: boolean;
+  refresh_status: "fresh" | "pending" | "fallback";
+}
+
 export interface CollectionItem {
   id: string;
   ownership_type: OwnershipType;
@@ -207,6 +220,32 @@ export interface CollectionInsights {
   ownership_types: CountSlice[];
   /** Items with no shared-catalog classification behind the breakdowns. */
   unclassified_items: number;
+}
+
+export interface DashboardPageData {
+  me: Me;
+  insights: CollectionInsights;
+  recent_wears: WearLogEntry[];
+}
+
+export interface LayeringPageData {
+  collection: CollectionItem[];
+  recommendations: RecommendationBundle;
+}
+
+export interface WeekFragrance extends FragranceSummary {
+  seasons: { season: Season; weight: number }[];
+  community: FragranceDetail["community"];
+}
+
+export interface WeekPageData {
+  owned: WeekFragrance[];
+}
+
+export interface FragrancePageData {
+  fragrance: FragranceDetail;
+  collection_item: CollectionItem | null;
+  recent_wears: WearLogEntry[];
 }
 
 export interface DeletionAccepted {

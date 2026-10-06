@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from scentiq_api.models import Fragrance, UserCollectionItem
+from scentiq_api.models import Fragrance, FragranceAccord, UserCollectionItem
 
 
 class CollectionRepository:
@@ -22,6 +22,9 @@ class CollectionRepository:
             .join(UserCollectionItem.fragrance)
             .options(
                 joinedload(UserCollectionItem.fragrance).joinedload(Fragrance.brand),
+                joinedload(UserCollectionItem.fragrance)
+                .selectinload(Fragrance.accord_links)
+                .joinedload(FragranceAccord.accord),
             )
             .order_by(Fragrance.name)
         )

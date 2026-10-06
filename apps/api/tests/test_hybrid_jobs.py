@@ -7,16 +7,33 @@ from sqlalchemy.orm import Session
 from scentiq_api.models import AsyncJob, RecommendationSnapshot, RecommendationState
 from scentiq_api.repositories import (
     CollectionRepository,
+    DiscoveryRepository,
     FragranceRepository,
     HybridJobRepository,
+    LayeringRepository,
     UserRepository,
 )
 from scentiq_api.schemas import CollectionItemCreateRequest, PreferencesUpdateRequest
-from scentiq_api.services import CollectionService, HybridJobService, ProfileService
+from scentiq_api.services import (
+    CollectionService,
+    DiscoveryService,
+    HybridJobService,
+    LayeringService,
+    ProfileService,
+    RecommendationService,
+)
 
 
 def _service(session: Session) -> HybridJobService:
     return HybridJobService(HybridJobRepository(session))
+
+
+def _recommendations(session: Session) -> RecommendationService:
+    return RecommendationService(
+        _service(session),
+        DiscoveryService(DiscoveryRepository(session)),
+        LayeringService(LayeringRepository(session)),
+    )
 
 
 def test_invalidation_creates_state_and_job_in_the_same_transaction(session: Session) -> None:
@@ -119,3 +136,39 @@ def test_preference_mutation_invalidates_recommendations(session: Session) -> No
     job = session.scalar(select(AsyncJob))
     assert job is not None
     assert job.reason == "preferences_changed"
+
+
+def test_recommendations_return_valid_current_snapshot(session: Session) -> None:
+    user = make_user(session, email="member@example.com")
+    jobs = _service(session)
+    job = jobs.invalidate_recommendations(user.id, reason="collection_changed")
+    jobs.promote_recommendation_result(
+        job.id,
+        payload={
+            "discovery": [],
+            "layering": {"safe": [], "contrast": [], "experimental": []},
+        },
+        algorithm_version="1",
+        catalog_version="catalog-a",
+    )
+
+    response = _recommendations(session).get(user.id)
+
+    assert response.refresh_status == "fresh"
+    assert response.is_stale is False
+    assert response.input_version == 1
+    assert response.generated_at is not None
+
+
+def test_recommendations_fall_back_and_queue_initial_refresh(session: Session) -> None:
+    user = make_user(session, email="member@example.com")
+
+    response = _recommendations(session).get(user.id)
+
+    assert response.refresh_status == "fallback"
+    assert response.is_stale is True
+    assert response.payload.discovery == []
+    job = session.scalar(select(AsyncJob))
+    assert job is not None
+    assert job.input_version == 0
+    assert job.reason == "cache_miss"

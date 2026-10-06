@@ -34,6 +34,8 @@ def test_request_log_contains_safe_http_metadata(caplog: pytest.LogCaptureFixtur
         )
 
     assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.headers["server-timing"].startswith("app;dur=")
     request_records = [record for record in caplog.records if record.name == "scentiq_api.request"]
     assert len(request_records) == 1
     record = request_records[0]

@@ -25,6 +25,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     commands.add_parser("apply-results", help="Apply one completed job result")
 
+    bridge = commands.add_parser("bridge", help="Dispatch jobs and apply completed results")
+    bridge.add_argument("--catalog-version", required=True)
+    bridge.add_argument("--dispatch-limit", type=int, default=25)
+    bridge.add_argument("--result-limit", type=int, default=25)
+
     worker = commands.add_parser("worker", help="Process queued jobs")
     worker.add_argument("--algorithm-version", required=True)
     worker.add_argument("--once", action="store_true")
@@ -72,6 +77,28 @@ def _apply_result(settings: Settings) -> int:
     return 0
 
 
+def _bridge(args: argparse.Namespace, settings: Settings) -> int:
+    engine = create_database_engine(settings.database_url_value)
+    factory = create_session_factory(engine)
+    transport = _transport(settings)
+    try:
+        with factory() as session:
+            dispatched = HybridDispatcher(
+                session,
+                transport,
+                catalog_version=args.catalog_version,
+            ).dispatch_pending(limit=args.dispatch_limit)
+            applier = HybridResultApplier(session, transport)
+            applied = 0
+            while applied < args.result_limit and applier.apply_next():
+                applied += 1
+            session.commit()
+            print(json.dumps({"applied": applied, "dispatched": dispatched}))
+    finally:
+        engine.dispose()
+    return 0
+
+
 def _worker(args: argparse.Namespace, settings: Settings) -> int:
     from scentiq_api.hybrid.processor import process_recommendation
 
@@ -96,6 +123,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _dispatch(args, settings)
     if args.command == "apply-results":
         return _apply_result(settings)
+    if args.command == "bridge":
+        return _bridge(args, settings)
     if args.command == "worker":
         return _worker(args, settings)
     raise AssertionError(f"Unsupported command: {args.command}")

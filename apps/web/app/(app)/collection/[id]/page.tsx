@@ -4,8 +4,8 @@ import { Suspense } from "react";
 import { ErrorState, LoadingState, UnavailableState } from "@/components/shared/states";
 import { FragranceDetailView } from "@/features/collection/fragrance-detail-view";
 import { ApiError } from "@/lib/server/api-client";
-import { getCollection, getFragrance, getWearLogs } from "@/lib/server/queries";
-import type { CollectionItem, FragranceDetail, WearLogEntry } from "@/types/api";
+import { getFragrancePage } from "@/lib/server/queries";
+import type { FragrancePageData } from "@/types/api";
 
 async function FragranceDetailBoundary({
   fragranceId,
@@ -16,17 +16,9 @@ async function FragranceDetailBoundary({
   backHref: string;
   backLabel: string;
 }) {
-  let fragrance: FragranceDetail;
-  let ownedItem: CollectionItem | null;
-  let wears: WearLogEntry[];
-
+  let data: FragrancePageData;
   try {
-    const [detail, collection] = await Promise.all([getFragrance(fragranceId), getCollection()]);
-    fragrance = detail;
-    ownedItem = collection.find((item) => item.fragrance.id === fragranceId) ?? null;
-    // Wears hang off the collection item, so there are none to fetch if the
-    // fragrance is not owned.
-    wears = ownedItem ? await getWearLogs({ collectionItemId: ownedItem.id, limit: 10 }) : [];
+    data = await getFragrancePage(fragranceId);
   } catch (error) {
     if (error instanceof ApiError && error.kind === "not_found") {
       notFound();
@@ -40,7 +32,7 @@ async function FragranceDetailBoundary({
     throw error;
   }
 
-  return <FragranceDetailView fragrance={fragrance} ownedItem={ownedItem} wears={wears} backHref={backHref} backLabel={backLabel} />;
+  return <FragranceDetailView fragrance={data.fragrance} ownedItem={data.collection_item} wears={data.recent_wears} backHref={backHref} backLabel={backLabel} />;
 }
 
 export default async function FragrancePage({

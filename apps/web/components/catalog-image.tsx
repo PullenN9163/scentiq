@@ -23,12 +23,14 @@ export function CatalogImage({
   brand,
   imageUrl,
   className,
+  priority = false,
 }: {
   id: string;
   name: string;
   brand: string;
   imageUrl: string | null;
   className?: string;
+  priority?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   const remoteEnabled = useContext(RemoteImagesContext);
@@ -51,7 +53,8 @@ export function CatalogImage({
         alt={`${name} by ${brand}`}
         width={375}
         height={500}
-        loading="lazy"
+        sizes="(max-width: 640px) 42vw, (max-width: 1200px) 24vw, 240px"
+        priority={priority}
         onError={() => setFailed(true)}
       />
     </div>

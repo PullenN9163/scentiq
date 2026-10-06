@@ -46,11 +46,22 @@ class RequestLoggingMiddleware:
 
         started_at = perf_counter()
         status_code = 500
+        is_authenticated = any(name.lower() == b"authorization" for name, _ in scope["headers"])
 
         async def capture_status(message: Message) -> None:
             nonlocal status_code
             if message["type"] == "http.response.start":
                 status_code = message["status"]
+                headers = list(message.get("headers", []))
+                headers.append(
+                    (
+                        b"server-timing",
+                        f"app;dur={(perf_counter() - started_at) * 1000:.2f}".encode(),
+                    )
+                )
+                if is_authenticated:
+                    headers.append((b"cache-control", b"private, no-store"))
+                message["headers"] = headers
             await send(message)
 
         try:

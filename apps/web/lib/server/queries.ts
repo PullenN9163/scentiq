@@ -15,6 +15,11 @@ import type {
   Me,
   LayeringMode,
   LayeringSuggestion,
+  DashboardPageData,
+  FragrancePageData,
+  LayeringPageData,
+  RecommendationBundle,
+  WeekPageData,
   WearLogEntry,
   WeatherForecast,
 } from "@/types/api";
@@ -28,6 +33,26 @@ import type {
 
 export function getMe(): Promise<Me> {
   return apiClient.get<Me>("/api/v1/me");
+}
+
+export function getDashboardPage(): Promise<DashboardPageData> {
+  return apiClient.get<DashboardPageData>("/api/v1/page-data/dashboard");
+}
+
+export function getLayeringPage(): Promise<LayeringPageData> {
+  return apiClient.get<LayeringPageData>("/api/v1/page-data/layering");
+}
+
+export function getWeekPage(): Promise<WeekPageData> {
+  return apiClient.get<WeekPageData>("/api/v1/page-data/week");
+}
+
+export function getFragrancePage(fragranceId: string): Promise<FragrancePageData> {
+  return apiClient.get<FragrancePageData>(`/api/v1/page-data/fragrances/${fragranceId}`);
+}
+
+export function getRecommendations(): Promise<RecommendationBundle> {
+  return apiClient.get<RecommendationBundle>("/api/v1/recommendations");
 }
 
 export function getCollection(): Promise<CollectionItem[]> {

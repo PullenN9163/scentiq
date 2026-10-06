@@ -52,6 +52,17 @@ from scentiq_api.schemas.insights import (
     WeightedSlice,
 )
 from scentiq_api.schemas.layering import LayeringMode, LayeringSuggestion
+from scentiq_api.schemas.pages import (
+    DashboardPageResponse,
+    FragrancePageResponse,
+    LayeringPageResponse,
+    WeekFragrance,
+    WeekPageResponse,
+)
+from scentiq_api.schemas.recommendations import (
+    RecommendationBundleResponse,
+    RecommendationPayload,
+)
 from scentiq_api.schemas.wear import WearLogCreateRequest, WearLogResponse
 from scentiq_api.schemas.weather import ForecastDay, PlaceResponse, WeatherForecastResponse
 
@@ -73,13 +84,16 @@ __all__ = [
     "CollectionStatus",
     "CommunityResponse",
     "CountSlice",
+    "DashboardPageResponse",
     "DeletionResponse",
     "DiscoveryResult",
     "ForecastDay",
     "FragranceCreateRequest",
     "FragranceDetail",
+    "FragrancePageResponse",
     "FragranceSummary",
     "LayeringMode",
+    "LayeringPageResponse",
     "LayeringSuggestion",
     "LifecycleState",
     "MeResponse",
@@ -96,6 +110,8 @@ __all__ = [
     "PreferencesResponse",
     "PreferencesUpdateRequest",
     "Projection",
+    "RecommendationBundleResponse",
+    "RecommendationPayload",
     "Season",
     "SeasonResponse",
     "SourceResponse",
@@ -103,5 +119,7 @@ __all__ = [
     "WearLogCreateRequest",
     "WearLogResponse",
     "WeatherForecastResponse",
+    "WeekFragrance",
+    "WeekPageResponse",
     "WeightedSlice",
 ]

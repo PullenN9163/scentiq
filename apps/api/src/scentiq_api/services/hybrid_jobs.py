@@ -79,3 +79,6 @@ class HybridJobService:
 
     def latest_snapshot(self, user_id: UUID) -> RecommendationSnapshot | None:
         return self._repository.latest_snapshot(user_id)
+
+    def current_input_version(self, user_id: UUID) -> int:
+        return self._repository.current_input_version(user_id)

@@ -10,7 +10,7 @@ from scentiq_api.hybrid import (
     HybridWorker,
     InMemoryHybridTransport,
 )
-from scentiq_api.hybrid.contracts import RecommendationJobInput
+from scentiq_api.hybrid.contracts import HybridFragrance, RecommendationJobInput
 from scentiq_api.hybrid.processor import process_recommendation
 from scentiq_api.models import AsyncJob, RecommendationSnapshot
 from scentiq_api.repositories import HybridJobRepository
@@ -42,22 +42,20 @@ def test_dispatcher_uploads_minimal_member_input_and_enqueues_once(session: Sess
     payload_text = transport.blobs[job.input_blob]
     payload = json.loads(payload_text)
     assert "private@example.com" not in payload_text
-    assert payload == {
-        "schema_version": 1,
-        "job_id": str(job.id),
-        "job_type": "recommendation_bundle",
-        "user_id": str(job.user_id),
-        "input_version": 1,
-        "catalog_version": "catalog-a",
-        "collection": [
-            {
-                "fragrance_id": payload["collection"][0]["fragrance_id"],
-                "status": "owned",
-                "user_rating": 4,
-            }
-        ],
-        "preferences": None,
-    }
+    assert payload["schema_version"] == 1
+    assert payload["job_id"] == str(job.id)
+    assert "user_id" not in payload
+    assert payload["collection"] == [
+        {
+            "fragrance_id": payload["collection"][0]["fragrance_id"],
+            "status": "owned",
+            "user_rating": 4,
+        }
+    ]
+    assert payload["preferences"] is None
+    assert len(payload["owned"]) == 1
+    assert payload["owned"][0]["fragrance"]["name"] == "Scent"
+    assert payload["candidates"] == []
     assert len(transport.queues["hybrid-jobs"]) == 1
 
 
@@ -105,6 +103,32 @@ def test_worker_moves_malformed_input_to_poison_after_five_deliveries() -> None:
     assert "schema_version" not in poison
 
 
+def test_worker_moves_processing_failure_to_poison_after_five_deliveries() -> None:
+    transport = InMemoryHybridTransport()
+    request = RecommendationJobInput(
+        job_id="00000000-0000-4000-8000-000000000001",
+        input_version=1,
+        catalog_version="catalog-a",
+        collection=[],
+    )
+    path = "hybrid/jobs/failing/input.json"
+    transport.upload_json(path, request.model_dump(mode="json"))
+    transport.enqueue("hybrid-jobs", {"job_id": str(request.job_id), "input_blob": path})
+
+    def fail(_: RecommendationJobInput) -> dict[str, object]:
+        raise RuntimeError("do not include this detail in the poison message")
+
+    worker = HybridWorker(transport, processor=fail, algorithm_version="1")
+
+    for _ in range(5):
+        assert worker.process_next() is False
+
+    assert transport.queues["hybrid-jobs"] == []
+    poison = json.loads(transport.queues["hybrid-jobs-poison"][0].body)
+    assert poison["error_code"] == "processing_failed"
+    assert "detail" not in json.dumps(poison)
+
+
 def test_result_applier_promotes_once_and_acknowledges_duplicates(session: Session) -> None:
     job = _pending_job(session)
     transport = InMemoryHybridTransport()
@@ -126,6 +150,23 @@ def test_result_applier_promotes_once_and_acknowledges_duplicates(session: Sessi
     assert len(snapshots) == 1
     assert snapshots[0].source_job_id == job.id
     assert transport.queues["hybrid-results"] == []
+
+
+def test_result_applier_poison_handles_invalid_results(session: Session) -> None:
+    transport = InMemoryHybridTransport()
+    job_id = "00000000-0000-4000-8000-000000000001"
+    path = "hybrid/jobs/bad/result.json"
+    transport.upload_json(path, {"schema_version": 99})
+    transport.enqueue("hybrid-results", {"job_id": job_id, "output_blob": path})
+    applier = HybridResultApplier(session, transport)
+
+    for _ in range(5):
+        assert applier.apply_next() is False
+
+    assert transport.queues["hybrid-results"] == []
+    poison = json.loads(transport.queues["hybrid-jobs-poison"][0].body)
+    assert poison["job_id"] == job_id
+    assert poison["error_code"] == "invalid_job_result"
 
 
 def test_azure_transport_round_trips_json_through_injected_clients() -> None:
@@ -203,7 +244,6 @@ def test_azure_transport_round_trips_json_through_injected_clients() -> None:
 def test_recommendation_processor_always_returns_the_versioned_bundle_shape() -> None:
     request = RecommendationJobInput(
         job_id="00000000-0000-4000-8000-000000000001",
-        user_id="00000000-0000-4000-8000-000000000002",
         input_version=1,
         catalog_version="catalog-a",
         collection=[],
@@ -213,3 +253,86 @@ def test_recommendation_processor_always_returns_the_versioned_bundle_shape() ->
         "discovery": [],
         "layering": {"safe": [], "contrast": [], "experimental": []},
     }
+
+
+def test_recommendation_processor_scores_discovery_and_all_layering_modes() -> None:
+    def feature(
+        fragrance_id: str,
+        name: str,
+        *,
+        accords: dict[str, float],
+        notes: dict[str, float],
+        seasons: dict[str, float],
+        family: str,
+        similarities: dict[str, float] | None = None,
+    ) -> HybridFragrance:
+        return HybridFragrance(
+            fragrance={
+                "id": fragrance_id,
+                "name": name,
+                "concentration": "EDP",
+                "release_year": 2024,
+                "image_blob_path": None,
+                "image_url": None,
+                "gender": "unisex",
+                "olfactory_family": family,
+                "rating_average": 4.5,
+                "rating_count": 10,
+                "top_accords": list(accords),
+                "longevity_score": 8.0,
+                "projection_level": "moderate",
+                "brand": {
+                    "id": "00000000-0000-4000-8000-000000000099",
+                    "name": "House",
+                    "slug": "house",
+                    "country": None,
+                },
+                "is_custom": False,
+            },
+            accords=accords,
+            notes=notes,
+            seasons=seasons,
+            family=family,
+            similarities=similarities or {},
+        )
+
+    first = feature(
+        "00000000-0000-4000-8000-000000000010",
+        "First",
+        accords={"citrus": 1.0},
+        notes={"bergamot": 1.0},
+        seasons={"spring": 0.8},
+        family="citrus",
+    )
+    second = feature(
+        "00000000-0000-4000-8000-000000000011",
+        "Second",
+        accords={"woody": 1.0},
+        notes={"cedar": 1.0},
+        seasons={"spring": 0.6},
+        family="woody",
+    )
+    candidate = feature(
+        "00000000-0000-4000-8000-000000000012",
+        "Candidate",
+        accords={"citrus": 0.7, "green": 0.3},
+        notes={"bergamot": 1.0},
+        seasons={"summer": 0.7},
+        family="green",
+        similarities={str(first.fragrance.id): 0.2},
+    )
+    request = RecommendationJobInput(
+        job_id="00000000-0000-4000-8000-000000000001",
+        input_version=1,
+        catalog_version="catalog-a",
+        collection=[],
+        owned=[first, second],
+        candidates=[candidate],
+    )
+
+    result = process_recommendation(request)
+
+    assert result["discovery"][0]["fragrance"]["name"] == "Candidate"
+    assert result["discovery"][0]["taste_match"] == 0.85
+    assert set(result["layering"]) == {"safe", "contrast", "experimental"}
+    assert all(len(suggestions) == 1 for suggestions in result["layering"].values())
