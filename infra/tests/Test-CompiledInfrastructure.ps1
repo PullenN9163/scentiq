@@ -193,8 +193,10 @@ if ($Mode -eq 'dev') {
     $queueAssignments = @($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.QueueContributor })
     $keyVaultAssignments = @($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser })
     Assert-True ($acrPullAssignments.Count -eq 4 -and @($acrPullAssignments | Where-Object { $_.scope -notmatch 'Microsoft.ContainerRegistry/registries' }).Count -eq 0) 'API, web, migration, and deployment identities must receive AcrPull or AcrPush only at the registry scope'
-    Assert-True ($blobAssignments.Count -eq 3 -and @($blobAssignments | Where-Object { $_.scope -notmatch 'Microsoft.Storage/storageAccounts' }).Count -eq 0) 'API and optional hybrid worker identities must receive Storage Blob Data Contributor only at the storage account scope'
-    Assert-True ($queueAssignments.Count -eq 2 -and @($queueAssignments | Where-Object { $_.scope -notmatch 'Microsoft.Storage/storageAccounts' }).Count -eq 0) 'API and optional hybrid worker identities must receive Storage Queue Data Contributor only at the storage account scope'
+    Assert-True ($blobAssignments.Count -eq 3 -and @($blobAssignments | Where-Object { $_.scope -notmatch 'Microsoft.Storage/storageAccounts' }).Count -eq 0) 'blob role assignments must stay within storage resources'
+    Assert-True ((@($blobAssignments | Where-Object { $_.properties.principalId -eq "[parameters('hybridWorkerPrincipalId')]" -and $_.scope -match "blobServices/containers'.+'system'" }).Count) -eq 1) 'the hybrid worker blob role must be scoped to the system container'
+    Assert-True ($queueAssignments.Count -eq 4 -and @($queueAssignments | Where-Object { $_.scope -notmatch 'Microsoft.Storage/storageAccounts' }).Count -eq 0) 'queue role assignments must stay within storage resources'
+    Assert-True ((@($queueAssignments | Where-Object { $_.properties.principalId -eq "[parameters('hybridWorkerPrincipalId')]" -and $_.scope -match "queueServices/queues'.+'hybrid-" }).Count) -eq 3) 'the hybrid worker queue roles must be scoped to the three hybrid queues'
     # The web tier now holds the Clerk server credentials and the internal
     # service token, so it reads the vault as well. Access stays scope
     # restricted: every Key Vault Secrets User assignment must target the vault.
@@ -309,6 +311,7 @@ if ($Mode -eq 'dev') {
     $scheduledAlerts = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/scheduledQueryRules' })
     $alertingDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'alerting-' }) | Select-Object -First 1
     Assert-True ($null -ne $alertingDeployment -and $alertingDeployment.properties.parameters.workspaceResourceId.value -eq "[reference('monitoring').outputs.workspaceResourceId.value]" -and $alertingDeployment.properties.parameters.applicationInsightsResourceId.value -eq "[reference('monitoring').outputs.applicationInsightsResourceId.value]" -and $alertingDeployment.properties.parameters.actionGroupId.value -eq "[parameters('actionGroupId')]") 'alerting must receive the exact adopted workspace and Application Insights IDs plus the managed action group'
+    Assert-True ($alertingDeployment.properties.parameters.enableHybridBridge.value -eq "[parameters('deployApplications')]") 'hybrid bridge diagnostics and alerts must be gated with the bridge deployment'
     Assert-True ($null -ne $alertingDeployment -and $alertingDeployment.properties.template.variables.runbookPath -eq 'docs/runbooks/azure-deployment.md#monitoring-alerts') 'every observability alert must use the matching checked-in runbook path'
     $expectedScheduledAlerts = @{
         'scentiq-availability' = @{ severity = 1; window = 'PT5M'; frequency = 'PT5M'; threshold = 0; minimumPeriods = 2; evaluationPeriods = 2; scope = "[parameters('workspaceResourceId')]" }
@@ -599,7 +602,7 @@ if ($Mode -eq 'dev') {
     Assert-EmptyArrayProperty $managedStorage 'properties.networkAcls.virtualNetworkRules' 'the adopted storage account preservation baseline'
     Assert-True ($null -ne $managedStorage -and $managedStorage.properties.networkAcls.ipRules.Count -eq 0 -and $managedStorage.properties.networkAcls.resourceAccessRules.Count -eq 0 -and $managedStorage.properties.networkAcls.virtualNetworkRules.Count -eq 0) 'the adopted storage account preservation baseline must retain observed empty ACL collections'
 
-    $blobService = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/blobServices' }) | Select-Object -First 1
+    $blobService = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/blobServices' -and $null -ne $_.properties.isVersioningEnabled }) | Select-Object -First 1
     Assert-True ($null -ne $blobService -and $blobService.properties.isVersioningEnabled -eq $true -and $blobService.properties.changeFeed.enabled -eq $true) 'the Blob service must enable versioning and change feed'
     Assert-True ($null -ne $blobService -and $blobService.properties.deleteRetentionPolicy.enabled -eq $true -and $blobService.properties.deleteRetentionPolicy.days -eq 14) 'the Blob service must retain soft-deleted blobs for fourteen days'
     Assert-True ($null -ne $blobService -and $blobService.properties.containerDeleteRetentionPolicy.enabled -eq $true -and $blobService.properties.containerDeleteRetentionPolicy.days -eq 14) 'the Blob service must retain soft-deleted containers for fourteen days'
@@ -615,7 +618,7 @@ if ($Mode -eq 'dev') {
         'properties.isVersioningEnabled' = $true
     } 'the Blob service preservation baseline'
 
-    $storageContainers = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/blobServices/containers' })
+    $storageContainers = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/blobServices/containers' } | Sort-Object name -Unique)
     Assert-True ($storageContainers.Count -eq 3 -and @($storageContainers | Where-Object { -not $_.existing }).Count -eq 0) 'existing private Blob containers must use adoption references so deployment does not reset container metadata'
     foreach ($containerName in @('uploads', 'exports', 'system')) {
         Assert-True ((@($storageContainers | Where-Object { $_.name -match [regex]::Escape("'$containerName'") }).Count) -eq 1) "storage must declare the $containerName container"
@@ -628,7 +631,7 @@ if ($Mode -eq 'dev') {
     $hybridPayloadRule = $storagePolicy.properties.policy.rules | Where-Object { $_.name -eq 'delete-hybrid-job-payloads-after-two-days' } | Select-Object -First 1
     Assert-True ($null -ne $hybridPayloadRule -and $hybridPayloadRule.definition.filters.prefixMatch.Count -eq 1 -and $hybridPayloadRule.definition.filters.prefixMatch[0] -eq 'system/hybrid/jobs/' -and $hybridPayloadRule.definition.actions.baseBlob.delete.daysAfterModificationGreaterThan -eq 2) 'hybrid job payloads must be deleted after two days'
 
-    $hybridQueues = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/queueServices/queues' })
+    $hybridQueues = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/queueServices/queues' } | Sort-Object name -Unique)
     Assert-True ($hybridQueues.Count -eq 3) 'storage must declare the jobs, results, and poison queues'
 
     $newKeyVault = @($resources | Where-Object {

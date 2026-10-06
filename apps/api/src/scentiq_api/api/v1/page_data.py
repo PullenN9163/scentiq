@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Annotated
 from uuid import UUID
 
@@ -20,6 +21,7 @@ from scentiq_api.schemas import (
     DashboardPageResponse,
     FragrancePageResponse,
     LayeringPageResponse,
+    OccasionResponse,
     SeasonResponse,
     WeekFragrance,
     WeekPageResponse,
@@ -41,6 +43,10 @@ from scentiq_api.services import (
 def create_page_data_router(
     get_session: object,
     current_user: CurrentUserDependency,
+    *,
+    catalog_version: str,
+    algorithm_version: str,
+    max_age_seconds: int,
 ) -> APIRouter:
     router = APIRouter(prefix="/page-data", tags=["page-data"])
 
@@ -52,6 +58,9 @@ def create_page_data_router(
             HybridJobService(HybridJobRepository(session)),
             DiscoveryService(DiscoveryRepository(session)),
             LayeringService(LayeringRepository(session)),
+            catalog_version=catalog_version,
+            algorithm_version=algorithm_version,
+            max_age=timedelta(seconds=max_age_seconds),
         )
 
     def wears(session: Session) -> WearLogService:
@@ -62,11 +71,14 @@ def create_page_data_router(
         session: Annotated[Session, Depends(get_session)],
         user: Annotated[AuthenticatedUser, Depends(current_user)],
     ) -> DashboardPageResponse:
-        return DashboardPageResponse(
-            me=ProfileService(UserRepository(session)).get(user.user_id),
+        me = ProfileService(UserRepository(session)).get(user.user_id)
+        response = DashboardPageResponse(
+            me=me,
             insights=InsightsService(InsightsRepository(session)).for_user(user.user_id),
             recent_wears=wears(session).list_for_user(user.user_id, limit=10),
         )
+        session.commit()
+        return response
 
     @router.get("/layering", response_model=LayeringPageResponse)
     def layering(
@@ -85,19 +97,25 @@ def create_page_data_router(
         session: Annotated[Session, Depends(get_session)],
         user: Annotated[AuthenticatedUser, Depends(current_user)],
     ) -> WeekPageResponse:
+        me = ProfileService(UserRepository(session)).get(user.user_id)
         owned_ids = {
             item.fragrance_id
             for item in CollectionRepository(session).list_for_user(user.user_id)
             if item.status == "owned"
         }
         fragrances = FragranceRepository(session).get_many(user.user_id, owned_ids)
-        return WeekPageResponse(
+        response = WeekPageResponse(
+            me=me,
             owned=[
                 WeekFragrance(
                     **to_fragrance_summary(item).model_dump(),
                     seasons=[
                         SeasonResponse(season=link.season, weight=float(link.weight))
                         for link in item.seasons
+                    ],
+                    occasions=[
+                        OccasionResponse(occasion=link.occasion, weight=float(link.weight))
+                        for link in item.occasions
                     ],
                     community=(
                         CommunityResponse.model_validate(item.community, from_attributes=True)
@@ -106,8 +124,10 @@ def create_page_data_router(
                     ),
                 )
                 for item in fragrances
-            ]
+            ],
         )
+        session.commit()
+        return response
 
     @router.get("/fragrances/{fragrance_id}", response_model=FragrancePageResponse)
     def fragrance(

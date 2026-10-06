@@ -1,4 +1,6 @@
-from uuid import uuid4
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
 from domain_fixtures import make_brand, make_fragrance, make_user
 from sqlalchemy import select
@@ -28,11 +30,22 @@ def _service(session: Session) -> HybridJobService:
     return HybridJobService(HybridJobRepository(session))
 
 
-def _recommendations(session: Session) -> RecommendationService:
+def _recommendations(
+    session: Session,
+    *,
+    catalog_version: str = "catalog-a",
+    algorithm_version: str = "1",
+    max_age: timedelta = timedelta(hours=6),
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> RecommendationService:
     return RecommendationService(
         _service(session),
         DiscoveryService(DiscoveryRepository(session)),
         LayeringService(LayeringRepository(session)),
+        catalog_version=catalog_version,
+        algorithm_version=algorithm_version,
+        max_age=max_age,
+        clock=clock,
     )
 
 
@@ -126,7 +139,7 @@ def test_collection_mutation_invalidates_recommendations(session: Session) -> No
 def test_preference_mutation_invalidates_recommendations(session: Session) -> None:
     user = make_user(session, email="member@example.com")
     jobs = _service(session)
-    profile = ProfileService(UserRepository(session), jobs)
+    profile = ProfileService(UserRepository(session), hybrid_jobs=jobs)
 
     profile.replace_preferences(user.id, PreferencesUpdateRequest(preferred_season="fall"))
 
@@ -172,3 +185,147 @@ def test_recommendations_fall_back_and_queue_initial_refresh(session: Session) -
     assert job is not None
     assert job.input_version == 0
     assert job.reason == "cache_miss"
+
+
+def test_terminal_job_is_retried_only_up_to_bound(session: Session) -> None:
+    user = make_user(session, email="member@example.com")
+    service = _service(session)
+    job = service.ensure_recommendation_job(user.id, input_version=0, reason="cache_miss")
+    service.mark_poisoned(
+        job.id, execution_id=None, error_code="processing_failed", dequeue_count=5
+    )
+
+    retried = service.ensure_recommendation_job(user.id, input_version=0, reason="retry")
+
+    assert retried.id == job.id
+    assert retried.status == "pending"
+    assert retried.attempt_count == 1
+    assert job.execution_id is not None
+    service.mark_poisoned(
+        job.id,
+        execution_id=UUID(job.execution_id),
+        error_code="processing_failed",
+        dequeue_count=5,
+    )
+    service.ensure_recommendation_job(user.id, input_version=0, reason="retry")
+    assert job.execution_id is not None
+    service.mark_poisoned(
+        job.id,
+        execution_id=UUID(job.execution_id),
+        error_code="processing_failed",
+        dequeue_count=5,
+    )
+    retained = service.ensure_recommendation_job(user.id, input_version=0, reason="retry")
+    assert retained.status == "poisoned"
+    assert retained.attempt_count == 3
+    assert retained.last_dequeue_count == 5
+
+
+def test_snapshot_version_and_age_mismatch_trigger_refresh(session: Session) -> None:
+    now = datetime(2026, 10, 6, 12, tzinfo=UTC)
+    user = make_user(session, email="member@example.com")
+    jobs = _service(session)
+    job = jobs.invalidate_recommendations(user.id, reason="collection_changed")
+    snapshot = jobs.promote_recommendation_result(
+        job.id,
+        payload={"discovery": [], "layering": {}},
+        algorithm_version="old",
+        catalog_version="catalog-a",
+    )
+    assert snapshot is not None
+    snapshot.created_at = now - timedelta(hours=7)
+
+    response = _recommendations(session, clock=lambda: now).get(user.id)
+
+    assert response.is_stale is True
+    assert response.refresh_status == "pending"
+    assert job.status == "pending"
+
+
+def test_refresh_overwrites_snapshot_for_same_input_version(session: Session) -> None:
+    user = make_user(session, email="member@example.com")
+    service = _service(session)
+    job = service.invalidate_recommendations(user.id, reason="collection_changed")
+    first = service.promote_recommendation_result(
+        job.id,
+        payload={"discovery": [], "layering": {}},
+        algorithm_version="old",
+        catalog_version="catalog-a",
+    )
+    assert first is not None
+    service.ensure_recommendation_job(
+        user.id, input_version=1, reason="stale_snapshot", force_refresh=True
+    )
+    assert job.execution_id is not None
+
+    second = service.promote_recommendation_result(
+        job.id,
+        execution_id=UUID(job.execution_id),
+        payload={"discovery": [{"score": 1}], "layering": {}},
+        algorithm_version="1",
+        catalog_version="catalog-b",
+    )
+
+    assert second is first
+    assert second.payload["discovery"] == [{"score": 1}]
+    assert second.algorithm_version == "1"
+    assert second.catalog_version == "catalog-b"
+
+
+def test_invalid_snapshot_forces_succeeded_job_back_to_pending(session: Session) -> None:
+    user = make_user(session, email="member@example.com")
+    service = _service(session)
+    job = service.invalidate_recommendations(user.id, reason="collection_changed")
+    service.promote_recommendation_result(
+        job.id,
+        payload={"not": "a recommendation bundle"},
+        algorithm_version="1",
+        catalog_version="catalog-a",
+    )
+
+    response = _recommendations(session).get(user.id)
+
+    assert response.refresh_status == "fallback"
+    assert job.status == "pending"
+    assert job.reason == "invalid_snapshot"
+
+
+def test_delayed_result_from_prior_execution_cannot_overwrite_refresh(session: Session) -> None:
+    user = make_user(session, email="member@example.com")
+    service = _service(session)
+    job = service.invalidate_recommendations(user.id, reason="collection_changed")
+    old_execution = uuid4()
+    job.execution_id = str(old_execution)
+    snapshot = service.promote_recommendation_result(
+        job.id,
+        execution_id=old_execution,
+        payload={"discovery": [], "layering": {}},
+        algorithm_version="old",
+        catalog_version="catalog-a",
+    )
+    assert snapshot is not None
+    service.ensure_recommendation_job(
+        user.id, input_version=1, reason="stale_snapshot", force_refresh=True
+    )
+    assert job.execution_id is not None
+    new_execution = UUID(job.execution_id)
+
+    delayed = service.promote_recommendation_result(
+        job.id,
+        execution_id=old_execution,
+        payload={"discovery": [{"stale": True}], "layering": {}},
+        algorithm_version="old",
+        catalog_version="catalog-a",
+    )
+
+    assert delayed is None
+    assert snapshot.payload["discovery"] == []
+    poisoned = service.mark_poisoned(
+        job.id,
+        execution_id=old_execution,
+        error_code="processing_failed",
+        dequeue_count=5,
+    )
+    assert poisoned is None
+    assert job.status == "pending"
+    assert job.execution_id == str(new_execution)

@@ -380,6 +380,91 @@ export interface paths {
         patch: operations["update_preferences_api_v1_me_preferences_patch"];
         trace?: never;
     };
+    "/api/v1/page-data/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dashboard */
+        get: operations["dashboard_api_v1_page_data_dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/page-data/fragrances/{fragrance_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fragrance */
+        get: operations["fragrance_api_v1_page_data_fragrances__fragrance_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/page-data/layering": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Layering */
+        get: operations["layering_api_v1_page_data_layering_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/page-data/week": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Week */
+        get: operations["week_api_v1_page_data_week_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recommendations */
+        get: operations["recommendations_api_v1_recommendations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/wear-logs": {
         parameters: {
             query?: never;
@@ -811,6 +896,13 @@ export interface components {
             /** Label */
             label: string;
         };
+        /** DashboardPageResponse */
+        DashboardPageResponse: {
+            insights: components["schemas"]["CollectionInsightsResponse"];
+            me: components["schemas"]["MeResponse"];
+            /** Recent Wears */
+            recent_wears: components["schemas"]["WearLogResponse"][];
+        };
         /** DeletionResponse */
         DeletionResponse: {
             /**
@@ -944,6 +1036,13 @@ export interface components {
             /** Top Accords */
             top_accords?: string[];
         };
+        /** FragrancePageResponse */
+        FragrancePageResponse: {
+            collection_item?: components["schemas"]["CollectionItemResponse"] | null;
+            fragrance: components["schemas"]["FragranceDetail"];
+            /** Recent Wears */
+            recent_wears?: components["schemas"]["WearLogResponse"][];
+        };
         /** FragranceSummary */
         FragranceSummary: {
             brand: components["schemas"]["BrandResponse"];
@@ -986,6 +1085,21 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** LayeringPageResponse */
+        LayeringPageResponse: {
+            /** Collection */
+            collection: components["schemas"]["CollectionItemResponse"][];
+            recommendations: components["schemas"]["RecommendationBundleResponse"];
+        };
+        /** LayeringRecommendationPayload */
+        LayeringRecommendationPayload: {
+            /** Contrast */
+            contrast?: components["schemas"]["LayeringSuggestion"][];
+            /** Experimental */
+            experimental?: components["schemas"]["LayeringSuggestion"][];
+            /** Safe */
+            safe?: components["schemas"]["LayeringSuggestion"][];
         };
         /** LayeringSuggestion */
         LayeringSuggestion: {
@@ -1155,6 +1269,27 @@ export interface components {
             /** Temperature Unit */
             temperature_unit?: ("celsius" | "fahrenheit") | null;
         };
+        /** RecommendationBundleResponse */
+        RecommendationBundleResponse: {
+            /** Generated At */
+            generated_at?: string | null;
+            /** Input Version */
+            input_version: number;
+            /** Is Stale */
+            is_stale: boolean;
+            payload: components["schemas"]["RecommendationPayload"];
+            /**
+             * Refresh Status
+             * @enum {string}
+             */
+            refresh_status: "fresh" | "pending" | "fallback";
+        };
+        /** RecommendationPayload */
+        RecommendationPayload: {
+            /** Discovery */
+            discovery?: components["schemas"]["DiscoveryResult"][];
+            layering: components["schemas"]["LayeringRecommendationPayload"];
+        };
         /** SeasonResponse */
         SeasonResponse: {
             /**
@@ -1264,6 +1399,55 @@ export interface components {
             temperature_unit: "celsius" | "fahrenheit";
             /** Timezone */
             timezone?: string | null;
+        };
+        /** WeekFragrance */
+        WeekFragrance: {
+            brand: components["schemas"]["BrandResponse"];
+            community?: components["schemas"]["CommunityResponse"] | null;
+            /** Concentration */
+            concentration: string | null;
+            /** Gender */
+            gender?: ("male" | "female" | "unisex") | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Blob Path */
+            image_blob_path: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /**
+             * Is Custom
+             * @default false
+             */
+            is_custom: boolean;
+            /** Longevity Score */
+            longevity_score: number | null;
+            /** Name */
+            name: string;
+            /** Occasions */
+            occasions?: components["schemas"]["OccasionResponse"][];
+            /** Olfactory Family */
+            olfactory_family?: string | null;
+            /** Projection Level */
+            projection_level: ("intimate" | "moderate" | "strong") | null;
+            /** Rating Average */
+            rating_average?: number | null;
+            /** Rating Count */
+            rating_count?: number | null;
+            /** Release Year */
+            release_year: number | null;
+            /** Seasons */
+            seasons?: components["schemas"]["SeasonResponse"][];
+            /** Top Accords */
+            top_accords?: string[];
+        };
+        /** WeekPageResponse */
+        WeekPageResponse: {
+            me: components["schemas"]["MeResponse"];
+            /** Owned */
+            owned: components["schemas"]["WeekFragrance"][];
         };
         /** WeightedSlice */
         WeightedSlice: {
@@ -2056,6 +2240,163 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PreferencesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dashboard_api_v1_page_data_dashboard_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardPageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fragrance_api_v1_page_data_fragrances__fragrance_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                fragrance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FragrancePageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    layering_api_v1_page_data_layering_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LayeringPageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    week_api_v1_page_data_week_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeekPageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recommendations_api_v1_recommendations_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationBundleResponse"];
                 };
             };
             /** @description Validation Error */

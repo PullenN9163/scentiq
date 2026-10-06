@@ -87,6 +87,15 @@ class Settings(BaseSettings):
     integration_token_previous_keys: SecretStr | None = Field(
         default=None, validation_alias="INTEGRATION_TOKEN_PREVIOUS_KEYS"
     )
+    hybrid_catalog_version: str = Field(
+        default="catalog-v1", validation_alias="HYBRID_CATALOG_VERSION"
+    )
+    hybrid_algorithm_version: str = Field(default="v1", validation_alias="HYBRID_ALGORITHM_VERSION")
+    recommendation_max_age_seconds: int = Field(
+        default=21600,
+        gt=0,
+        validation_alias="RECOMMENDATION_MAX_AGE_SECONDS",
+    )
 
     @field_validator(
         "clerk_issuer",

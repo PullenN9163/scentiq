@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -16,10 +18,19 @@ class RecommendationService:
         jobs: HybridJobService,
         discovery: DiscoveryService,
         layering: LayeringService,
+        *,
+        catalog_version: str,
+        algorithm_version: str,
+        max_age: timedelta,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._jobs = jobs
         self._discovery = discovery
         self._layering = layering
+        self._catalog_version = catalog_version
+        self._algorithm_version = algorithm_version
+        self._max_age = max_age
+        self._clock = clock
 
     def get(self, user_id: UUID) -> RecommendationBundleResponse:
         input_version = self._jobs.current_input_version(user_id)
@@ -30,12 +41,21 @@ class RecommendationService:
             except ValidationError:
                 payload = None
             if payload is not None:
-                stale = snapshot.input_version != input_version
+                created_at = snapshot.created_at
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=UTC)
+                stale = (
+                    snapshot.input_version != input_version
+                    or snapshot.catalog_version != self._catalog_version
+                    or snapshot.algorithm_version != self._algorithm_version
+                    or self._clock() - created_at >= self._max_age
+                )
                 if stale:
                     self._jobs.ensure_recommendation_job(
                         user_id,
                         input_version=input_version,
                         reason="stale_snapshot",
+                        force_refresh=snapshot.input_version == input_version,
                     )
                 return RecommendationBundleResponse(
                     payload=payload,
@@ -48,7 +68,8 @@ class RecommendationService:
         self._jobs.ensure_recommendation_job(
             user_id,
             input_version=input_version,
-            reason="cache_miss",
+            reason="invalid_snapshot" if snapshot is not None else "cache_miss",
+            force_refresh=snapshot is not None,
         )
         payload = RecommendationPayload(
             discovery=self._discovery.discover(user_id),

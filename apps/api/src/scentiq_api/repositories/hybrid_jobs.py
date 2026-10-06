@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from scentiq_api.models import AsyncJob, RecommendationSnapshot, RecommendationState
+from scentiq_api.models import AsyncJob, RecommendationSnapshot, RecommendationState, User
 
 
 class HybridJobRepository:
@@ -13,7 +13,14 @@ class HybridJobRepository:
         self._session = session
 
     def state_for_update(self, user_id: UUID) -> RecommendationState:
-        state = self._session.get(RecommendationState, user_id)
+        # The user row exists before recommendation state and gives first-use
+        # invalidations a stable row to serialize on as well.
+        self._session.execute(select(User.id).where(User.id == user_id).with_for_update()).one()
+        state = self._session.scalar(
+            select(RecommendationState)
+            .where(RecommendationState.user_id == user_id)
+            .with_for_update()
+        )
         if state is None:
             state = RecommendationState(user_id=user_id, input_version=0)
             self._session.add(state)

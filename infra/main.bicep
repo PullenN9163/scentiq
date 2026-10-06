@@ -42,6 +42,9 @@ param migrationJobName string
 param hybridBridgeJobName string = '${apiAppName}-hybrid-bridge'
 @description('Optional Azure Arc managed identity principal for the home worker.')
 param hybridWorkerPrincipalId string = ''
+param hybridCatalogVersion string = 'catalog-v1'
+param hybridAlgorithmVersion string = 'v1'
+param recommendationMaxAgeSeconds int = 21600
 
 param apiImage string = 'scentiqacrdevus.azurecr.io/scentiq-api@sha256:63804207a705c4140ea2be122fc846a05a264beac35be55f29eac23f7d33ff7b'
 param webImage string = 'scentiqacrdevus.azurecr.io/scentiq-web@sha256:cd2bcadef061c1b9bf3933623a9de3aefd0b88868f1f6be09808296895ebb3d7'
@@ -191,6 +194,36 @@ resource storageResource 'Microsoft.Storage/storageAccounts@2023-05-01' existing
   name: storageName
 }
 
+resource blobServiceResource 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' existing = {
+  parent: storageResource
+  name: 'default'
+}
+
+resource systemContainerResource 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
+  parent: blobServiceResource
+  name: 'system'
+}
+
+resource queueServiceResource 'Microsoft.Storage/storageAccounts/queueServices@2023-05-01' existing = {
+  parent: storageResource
+  name: 'default'
+}
+
+resource hybridJobsQueueResource 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' existing = {
+  parent: queueServiceResource
+  name: 'hybrid-jobs'
+}
+
+resource hybridResultsQueueResource 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' existing = {
+  parent: queueServiceResource
+  name: 'hybrid-results'
+}
+
+resource hybridPoisonQueueResource 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' existing = {
+  parent: queueServiceResource
+  name: 'hybrid-jobs-poison'
+}
+
 resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
 }
@@ -267,8 +300,9 @@ resource apiQueueContributor 'Microsoft.Authorization/roleAssignments@2022-04-01
 }
 
 resource hybridWorkerBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(hybridWorkerPrincipalId)) {
-  name: guid(storageResource.id, hybridWorkerPrincipalId, storageBlobDataContributorRoleDefinitionId)
-  scope: storageResource
+  name: guid(systemContainerResource.id, hybridWorkerPrincipalId, storageBlobDataContributorRoleDefinitionId)
+  scope: systemContainerResource
+  dependsOn: [storage]
   properties: {
     principalId: hybridWorkerPrincipalId
     principalType: 'ServicePrincipal'
@@ -276,9 +310,32 @@ resource hybridWorkerBlobContributor 'Microsoft.Authorization/roleAssignments@20
   }
 }
 
-resource hybridWorkerQueueContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(hybridWorkerPrincipalId)) {
-  name: guid(storageResource.id, hybridWorkerPrincipalId, storageQueueDataContributorRoleDefinitionId)
-  scope: storageResource
+resource hybridWorkerJobsQueueContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(hybridWorkerPrincipalId)) {
+  name: guid(hybridJobsQueueResource.id, hybridWorkerPrincipalId, storageQueueDataContributorRoleDefinitionId)
+  scope: hybridJobsQueueResource
+  dependsOn: [storage]
+  properties: {
+    principalId: hybridWorkerPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: storageQueueDataContributorRoleDefinitionId
+  }
+}
+
+resource hybridWorkerResultsQueueContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(hybridWorkerPrincipalId)) {
+  name: guid(hybridResultsQueueResource.id, hybridWorkerPrincipalId, storageQueueDataContributorRoleDefinitionId)
+  scope: hybridResultsQueueResource
+  dependsOn: [storage]
+  properties: {
+    principalId: hybridWorkerPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: storageQueueDataContributorRoleDefinitionId
+  }
+}
+
+resource hybridWorkerPoisonQueueContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(hybridWorkerPrincipalId)) {
+  name: guid(hybridPoisonQueueResource.id, hybridWorkerPrincipalId, storageQueueDataContributorRoleDefinitionId)
+  scope: hybridPoisonQueueResource
+  dependsOn: [storage]
   properties: {
     principalId: hybridWorkerPrincipalId
     principalType: 'ServicePrincipal'
@@ -449,6 +506,9 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
     ]
     environmentVariables: [
       { name: 'SCENTIQ_ENV', value: environmentName }
+      { name: 'HYBRID_CATALOG_VERSION', value: hybridCatalogVersion }
+      { name: 'HYBRID_ALGORITHM_VERSION', value: hybridAlgorithmVersion }
+      { name: 'RECOMMENDATION_MAX_AGE_SECONDS', value: string(recommendationMaxAgeSeconds) }
       { name: 'CORS_ORIGINS', value: 'https://${webAppName}.${containerEnvironment.outputs.defaultDomain}' }
       { name: 'DEMO_USER_ID', value: '00000000-0000-4000-8000-000000000001' }
       { name: 'AZURE_CLIENT_ID', value: useExistingFoundation ? adoptedIdentity!.outputs.clientId : identity!.outputs.clientId }
@@ -541,6 +601,7 @@ module hybridBridge 'modules/scheduled-hybrid-bridge.bicep' = if (deployApplicat
     registryServer: registryLoginServer
     image: apiImage
     environmentName: environmentName
+    catalogVersion: hybridCatalogVersion
     storageAccountUrl: storageBlobEndpoint
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
     databaseSecretUri: databaseSecretUri
@@ -597,10 +658,12 @@ module alerting 'modules/alerting.bicep' = {
     apiAppName: apiAppName
     migrationJobName: migrationJobName
     hybridBridgeJobName: hybridBridgeJobName
+    enableHybridBridge: deployApplications
     postgresServerName: postgresServerName
     postgresLocation: postgresLocation
     commonTags: commonTags
   }
+  dependsOn: [hybridBridge]
 }
 
 output registryLoginServer string = registryLoginServer

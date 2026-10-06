@@ -4,30 +4,17 @@ import { ErrorState, LoadingState, UnavailableState } from "@/components/shared/
 import { DashboardView } from "@/features/dashboard/dashboard-view";
 import { ApiError } from "@/lib/server/api-client";
 import { eventsOn, localDate, safeTimeZone, type CalendarResult } from "@/lib/calendar";
-import {
-  getCalendarAround,
-  getInsights,
-  getMe,
-  getWearLogs,
-  getWeather,
-} from "@/lib/server/queries";
+import { getCalendarAround, getDashboardPage, getWeather } from "@/lib/server/queries";
 import type { WeatherResult } from "@/lib/weather";
-import type { CollectionInsights, Me, WearLogEntry } from "@/types/api";
+import type { DashboardPageData } from "@/types/api";
 
 async function DashboardBoundary() {
-  let me: Me;
-  let insights: CollectionInsights;
-  let recentWears: WearLogEntry[];
+  let page: DashboardPageData;
   let weather: WeatherResult;
   let calendar: CalendarResult;
-
   try {
-    // Weather and calendar report provider trouble as a state rather than
-    // throwing, so neither can fail the rest of the screen.
-    [me, insights, recentWears, weather, calendar] = await Promise.all([
-      getMe(),
-      getInsights(),
-      getWearLogs({ limit: 10 }),
+    [page, weather, calendar] = await Promise.all([
+      getDashboardPage(),
       getWeather(),
       getCalendarAround(),
     ]);
@@ -41,15 +28,13 @@ async function DashboardBoundary() {
     throw error;
   }
 
-  // The saved location's timezone decides what "today" means; UTC without one.
-  const timeZone = safeTimeZone(me.preferences.timezone);
+  const timeZone = safeTimeZone(page.me.preferences.timezone);
   const today = localDate(new Date(), timeZone);
-
   return (
     <DashboardView
-      me={me}
-      insights={insights}
-      recentWears={recentWears}
+      me={page.me}
+      insights={page.insights}
+      recentWears={page.recent_wears}
       weather={weather}
       calendar={eventsOn(calendar, today, timeZone)}
       timeZone={timeZone}

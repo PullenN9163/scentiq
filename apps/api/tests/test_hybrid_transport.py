@@ -1,17 +1,20 @@
 import json
 
+import pytest
 from domain_fixtures import make_brand, make_collection_item, make_fragrance, make_user
 from sqlalchemy.orm import Session
 
 from scentiq_api.hybrid import (
     AzureHybridTransport,
     HybridDispatcher,
+    HybridPoisonApplier,
     HybridResultApplier,
     HybridWorker,
     InMemoryHybridTransport,
 )
 from scentiq_api.hybrid.contracts import HybridFragrance, RecommendationJobInput
 from scentiq_api.hybrid.processor import process_recommendation
+from scentiq_api.hybrid.transport import HybridQueueMessage
 from scentiq_api.models import AsyncJob, RecommendationSnapshot
 from scentiq_api.repositories import HybridJobRepository
 from scentiq_api.services import HybridJobService
@@ -38,7 +41,7 @@ def test_dispatcher_uploads_minimal_member_input_and_enqueues_once(session: Sess
 
     session.refresh(job)
     assert job.status == "enqueued"
-    assert job.input_blob == f"hybrid/jobs/{job.id}/input.json"
+    assert job.input_blob == f"hybrid/jobs/{job.id}/{job.execution_id}/input.json"
     payload_text = transport.blobs[job.input_blob]
     payload = json.loads(payload_text)
     assert "private@example.com" not in payload_text
@@ -76,7 +79,7 @@ def test_worker_writes_result_and_acknowledges_job(session: Session) -> None:
     assert worker.process_next() is True
     assert transport.queues["hybrid-jobs"] == []
     assert len(transport.queues["hybrid-results"]) == 1
-    assert f"hybrid/jobs/{job.id}/result.json" in transport.blobs
+    assert f"hybrid/jobs/{job.id}/{job.execution_id}/result.json" in transport.blobs
 
 
 def test_worker_moves_malformed_input_to_poison_after_five_deliveries() -> None:
@@ -152,6 +155,33 @@ def test_result_applier_promotes_once_and_acknowledges_duplicates(session: Sessi
     assert transport.queues["hybrid-results"] == []
 
 
+def test_result_is_committed_before_queue_acknowledgement(session: Session) -> None:
+    job = _pending_job(session)
+
+    class FailingDeleteTransport(InMemoryHybridTransport):
+        def delete(self, queue: str, message: HybridQueueMessage) -> None:
+            if queue == "hybrid-results":
+                raise RuntimeError("queue unavailable")
+            super().delete(queue, message)
+
+    transport = FailingDeleteTransport()
+    HybridDispatcher(session, transport, catalog_version="catalog-a").dispatch_pending()
+    HybridWorker(
+        transport,
+        processor=lambda _: {"discovery": [], "layering": {}},
+        algorithm_version="1",
+    ).process_next()
+
+    with pytest.raises(RuntimeError, match="queue unavailable"):
+        HybridResultApplier(session, transport).apply_next()
+
+    session.expire_all()
+    stored_job = session.get(AsyncJob, job.id)
+    assert stored_job is not None
+    assert stored_job.status == "succeeded"
+    assert session.query(RecommendationSnapshot).filter_by(source_job_id=job.id).one()
+
+
 def test_result_applier_poison_handles_invalid_results(session: Session) -> None:
     transport = InMemoryHybridTransport()
     job_id = "00000000-0000-4000-8000-000000000001"
@@ -167,6 +197,49 @@ def test_result_applier_poison_handles_invalid_results(session: Session) -> None
     poison = json.loads(transport.queues["hybrid-jobs-poison"][0].body)
     assert poison["job_id"] == job_id
     assert poison["error_code"] == "invalid_job_result"
+
+
+def test_poison_applier_persists_terminal_job_state(session: Session) -> None:
+    job = _pending_job(session)
+    transport = InMemoryHybridTransport()
+    transport.enqueue(
+        "hybrid-jobs-poison",
+        {"job_id": str(job.id), "error_code": "processing_failed", "dequeue_count": 5},
+    )
+
+    assert HybridPoisonApplier(session, transport).apply_next() is True
+
+    session.refresh(job)
+    assert job.status == "poisoned"
+    assert job.error_code == "processing_failed"
+    assert job.attempt_count == 1
+    assert job.last_dequeue_count == 5
+    assert job.finished_at is not None
+    assert transport.queues["hybrid-jobs-poison"] == []
+
+    transport.enqueue(
+        "hybrid-jobs-poison",
+        {"job_id": str(job.id), "error_code": "processing_failed", "dequeue_count": 5},
+    )
+    assert HybridPoisonApplier(session, transport).apply_next() is True
+    session.refresh(job)
+    assert job.attempt_count == 1
+
+
+def test_poison_duplicate_does_not_regress_succeeded_job(session: Session) -> None:
+    job = _pending_job(session)
+    job.status = "succeeded"
+    transport = InMemoryHybridTransport()
+    transport.enqueue(
+        "hybrid-jobs-poison",
+        {"job_id": str(job.id), "error_code": "processing_failed", "dequeue_count": 5},
+    )
+
+    assert HybridPoisonApplier(session, transport).apply_next() is True
+
+    session.refresh(job)
+    assert job.status == "succeeded"
+    assert job.error_code is None
 
 
 def test_azure_transport_round_trips_json_through_injected_clients() -> None:

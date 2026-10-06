@@ -10,6 +10,7 @@ from scentiq_api.database import create_database_engine, create_session_factory
 from scentiq_api.hybrid import (
     AzureHybridTransport,
     HybridDispatcher,
+    HybridPoisonApplier,
     HybridResultApplier,
     HybridWorker,
 )
@@ -89,11 +90,15 @@ def _bridge(args: argparse.Namespace, settings: Settings) -> int:
                 catalog_version=args.catalog_version,
             ).dispatch_pending(limit=args.dispatch_limit)
             applier = HybridResultApplier(session, transport)
+            poison_applier = HybridPoisonApplier(session, transport)
             applied = 0
             while applied < args.result_limit and applier.apply_next():
                 applied += 1
+            poisoned = 0
+            while poisoned < args.result_limit and poison_applier.apply_next():
+                poisoned += 1
             session.commit()
-            print(json.dumps({"applied": applied, "dispatched": dispatched}))
+            print(json.dumps({"applied": applied, "dispatched": dispatched, "poisoned": poisoned}))
     finally:
         engine.dispose()
     return 0

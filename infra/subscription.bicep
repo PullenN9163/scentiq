@@ -65,6 +65,9 @@ param webAppName string
 param migrationJobName string
 param hybridBridgeJobName string = '${apiAppName}-hybrid-bridge'
 param hybridWorkerPrincipalId string = ''
+param hybridCatalogVersion string = 'catalog-v1'
+param hybridAlgorithmVersion string = 'v1'
+param recommendationMaxAgeSeconds int = 21600
 
 param apiImage string
 param webImage string
@@ -217,6 +220,9 @@ module platform 'main.bicep' = {
     migrationJobName: migrationJobName
     hybridBridgeJobName: hybridBridgeJobName
     hybridWorkerPrincipalId: hybridWorkerPrincipalId
+    hybridCatalogVersion: hybridCatalogVersion
+    hybridAlgorithmVersion: hybridAlgorithmVersion
+    recommendationMaxAgeSeconds: recommendationMaxAgeSeconds
     apiImage: apiImage
     webImage: webImage
     databaseSecretUri: databaseSecretUri

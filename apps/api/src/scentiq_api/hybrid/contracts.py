@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -44,6 +44,7 @@ class RecommendationJobInput(BaseModel):
 
     schema_version: Literal[1] = 1
     job_id: UUID
+    execution_id: UUID = Field(default_factory=uuid4)
     job_type: Literal["recommendation_bundle"] = "recommendation_bundle"
     input_version: int = Field(ge=0)
     catalog_version: str
@@ -58,6 +59,7 @@ class RecommendationJobResult(BaseModel):
 
     schema_version: Literal[1] = 1
     job_id: UUID
+    execution_id: UUID = Field(default_factory=uuid4)
     job_type: Literal["recommendation_bundle"] = "recommendation_bundle"
     input_version: int = Field(ge=0)
     algorithm_version: str
@@ -69,6 +71,7 @@ class JobPointer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     job_id: UUID
+    execution_id: UUID | None = None
     input_blob: str
 
 
@@ -76,6 +79,7 @@ class ResultPointer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     job_id: UUID
+    execution_id: UUID | None = None
     output_blob: str
 
 
@@ -83,5 +87,6 @@ class PoisonMessage(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     job_id: UUID
+    execution_id: UUID | None = None
     error_code: str
     dequeue_count: int

@@ -235,10 +235,12 @@ export interface LayeringPageData {
 
 export interface WeekFragrance extends FragranceSummary {
   seasons: { season: Season; weight: number }[];
+  occasions: { occasion: Occasion; weight: number }[];
   community: FragranceDetail["community"];
 }
 
 export interface WeekPageData {
+  me: Me;
   owned: WeekFragrance[];
 }
 

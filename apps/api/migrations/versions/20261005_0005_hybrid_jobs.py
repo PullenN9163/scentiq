@@ -1,7 +1,7 @@
 """Add durable hybrid jobs and recommendation snapshots.
 
-Revision ID: 20261005_0005
-Revises: 20260925_0004
+Revision ID: 20261005_0007
+Revises: 20260928_0006
 """
 
 from collections.abc import Sequence
@@ -9,8 +9,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "20261005_0005"
-down_revision: str | Sequence[str] | None = "20260925_0004"
+revision: str = "20261005_0007"
+down_revision: str | Sequence[str] | None = "20260928_0006"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -56,6 +56,8 @@ def upgrade() -> None:
         sa.Column("input_blob", sa.String(length=512), nullable=True),
         sa.Column("output_blob", sa.String(length=512), nullable=True),
         sa.Column("attempt_count", sa.Integer(), server_default="0", nullable=False),
+        sa.Column("last_dequeue_count", sa.Integer(), server_default="0", nullable=False),
+        sa.Column("execution_id", sa.String(length=36), nullable=True),
         sa.Column("error_code", sa.String(length=80), nullable=True),
         sa.Column("enqueued_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
@@ -89,6 +91,10 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "attempt_count >= 0",
             name=op.f("ck_async_jobs_attempt_count_nonnegative"),
+        ),
+        sa.CheckConstraint(
+            "last_dequeue_count >= 0",
+            name=op.f("ck_async_jobs_last_dequeue_count_nonnegative"),
         ),
         sa.ForeignKeyConstraint(
             ["user_id"],

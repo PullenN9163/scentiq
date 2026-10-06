@@ -18,7 +18,7 @@ Patch the VM, enable automatic security updates, and create a non-login `scentiq
 ## Azure identity and RBAC
 
 1. Onboard the Ubuntu VM as an Azure Arc-enabled server and confirm its system-assigned managed identity is active.
-2. Set `hybridWorkerPrincipalId` to the Arc machine identity's object ID in the environment deployment parameters. Deploying the Bicep grants only Storage Blob Data Contributor and Storage Queue Data Contributor on the ScentIQ storage account.
+2. Set `hybridWorkerPrincipalId` to the Arc machine identity's object ID in the environment deployment parameters. Deploying the Bicep grants Storage Blob Data Contributor only on the private `system` container and Storage Queue Data Contributor only on the three hybrid queues.
 3. Add the service account to the local group authorized to read the Azure Arc managed-identity challenge token, then restart its session. Do not loosen permissions on `/var/opt/azcmagent/tokens`.
 4. Verify token acquisition from the VM before enabling the service. Azure Arc exposes its local identity endpoint on port 40342; the service environment explicitly selects `ManagedIdentityCredential`.
 

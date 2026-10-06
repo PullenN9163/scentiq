@@ -13,7 +13,7 @@ import { rankFragrances } from "@/lib/catalog-ranking";
 import { toneFor } from "@/lib/tone";
 import { conditionLabel, formatTemperature, type WeatherResult } from "@/lib/weather";
 import { contextFor, type PlanDay } from "@/lib/week";
-import type { FragranceDetail, TemperatureUnit } from "@/types/api";
+import type { TemperatureUnit, WeekFragrance } from "@/types/api";
 
 function dayLabel(date: string, options: Intl.DateTimeFormatOptions): string {
   return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { ...options, timeZone: "UTC" });
@@ -33,7 +33,7 @@ export function WeekPlanner({
   calendarStatus,
   needsReconnect = false,
 }: {
-  owned: FragranceDetail[];
+  owned: WeekFragrance[];
   days: PlanDay[];
   timeZone: string;
   temperatureUnit: TemperatureUnit;

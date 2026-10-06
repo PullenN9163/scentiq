@@ -16,8 +16,8 @@ from scentiq_api.schemas import (
     PreferencesResponse,
     PreferencesUpdateRequest,
 )
-from scentiq_api.services.weather import location_not_found, resolve_place
 from scentiq_api.services.hybrid_jobs import HybridJobService
+from scentiq_api.services.weather import location_not_found, resolve_place
 
 # How long a deletion-pending user waits before reconciliation cleans it up.
 RECONCILIATION_GRACE = timedelta(hours=24)

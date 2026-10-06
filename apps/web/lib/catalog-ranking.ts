@@ -1,4 +1,4 @@
-import type { FragranceDetail, Occasion, Projection, Season } from "@/types/api";
+import type { Occasion, Projection, Season, WeekFragrance } from "@/types/api";
 
 const projectionScores: Record<Projection, number> = {
   intimate: 0.35,
@@ -23,10 +23,10 @@ export function seasonForMonth(month: number): Season {
 
 /** Rank catalog-backed collection details with only recorded recommendation signals. */
 export function rankFragrances(
-  fragrances: FragranceDetail[],
+  fragrances: WeekFragrance[],
   context: RankingContext,
-): FragranceDetail[] {
-  const score = (fragrance: FragranceDetail) => {
+): WeekFragrance[] {
+  const score = (fragrance: WeekFragrance) => {
     const season = fragrance.seasons.find((entry) => entry.season === context.season)?.weight ?? 0;
     const dayVotes = fragrance.community?.day_votes ?? 0;
     const nightVotes = fragrance.community?.night_votes ?? 0;

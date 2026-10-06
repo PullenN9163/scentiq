@@ -4,6 +4,7 @@ from scentiq_api.schemas.catalog import (
     CommunityResponse,
     FragranceDetail,
     FragranceSummary,
+    OccasionResponse,
     SeasonResponse,
 )
 from scentiq_api.schemas.collection import CollectionItemResponse
@@ -26,10 +27,12 @@ class LayeringPageResponse(BaseModel):
 
 class WeekFragrance(FragranceSummary):
     seasons: list[SeasonResponse] = Field(default_factory=list)
+    occasions: list[OccasionResponse] = Field(default_factory=list)
     community: CommunityResponse | None = None
 
 
 class WeekPageResponse(BaseModel):
+    me: MeResponse
     owned: list[WeekFragrance]
 
 

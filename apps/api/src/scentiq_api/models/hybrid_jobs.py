@@ -42,6 +42,7 @@ class AsyncJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         CheckConstraint("input_version IS NULL OR input_version >= 0", name="input_version_value"),
         CheckConstraint("attempt_count >= 0", name="attempt_count_nonnegative"),
+        CheckConstraint("last_dequeue_count >= 0", name="last_dequeue_count_nonnegative"),
     )
 
     job_type: Mapped[str] = mapped_column(String(40), index=True)
@@ -56,6 +57,8 @@ class AsyncJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     input_blob: Mapped[str | None] = mapped_column(String(512))
     output_blob: Mapped[str | None] = mapped_column(String(512))
     attempt_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_dequeue_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    execution_id: Mapped[str | None] = mapped_column(String(36))
     error_code: Mapped[str | None] = mapped_column(String(80))
     enqueued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

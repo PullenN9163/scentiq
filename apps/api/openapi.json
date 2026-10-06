@@ -1116,6 +1116,30 @@
         "title": "CountSlice",
         "type": "object"
       },
+      "DashboardPageResponse": {
+        "properties": {
+          "insights": {
+            "$ref": "#/components/schemas/CollectionInsightsResponse"
+          },
+          "me": {
+            "$ref": "#/components/schemas/MeResponse"
+          },
+          "recent_wears": {
+            "items": {
+              "$ref": "#/components/schemas/WearLogResponse"
+            },
+            "title": "Recent Wears",
+            "type": "array"
+          }
+        },
+        "required": [
+          "me",
+          "insights",
+          "recent_wears"
+        ],
+        "title": "DashboardPageResponse",
+        "type": "object"
+      },
       "DeletionResponse": {
         "properties": {
           "deletion_requested_at": {
@@ -1583,6 +1607,35 @@
         "title": "FragranceDetail",
         "type": "object"
       },
+      "FragrancePageResponse": {
+        "properties": {
+          "collection_item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CollectionItemResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fragrance": {
+            "$ref": "#/components/schemas/FragranceDetail"
+          },
+          "recent_wears": {
+            "items": {
+              "$ref": "#/components/schemas/WearLogResponse"
+            },
+            "title": "Recent Wears",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fragrance"
+        ],
+        "title": "FragrancePageResponse",
+        "type": "object"
+      },
       "FragranceSummary": {
         "properties": {
           "brand": {
@@ -1754,6 +1807,53 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LayeringPageResponse": {
+        "properties": {
+          "collection": {
+            "items": {
+              "$ref": "#/components/schemas/CollectionItemResponse"
+            },
+            "title": "Collection",
+            "type": "array"
+          },
+          "recommendations": {
+            "$ref": "#/components/schemas/RecommendationBundleResponse"
+          }
+        },
+        "required": [
+          "collection",
+          "recommendations"
+        ],
+        "title": "LayeringPageResponse",
+        "type": "object"
+      },
+      "LayeringRecommendationPayload": {
+        "properties": {
+          "contrast": {
+            "items": {
+              "$ref": "#/components/schemas/LayeringSuggestion"
+            },
+            "title": "Contrast",
+            "type": "array"
+          },
+          "experimental": {
+            "items": {
+              "$ref": "#/components/schemas/LayeringSuggestion"
+            },
+            "title": "Experimental",
+            "type": "array"
+          },
+          "safe": {
+            "items": {
+              "$ref": "#/components/schemas/LayeringSuggestion"
+            },
+            "title": "Safe",
+            "type": "array"
+          }
+        },
+        "title": "LayeringRecommendationPayload",
         "type": "object"
       },
       "LayeringSuggestion": {
@@ -2308,6 +2408,69 @@
         "title": "PreferencesUpdateRequest",
         "type": "object"
       },
+      "RecommendationBundleResponse": {
+        "properties": {
+          "generated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "input_version": {
+            "title": "Input Version",
+            "type": "integer"
+          },
+          "is_stale": {
+            "title": "Is Stale",
+            "type": "boolean"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RecommendationPayload"
+          },
+          "refresh_status": {
+            "enum": [
+              "fresh",
+              "pending",
+              "fallback"
+            ],
+            "title": "Refresh Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "payload",
+          "input_version",
+          "is_stale",
+          "refresh_status"
+        ],
+        "title": "RecommendationBundleResponse",
+        "type": "object"
+      },
+      "RecommendationPayload": {
+        "properties": {
+          "discovery": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryResult"
+            },
+            "title": "Discovery",
+            "type": "array"
+          },
+          "layering": {
+            "$ref": "#/components/schemas/LayeringRecommendationPayload"
+          }
+        },
+        "required": [
+          "layering"
+        ],
+        "title": "RecommendationPayload",
+        "type": "object"
+      },
       "SeasonResponse": {
         "properties": {
           "season": {
@@ -2625,6 +2788,210 @@
           "days"
         ],
         "title": "WeatherForecastResponse",
+        "type": "object"
+      },
+      "WeekFragrance": {
+        "properties": {
+          "brand": {
+            "$ref": "#/components/schemas/BrandResponse"
+          },
+          "community": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommunityResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "concentration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concentration"
+          },
+          "gender": {
+            "anyOf": [
+              {
+                "enum": [
+                  "male",
+                  "female",
+                  "unisex"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gender"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_blob_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Blob Path"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "is_custom": {
+            "default": false,
+            "title": "Is Custom",
+            "type": "boolean"
+          },
+          "longevity_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longevity Score"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "occasions": {
+            "items": {
+              "$ref": "#/components/schemas/OccasionResponse"
+            },
+            "title": "Occasions",
+            "type": "array"
+          },
+          "olfactory_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Olfactory Family"
+          },
+          "projection_level": {
+            "anyOf": [
+              {
+                "enum": [
+                  "intimate",
+                  "moderate",
+                  "strong"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projection Level"
+          },
+          "rating_average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating Average"
+          },
+          "rating_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating Count"
+          },
+          "release_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Year"
+          },
+          "seasons": {
+            "items": {
+              "$ref": "#/components/schemas/SeasonResponse"
+            },
+            "title": "Seasons",
+            "type": "array"
+          },
+          "top_accords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Top Accords",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "concentration",
+          "release_year",
+          "image_blob_path",
+          "longevity_score",
+          "projection_level",
+          "brand"
+        ],
+        "title": "WeekFragrance",
+        "type": "object"
+      },
+      "WeekPageResponse": {
+        "properties": {
+          "me": {
+            "$ref": "#/components/schemas/MeResponse"
+          },
+          "owned": {
+            "items": {
+              "$ref": "#/components/schemas/WeekFragrance"
+            },
+            "title": "Owned",
+            "type": "array"
+          }
+        },
+        "required": [
+          "me",
+          "owned"
+        ],
+        "title": "WeekPageResponse",
         "type": "object"
       },
       "WeightedSlice": {
@@ -4319,6 +4686,261 @@
         "summary": "Update Preferences",
         "tags": [
           "me"
+        ]
+      }
+    },
+    "/api/v1/page-data/dashboard": {
+      "get": {
+        "operationId": "dashboard_api_v1_page_data_dashboard_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardPageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dashboard",
+        "tags": [
+          "page-data"
+        ]
+      }
+    },
+    "/api/v1/page-data/fragrances/{fragrance_id}": {
+      "get": {
+        "operationId": "fragrance_api_v1_page_data_fragrances__fragrance_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fragrance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Fragrance Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FragrancePageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fragrance",
+        "tags": [
+          "page-data"
+        ]
+      }
+    },
+    "/api/v1/page-data/layering": {
+      "get": {
+        "operationId": "layering_api_v1_page_data_layering_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayeringPageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Layering",
+        "tags": [
+          "page-data"
+        ]
+      }
+    },
+    "/api/v1/page-data/week": {
+      "get": {
+        "operationId": "week_api_v1_page_data_week_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeekPageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Week",
+        "tags": [
+          "page-data"
+        ]
+      }
+    },
+    "/api/v1/recommendations": {
+      "get": {
+        "operationId": "recommendations_api_v1_recommendations_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationBundleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recommendations",
+        "tags": [
+          "recommendations"
         ]
       }
     },

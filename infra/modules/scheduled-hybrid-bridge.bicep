@@ -5,6 +5,7 @@ param identityId string
 param registryServer string
 param image string
 param environmentName string
+param catalogVersion string
 param storageAccountUrl string
 @secure()
 param applicationInsightsConnectionString string
@@ -42,7 +43,7 @@ resource job 'Microsoft.App/jobs@2025-01-01' = {
         name: 'hybrid-bridge'
         image: image
         command: ['.venv/bin/python']
-        args: ['-m', 'scentiq_api.hybrid', 'bridge', '--catalog-version', environmentName]
+        args: ['-m', 'scentiq_api.hybrid', 'bridge', '--catalog-version', catalogVersion]
         env: [
           { name: 'SCENTIQ_ENV', value: environmentName }
           { name: 'CORS_ORIGINS', value: 'https://localhost.invalid' }

@@ -74,20 +74,40 @@ def create_v1_router(
     router.include_router(create_collection_router(get_session, current_user))
     router.include_router(create_wear_log_router(get_session, current_user))
     router.include_router(create_insights_router(get_session, current_user))
-    router.include_router(create_recommendations_router(get_session, current_user))
-    router.include_router(create_page_data_router(get_session, current_user))
+    router.include_router(
+        create_recommendations_router(
+            get_session,
+            current_user,
+            catalog_version=settings.hybrid_catalog_version,
+            algorithm_version=settings.hybrid_algorithm_version,
+            max_age_seconds=settings.recommendation_max_age_seconds,
+        )
+    )
+    resolved_calendar_providers = (
+        calendar_providers
+        if calendar_providers is not None
+        else configured_calendar_providers(settings)
+    )
+    token_keys = settings.integration_token_keys
+    token_cipher = TokenCipher(token_keys) if token_keys else None
+    router.include_router(
+        create_page_data_router(
+            get_session,
+            current_user,
+            catalog_version=settings.hybrid_catalog_version,
+            algorithm_version=settings.hybrid_algorithm_version,
+            max_age_seconds=settings.recommendation_max_age_seconds,
+        )
+    )
     router.include_router(
         create_weather_router(get_session, current_user, resolved_weather_provider)
     )
-    token_keys = settings.integration_token_keys
     router.include_router(
         create_calendar_router(
             get_session,
             current_user,
-            calendar_providers
-            if calendar_providers is not None
-            else configured_calendar_providers(settings),
-            TokenCipher(token_keys) if token_keys else None,
+            resolved_calendar_providers,
+            token_cipher,
             settings.public_app_url,
         )
     )

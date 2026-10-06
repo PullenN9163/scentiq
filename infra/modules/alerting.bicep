@@ -8,6 +8,7 @@ param webAppName string
 param apiAppName string
 param migrationJobName string
 param hybridBridgeJobName string
+param enableHybridBridge bool
 param postgresServerName string
 param postgresLocation string
 param commonTags object
@@ -90,7 +91,7 @@ resource migrationDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-
   }
 }
 
-resource hybridBridgeDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+resource hybridBridgeDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (enableHybridBridge) {
   name: 'scentiq-hybrid-bridge-job-logs'
   scope: hybridBridgeJob
   properties: {
@@ -269,7 +270,7 @@ union isfuzzy=true ContainerAppSystemLogs_CL, AzureDiagnostics
   }
 }
 
-resource hybridBridgeFailureAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
+resource hybridBridgeFailureAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = if (enableHybridBridge) {
   name: 'scentiq-hybrid-bridge-failure-${environmentName}'
   location: location
   kind: 'LogAlert'
@@ -443,23 +444,21 @@ resource deploymentFailureAlert 'Microsoft.Insights/activityLogAlerts@2023-01-01
   }
 }
 
-output diagnosticSettingIds array = [
+output diagnosticSettingIds array = concat([
   environmentDiagnostics.id
   webMetricsDiagnostics.id
   apiMetricsDiagnostics.id
   migrationDiagnostics.id
-  hybridBridgeDiagnostics.id
-]
+], enableHybridBridge ? [hybridBridgeDiagnostics!.id] : [])
 
-output alertIds array = [
+output alertIds array = concat([
   availabilityAlert.id
   httpFailureRateAlert.id
   latencyAlert.id
   migrationFailureAlert.id
-  hybridBridgeFailureAlert.id
   postgresSaturationAlert.id
   postgresStorageAlert.id
   resourceHealthAlert.id
   serviceHealthAlert.id
   deploymentFailureAlert.id
-]
+], enableHybridBridge ? [hybridBridgeFailureAlert!.id] : [])
