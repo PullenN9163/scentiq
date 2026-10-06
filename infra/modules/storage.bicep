@@ -98,6 +98,26 @@ resource systemContainer 'Microsoft.Storage/storageAccounts/blobServices/contain
   name: 'system'
 }
 
+resource queueService 'Microsoft.Storage/storageAccounts/queueServices@2023-05-01' = {
+  parent: storage
+  name: 'default'
+}
+
+resource hybridJobsQueue 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
+  parent: queueService
+  name: 'hybrid-jobs'
+}
+
+resource hybridResultsQueue 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
+  parent: queueService
+  name: 'hybrid-results'
+}
+
+resource hybridPoisonQueue 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
+  parent: queueService
+  name: 'hybrid-jobs-poison'
+}
+
 resource managementPolicy 'Microsoft.Storage/storageAccounts/managementPolicies@2023-05-01' = {
   parent: storage
   name: 'default'
@@ -122,6 +142,28 @@ resource managementPolicy 'Microsoft.Storage/storageAccounts/managementPolicies@
               ]
               prefixMatch: [
                 'exports/temporary/'
+              ]
+            }
+          }
+        }
+        {
+          name: 'delete-hybrid-job-payloads-after-two-days'
+          enabled: true
+          type: 'Lifecycle'
+          definition: {
+            actions: {
+              baseBlob: {
+                delete: {
+                  daysAfterModificationGreaterThan: 2
+                }
+              }
+            }
+            filters: {
+              blobTypes: [
+                'blockBlob'
+              ]
+              prefixMatch: [
+                'system/hybrid/jobs/'
               ]
             }
           }
@@ -174,4 +216,9 @@ output containerIds object = {
   uploads: uploadsContainer.id
   exports: exportsContainer.id
   system: systemContainer.id
+}
+output hybridQueueIds object = {
+  jobs: hybridJobsQueue.id
+  results: hybridResultsQueue.id
+  poison: hybridPoisonQueue.id
 }

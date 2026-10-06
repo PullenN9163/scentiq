@@ -7,6 +7,7 @@ param containerEnvironmentName string
 param webAppName string
 param apiAppName string
 param migrationJobName string
+param hybridBridgeJobName string
 param postgresServerName string
 param postgresLocation string
 param commonTags object
@@ -31,6 +32,10 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' existing = {
 
 resource migrationJob 'Microsoft.App/jobs@2025-01-01' existing = {
   name: migrationJobName
+}
+
+resource hybridBridgeJob 'Microsoft.App/jobs@2025-01-01' existing = {
+  name: hybridBridgeJobName
 }
 
 resource environmentDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
@@ -76,6 +81,18 @@ resource apiMetricsDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01
 resource migrationDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   name: 'scentiq-migration-job-logs'
   scope: migrationJob
+  properties: {
+    workspaceId: workspaceResourceId
+    logs: []
+    metrics: [
+      { category: 'Basic', enabled: true }
+    ]
+  }
+}
+
+resource hybridBridgeDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'scentiq-hybrid-bridge-job-logs'
+  scope: hybridBridgeJob
   properties: {
     workspaceId: workspaceResourceId
     logs: []
@@ -252,6 +269,47 @@ union isfuzzy=true ContainerAppSystemLogs_CL, AzureDiagnostics
   }
 }
 
+resource hybridBridgeFailureAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
+  name: 'scentiq-hybrid-bridge-failure-${environmentName}'
+  location: location
+  kind: 'LogAlert'
+  tags: commonTags
+  properties: {
+    actions: {
+      actionGroups: [actionGroupId]
+    }
+    autoMitigate: true
+    criteria: {
+      allOf: [
+        {
+          query: replace('''
+union isfuzzy=true ContainerAppSystemLogs_CL, AzureDiagnostics
+| where _ResourceId == '__hybridBridgeJobResourceId__'
+| where tostring(Log_s) has_any ('Failed', 'TimedOut', 'Timeout')
+| summarize HybridBridgeFailureCount = count()
+''', '__hybridBridgeJobResourceId__', hybridBridgeJob.id)
+          timeAggregation: 'Maximum'
+          operator: 'GreaterThan'
+          threshold: 0
+          metricMeasureColumn: 'HybridBridgeFailureCount'
+          failingPeriods: {
+            minFailingPeriodsToAlert: 1
+            numberOfEvaluationPeriods: 1
+          }
+        }
+      ]
+    }
+    description: 'ScentIQ hybrid bridge job failed or timed out. Runbook: docs/runbooks/hybrid-worker.md'
+    displayName: 'ScentIQ hybrid bridge failure (${environmentName})'
+    enabled: true
+    evaluationFrequency: 'PT5M'
+    scopes: [workspaceScope]
+    severity: 2
+    skipQueryValidation: true
+    windowSize: 'PT5M'
+  }
+}
+
 resource postgresSaturationAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: 'scentiq-postgres-saturation-${environmentName}'
   location: 'global'
@@ -390,6 +448,7 @@ output diagnosticSettingIds array = [
   webMetricsDiagnostics.id
   apiMetricsDiagnostics.id
   migrationDiagnostics.id
+  hybridBridgeDiagnostics.id
 ]
 
 output alertIds array = [
@@ -397,6 +456,7 @@ output alertIds array = [
   httpFailureRateAlert.id
   latencyAlert.id
   migrationFailureAlert.id
+  hybridBridgeFailureAlert.id
   postgresSaturationAlert.id
   postgresStorageAlert.id
   resourceHealthAlert.id

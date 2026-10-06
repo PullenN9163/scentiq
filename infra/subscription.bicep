@@ -63,6 +63,8 @@ param applicationInsightsName string
 param apiAppName string
 param webAppName string
 param migrationJobName string
+param hybridBridgeJobName string = '${apiAppName}-hybrid-bridge'
+param hybridWorkerPrincipalId string = ''
 
 param apiImage string
 param webImage string
@@ -213,6 +215,8 @@ module platform 'main.bicep' = {
     apiAppName: apiAppName
     webAppName: webAppName
     migrationJobName: migrationJobName
+    hybridBridgeJobName: hybridBridgeJobName
+    hybridWorkerPrincipalId: hybridWorkerPrincipalId
     apiImage: apiImage
     webImage: webImage
     databaseSecretUri: databaseSecretUri

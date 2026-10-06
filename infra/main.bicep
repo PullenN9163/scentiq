@@ -39,6 +39,9 @@ param applicationInsightsName string
 param apiAppName string
 param webAppName string
 param migrationJobName string
+param hybridBridgeJobName string = '${apiAppName}-hybrid-bridge'
+@description('Optional Azure Arc managed identity principal for the home worker.')
+param hybridWorkerPrincipalId string = ''
 
 param apiImage string = 'scentiqacrdevus.azurecr.io/scentiq-api@sha256:63804207a705c4140ea2be122fc846a05a264beac35be55f29eac23f7d33ff7b'
 param webImage string = 'scentiqacrdevus.azurecr.io/scentiq-web@sha256:cd2bcadef061c1b9bf3933623a9de3aefd0b88868f1f6be09808296895ebb3d7'
@@ -194,6 +197,7 @@ resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
 
 var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var storageBlobDataContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+var storageQueueDataContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
 var keyVaultSecretsUserRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
 var contributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
 var roleBasedAccessControlAdministratorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f58310d9-a9f6-439a-9e8d-f62e7b41a168')
@@ -249,6 +253,36 @@ resource adoptedBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04
     principalId: identityPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: storageBlobDataContributorRoleDefinitionId
+  }
+}
+
+resource apiQueueContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageResource.id, identityName, storageQueueDataContributorRoleDefinitionId)
+  scope: storageResource
+  properties: {
+    principalId: useExistingFoundation ? identityPrincipalId : identity!.outputs.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: storageQueueDataContributorRoleDefinitionId
+  }
+}
+
+resource hybridWorkerBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(hybridWorkerPrincipalId)) {
+  name: guid(storageResource.id, hybridWorkerPrincipalId, storageBlobDataContributorRoleDefinitionId)
+  scope: storageResource
+  properties: {
+    principalId: hybridWorkerPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: storageBlobDataContributorRoleDefinitionId
+  }
+}
+
+resource hybridWorkerQueueContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(hybridWorkerPrincipalId)) {
+  name: guid(storageResource.id, hybridWorkerPrincipalId, storageQueueDataContributorRoleDefinitionId)
+  scope: storageResource
+  properties: {
+    principalId: hybridWorkerPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: storageQueueDataContributorRoleDefinitionId
   }
 }
 
@@ -497,6 +531,23 @@ module migration 'modules/migration-job.bicep' = if (deployMigration) {
   }
 }
 
+module hybridBridge 'modules/scheduled-hybrid-bridge.bicep' = if (deployApplications) {
+  name: 'hybrid-bridge-${environmentName}'
+  params: {
+    location: location
+    name: hybridBridgeJobName
+    environmentId: containerEnvironment.outputs.id
+    identityId: useExistingFoundation ? adoptedIdentity!.outputs.id : identity!.outputs.id
+    registryServer: registryLoginServer
+    image: apiImage
+    environmentName: environmentName
+    storageAccountUrl: storageBlobEndpoint
+    applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
+    databaseSecretUri: databaseSecretUri
+    commonTags: commonTags
+  }
+}
+
 // The adopted development web app already exists when workload deployment is
 // disabled. Referencing it lets synthetic monitoring be deployed without
 // mutating a workload revision.
@@ -545,6 +596,7 @@ module alerting 'modules/alerting.bicep' = {
     webAppName: webAppName
     apiAppName: apiAppName
     migrationJobName: migrationJobName
+    hybridBridgeJobName: hybridBridgeJobName
     postgresServerName: postgresServerName
     postgresLocation: postgresLocation
     commonTags: commonTags
@@ -567,6 +619,7 @@ output observabilityDiagnosticSettingIds array = alerting.outputs.diagnosticSett
 output apiFqdn string = deployApplications ? api!.outputs.fqdn : ''
 output webFqdn string = deployApplications ? web!.outputs.fqdn : ''
 output migrationJob string = deployMigration ? migration!.outputs.name : ''
+output hybridBridgeJob string = deployApplications ? hybridBridge!.outputs.name : ''
 output selectedNetworkMode string = networkMode
 output productionDeploymentApproved bool = productionApproved
 output postgresLockEnabled bool = enablePostgresLock
@@ -594,6 +647,7 @@ output storage object = {
   id: storage.outputs.id
   blobEndpoint: storage.outputs.blobEndpoint
   containerIds: storage.outputs.containerIds
+  hybridQueueIds: storage.outputs.hybridQueueIds
 }
 output keyVault object = {
   id: keyVault.outputs.id

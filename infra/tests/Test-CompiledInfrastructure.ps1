@@ -182,6 +182,7 @@ if ($Mode -eq 'dev') {
     $roleDefinitions = @{
         AcrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
         BlobContributor = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+        QueueContributor = '974c5e8b-45b9-4653-ba55-5f855dd0fb88'
         KeyVaultSecretsUser = '4633458b-17de-408a-b874-0445c86b69e6'
         Contributor = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
         RbacAdministrator = 'f58310d9-a9f6-439a-9e8d-f62e7b41a168'
@@ -189,9 +190,11 @@ if ($Mode -eq 'dev') {
     }
     $acrPullAssignments = @($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.AcrPull })
     $blobAssignments = @($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.BlobContributor })
+    $queueAssignments = @($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.QueueContributor })
     $keyVaultAssignments = @($roleAssignments | Where-Object { Test-RoleDefinition $_ $roleDefinitions.KeyVaultSecretsUser })
     Assert-True ($acrPullAssignments.Count -eq 4 -and @($acrPullAssignments | Where-Object { $_.scope -notmatch 'Microsoft.ContainerRegistry/registries' }).Count -eq 0) 'API, web, migration, and deployment identities must receive AcrPull or AcrPush only at the registry scope'
-    Assert-True ($blobAssignments.Count -eq 2 -and @($blobAssignments | Where-Object { $_.scope -notmatch 'Microsoft.Storage/storageAccounts' }).Count -eq 0) 'API identity must receive Storage Blob Data Contributor only at the storage account scope'
+    Assert-True ($blobAssignments.Count -eq 3 -and @($blobAssignments | Where-Object { $_.scope -notmatch 'Microsoft.Storage/storageAccounts' }).Count -eq 0) 'API and optional hybrid worker identities must receive Storage Blob Data Contributor only at the storage account scope'
+    Assert-True ($queueAssignments.Count -eq 2 -and @($queueAssignments | Where-Object { $_.scope -notmatch 'Microsoft.Storage/storageAccounts' }).Count -eq 0) 'API and optional hybrid worker identities must receive Storage Queue Data Contributor only at the storage account scope'
     # The web tier now holds the Clerk server credentials and the internal
     # service token, so it reads the vault as well. Access stays scope
     # restricted: every Key Vault Secrets User assignment must target the vault.
@@ -619,9 +622,14 @@ if ($Mode -eq 'dev') {
     }
 
     $storagePolicy = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/managementPolicies' }) | Select-Object -First 1
-    Assert-True ($null -ne $storagePolicy -and $storagePolicy.properties.policy.rules.Count -eq 1) 'storage must use one scoped lifecycle policy rule and rely on Azure garbage collection for uncommitted blocks'
+    Assert-True ($null -ne $storagePolicy -and $storagePolicy.properties.policy.rules.Count -eq 2) 'storage must use scoped lifecycle rules and rely on Azure garbage collection for uncommitted blocks'
     $temporaryExportsRule = $storagePolicy.properties.policy.rules | Where-Object { $_.name -eq 'delete-temporary-exports-after-seven-days' } | Select-Object -First 1
     Assert-True ($null -ne $temporaryExportsRule -and $temporaryExportsRule.definition.filters.prefixMatch.Count -eq 1 -and $temporaryExportsRule.definition.filters.prefixMatch[0] -eq 'exports/temporary/' -and $temporaryExportsRule.definition.actions.baseBlob.delete.daysAfterModificationGreaterThan -eq 7) 'storage lifecycle deletion must be limited to temporary exports after seven days'
+    $hybridPayloadRule = $storagePolicy.properties.policy.rules | Where-Object { $_.name -eq 'delete-hybrid-job-payloads-after-two-days' } | Select-Object -First 1
+    Assert-True ($null -ne $hybridPayloadRule -and $hybridPayloadRule.definition.filters.prefixMatch.Count -eq 1 -and $hybridPayloadRule.definition.filters.prefixMatch[0] -eq 'system/hybrid/jobs/' -and $hybridPayloadRule.definition.actions.baseBlob.delete.daysAfterModificationGreaterThan -eq 2) 'hybrid job payloads must be deleted after two days'
+
+    $hybridQueues = @($resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts/queueServices/queues' })
+    Assert-True ($hybridQueues.Count -eq 3) 'storage must declare the jobs, results, and poison queues'
 
     $newKeyVault = @($resources | Where-Object {
         $_.type -eq 'Microsoft.KeyVault/vaults' -and -not $_.existing -and $_.condition -eq "[not(parameters('useExisting'))]"

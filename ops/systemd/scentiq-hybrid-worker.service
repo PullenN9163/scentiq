@@ -1,0 +1,23 @@
+[Unit]
+Description=ScentIQ hybrid recommendation worker
+After=network-online.target himdsd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=scentiq-worker
+Group=scentiq-worker
+WorkingDirectory=/opt/scentiq/apps/api
+EnvironmentFile=/etc/scentiq/hybrid-worker.env
+ExecStart=/opt/scentiq/apps/api/.venv/bin/python -m scentiq_api.hybrid worker --algorithm-version v1 --poll-seconds 5
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/scentiq-worker
+
+[Install]
+WantedBy=multi-user.target
