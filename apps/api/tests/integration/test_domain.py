@@ -23,6 +23,7 @@ DEMO_USER_ID = "00000000-0000-4000-8000-000000000001"
 AMBER_ATLAS_ID = "10000000-0000-4000-8000-000000000001"
 REQUIRED_TABLES = {
     "accords",
+    "async_jobs",
     "identity_events",
     "brands",
     "calendar_connections",
@@ -43,6 +44,8 @@ REQUIRED_TABLES = {
     "oauth_states",
     "perfumers",
     "recommendation_candidates",
+    "recommendation_snapshots",
+    "recommendation_states",
     "recommendations",
     "user_collection",
     "user_identities",
