@@ -141,6 +141,18 @@ if ($Mode -eq 'dev') {
         $hybridBridgeDeploymentName -cmatch '^[a-z][a-z0-9-]*[a-z0-9]$' -and
         $hybridBridgeDeploymentName -notmatch '--'
     ) 'the development hybrid bridge job name must satisfy the Azure Container Apps job naming contract'
+    $hybridBridgeDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'hybrid-bridge-' }) | Select-Object -First 1
+    $hybridBridgeResources = if ($null -ne $hybridBridgeDeployment) { @(Get-ArmResources $hybridBridgeDeployment.properties.template.resources) } else { @() }
+    $hybridBridgeJob = @($hybridBridgeResources | Where-Object { $_.type -eq 'Microsoft.App/jobs' }) | Select-Object -First 1
+    $hybridBridgeAzureClientId = @($hybridBridgeJob.properties.template.containers[0].env | Where-Object { $_.name -eq 'AZURE_CLIENT_ID' }) | Select-Object -First 1
+    $hybridBridgeIdentityClientId = [string] $hybridBridgeDeployment.properties.parameters.identityClientId
+    Assert-True (
+        $null -ne $hybridBridgeDeployment -and
+        $hybridBridgeIdentityClientId -match "reference\('adoptedIdentity'\)\.outputs\.clientId\.value" -and
+        $hybridBridgeIdentityClientId -match "reference\('identity'\)\.outputs\.clientId\.value" -and
+        $null -ne $hybridBridgeAzureClientId -and
+        $hybridBridgeAzureClientId.value -eq "[parameters('identityClientId')]"
+    ) 'the hybrid bridge must select its user-assigned managed identity for Azure SDK authentication'
     $createdWorkloadIdentities = @($resources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities' -and -not $_.existing })
     $adoptedWorkloadIdentities = @($resources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities' -and $_.existing })
     Assert-True ($createdWorkloadIdentities.Count -eq 3 -and $adoptedWorkloadIdentities.Count -eq 3) 'development must declare dedicated API, web, migration, and GitHub deployment identities without duplicate create/adopt declarations'

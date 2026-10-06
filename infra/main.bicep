@@ -600,6 +600,7 @@ module hybridBridge 'modules/scheduled-hybrid-bridge.bicep' = if (deployApplicat
     name: hybridBridgeJobName
     environmentId: containerEnvironment.outputs.id
     identityId: useExistingFoundation ? adoptedIdentity!.outputs.id : identity!.outputs.id
+    identityClientId: useExistingFoundation ? adoptedIdentity!.outputs.clientId : identity!.outputs.clientId
     registryServer: registryLoginServer
     image: apiImage
     environmentName: environmentName

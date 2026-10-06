@@ -2,6 +2,7 @@ param location string
 param name string
 param environmentId string
 param identityId string
+param identityClientId string
 param registryServer string
 param image string
 param environmentName string
@@ -46,6 +47,7 @@ resource job 'Microsoft.App/jobs@2025-01-01' = {
         args: ['-m', 'scentiq_api.hybrid', 'bridge', '--catalog-version', catalogVersion]
         env: [
           { name: 'SCENTIQ_ENV', value: environmentName }
+          { name: 'AZURE_CLIENT_ID', value: identityClientId }
           { name: 'CORS_ORIGINS', value: 'https://localhost.invalid' }
           { name: 'AZURE_STORAGE_ACCOUNT_URL', value: storageAccountUrl }
           { name: 'DATABASE_URL', secretRef: 'database-url' }
