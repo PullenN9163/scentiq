@@ -25,6 +25,21 @@ DEFAULT_WEATHER_API_BASE_URL = "https://api.open-meteo.com"
 DEFAULT_GEOCODING_API_BASE_URL = "https://geocoding-api.open-meteo.com"
 
 
+class HybridWorkerSettings(BaseSettings):
+    """Storage-only settings for the home worker's least-privilege runtime."""
+
+    model_config = SettingsConfigDict(env_file=None, hide_input_in_errors=True)
+
+    environment: Environment = Field(validation_alias="SCENTIQ_ENV")
+    azure_storage_account_url: str = Field(validation_alias="AZURE_STORAGE_ACCOUNT_URL")
+
+    @property
+    def azure_storage_queue_account_url(self) -> str:
+        if ".blob." not in self.azure_storage_account_url:
+            raise RuntimeError("AZURE_STORAGE_ACCOUNT_URL must be an Azure Blob service URL")
+        return self.azure_storage_account_url.replace(".blob.", ".queue.", 1)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=None, hide_input_in_errors=True)
 

@@ -5,7 +5,7 @@ import json
 import time
 from collections.abc import Sequence
 
-from scentiq_api.config import Settings
+from scentiq_api.config import HybridWorkerSettings, Settings
 from scentiq_api.database import create_database_engine, create_session_factory
 from scentiq_api.hybrid import (
     AzureHybridTransport,
@@ -38,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _transport(settings: Settings) -> AzureHybridTransport:
+def _transport(settings: Settings | HybridWorkerSettings) -> AzureHybridTransport:
     blob_url = settings.azure_storage_account_url
     if blob_url is None:
         raise RuntimeError("AZURE_STORAGE_ACCOUNT_URL is required for hybrid operations")
@@ -104,7 +104,7 @@ def _bridge(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
-def _worker(args: argparse.Namespace, settings: Settings) -> int:
+def _worker(args: argparse.Namespace, settings: HybridWorkerSettings) -> int:
     from scentiq_api.hybrid.processor import process_recommendation
 
     worker = HybridWorker(
@@ -123,15 +123,14 @@ def _worker(args: argparse.Namespace, settings: Settings) -> int:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    settings = Settings()
     if args.command == "dispatch":
-        return _dispatch(args, settings)
+        return _dispatch(args, Settings())
     if args.command == "apply-results":
-        return _apply_result(settings)
+        return _apply_result(Settings())
     if args.command == "bridge":
-        return _bridge(args, settings)
+        return _bridge(args, Settings())
     if args.command == "worker":
-        return _worker(args, settings)
+        return _worker(args, HybridWorkerSettings())
     raise AssertionError(f"Unsupported command: {args.command}")
 
 
