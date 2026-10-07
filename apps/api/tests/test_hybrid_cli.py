@@ -29,7 +29,9 @@ def test_worker_starts_without_api_database_or_cors_settings(monkeypatch: Monkey
     monkeypatch.delenv("CORS_ORIGINS", raising=False)
     transport = InMemoryHybridTransport()
 
-    def create_transport(cls: type[AzureHybridTransport], **kwargs: Any) -> InMemoryHybridTransport:
+    def create_transport(
+        cls: type[AzureHybridTransport], /, **kwargs: Any
+    ) -> InMemoryHybridTransport:
         del cls, kwargs
         return transport
 
