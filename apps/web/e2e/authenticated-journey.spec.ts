@@ -51,6 +51,15 @@ test.describe("invited member journey", () => {
 
     // --- edit ownership --------------------------------------------------
     await page.getByRole("link", { name: `Open ${unique}` }).click();
+    await page.getByLabel("Custom fragrance image").setInputFiles({
+      name:"release-image.png",mimeType:"image/png",buffer:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAPElEQVR4nO3RQREAMAjEwKNC6qAO8K+rEsKHX1bAMRPq9sums7oeDwz4A2QiZCJkImQiZCJkImQiZKKQD/RMAMeWjfQwAAAAAElFTkSuQmCC","base64"),
+    });
+    await page.getByRole("button", {name:"Upload image",exact:true}).click();
+    await expect(page.getByRole("button", {name:"Remove image",exact:true})).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button", {name:"Remove image",exact:true})).toBeVisible();
+    await page.getByRole("button", {name:"Remove image",exact:true}).click();
+    await expect(page.getByRole("button", {name:"Remove image",exact:true})).toHaveCount(0);
     await page.getByRole("button", { name: /^edit$/i }).click();
     await page.getByLabel("Remaining (ml)").fill("80");
     await page.getByRole("button", { name: /save changes/i }).click();
