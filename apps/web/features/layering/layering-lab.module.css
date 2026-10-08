@@ -1,0 +1,116 @@
+.picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
+  gap: 12px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.scentChoice {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  padding: 8px;
+  color: inherit;
+  cursor: pointer;
+}
+.scentChoice[aria-pressed="true"] {
+  outline: 2px solid var(--accent, #b7772f);
+  outline-offset: 1px;
+}
+.scentChoice:focus-visible {
+  outline: 3px solid var(--accent, #b7772f);
+}
+.smallImage {
+  height: 105px;
+  min-width: 0;
+  background: var(--scent-tone, #eee8dc);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+  text-align: center;
+  padding: 8px;
+  font-size: 11px;
+}
+.smallImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.anchorSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 20px 0;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+.controls button {
+  min-height: 44px;
+}
+.suggestions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+}
+.thumbnails {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.thumbnails > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.thumbnails strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.builder {
+  display: grid;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+.stackItems {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 12px;
+}
+.stackItem {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  padding: 12px;
+  border-radius: 12px;
+}
+@media (max-width: 430px) {
+  .picker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .controls {
+    gap: 6px;
+  }
+  .stackItems {
+    grid-template-columns: 1fr;
+  }
+  .smallImage {
+    height: 90px;
+  }
+}

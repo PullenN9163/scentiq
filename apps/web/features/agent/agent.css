@@ -1,0 +1,23 @@
+.agent-page { max-width: 1040px; margin-inline: auto; }
+.agent-page .conversation { background: var(--surface); overflow-wrap: anywhere; }
+.agent-user-message { max-width: 85%; width: fit-content; margin: 0 0 1.5rem auto; padding: .85rem 1.1rem; border-radius: 1rem; background: var(--background); border: 1px solid var(--border); white-space: pre-wrap; }
+.agent-page .agent-bubble { max-width: 100%; margin-bottom: 1.5rem; }
+.agent-answer-text { white-space: pre-wrap; }
+.agent-fallback, .agent-status { color: var(--muted-foreground); font-size: .85rem; }
+.agent-composer { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .75rem; padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--surface); }
+.agent-composer textarea { flex: 1; min-width: 0; resize: vertical; min-height: 3.5rem; max-height: 10rem; border: 1px solid var(--border); border-radius: .6rem; background: var(--background); padding: .75rem; font: inherit; }
+.agent-composer small { flex-basis: 100%; }
+.agent-page .quick-prompts { display: flex; flex-wrap: wrap; padding: 1rem; gap: .5rem; }
+.agent-page .quick-prompts button { min-height: 44px; white-space: normal; }
+.agent-result { padding: 1rem; margin-block: 1rem; border: 1px solid var(--border); border-radius: .75rem; }
+.agent-result-grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); }
+.agent-stack-member { padding: .5rem; border-radius: .5rem; background: var(--background); }
+.agent-stack-member[data-anchor=true] { border: 1px solid var(--primary); }
+.agent-stack-image { width: 76px; height: 90px; position: relative; margin-bottom: .5rem; }
+.agent-stack-image img { width: 100%; height: 100%; object-fit: contain; }
+.agent-metrics { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.agent-metrics dt { color: var(--muted-foreground); font-size: .8rem; }
+.agent-metrics dd { margin: 0; font-size: 1.2rem; }
+.agent-result a { display: inline-flex; min-height: 44px; align-items: center; }
+.agent-result ul { padding-left: 1.2rem; }
+@media (max-width: 600px) { .agent-page .conversation { min-height: 18rem; max-height: 55dvh; } .agent-user-message { max-width: 95%; } }

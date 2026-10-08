@@ -1,0 +1,351 @@
+/**
+ * Hand-maintained mirrors of the ScentIQ API contract.
+ *
+ * `types/api.generated.ts` is produced from `apps/api/openapi.json` by
+ * `pnpm contracts` and is the source of truth; CI fails when the two drift.
+ * These aliases exist so application code reads well and does not index deeply
+ * into the generated tree.
+ */
+
+export type Season = "spring" | "summer" | "fall" | "winter";
+export type Projection = "intimate" | "moderate" | "strong";
+export type Occasion =
+  | "work"
+  | "casual"
+  | "date"
+  | "dinner"
+  | "party"
+  | "formal"
+  | "gym"
+  | "travel"
+  | "other";
+export type OwnershipType = "bottle" | "decant" | "sample";
+export type CollectionStatus = "owned" | "wishlist" | "finished" | "sold";
+export type NoteStage = "top" | "middle" | "base" | "general";
+export type LifecycleState = "active" | "deletion_pending";
+export type TemperatureUnit = "celsius" | "fahrenheit";
+
+export interface Brand {
+  id: string;
+  name: string;
+  slug: string;
+  country: string | null;
+}
+
+export interface FragranceSummary {
+  id: string;
+  name: string;
+  concentration: string | null;
+  release_year: number | null;
+  image_blob_path: string | null;
+  image_url: string | null;
+  gender: "male" | "female" | "unisex" | null;
+  olfactory_family: string | null;
+  rating_average: number | null;
+  rating_count: number | null;
+  top_accords: string[];
+  longevity_score: number | null;
+  projection_level: Projection | null;
+  brand: Brand;
+  is_custom: boolean;
+}
+
+export interface FragranceNote {
+  id: string;
+  name: string;
+  slug: string;
+  stage: NoteStage;
+  weight: number | null;
+}
+
+export interface FragranceAccord {
+  id: string;
+  name: string;
+  slug: string;
+  weight: number;
+}
+
+export interface FragranceDetail extends FragranceSummary {
+  description: string | null;
+  product_line: string | null;
+  notes: FragranceNote[];
+  accords: FragranceAccord[];
+  seasons: { season: Season; weight: number }[];
+  occasions: { occasion: Occasion; weight: number }[];
+  perfumers: { id: string; name: string; slug: string }[];
+  community: {
+    longevity_average: number | null;
+    longevity_votes: number | null;
+    sillage_average: number | null;
+    sillage_votes: number | null;
+    price_value_average: number | null;
+    price_value_votes: number | null;
+    have_count: number | null;
+    had_count: number | null;
+    want_count: number | null;
+    perceived_female: number | null;
+    perceived_female_leaning: number | null;
+    perceived_unisex: number | null;
+    perceived_male_leaning: number | null;
+    perceived_male: number | null;
+    day_votes: number | null;
+    night_votes: number | null;
+    voters: number | null;
+    captured_at: string | null;
+  } | null;
+  similar: FragranceSummary[];
+  sources: { source: string; url: string | null }[];
+}
+
+export interface DiscoveryResult {
+  mode?: "balance" | "taste" | "explore" | "seasonal";
+  season_fit?: number | null;
+  evidence_coverage?: number;
+  reasons?: string[];
+  fragrance: FragranceSummary;
+  taste_match: number;
+  collection_expansion: number;
+  redundancy_risk: number;
+  score: number;
+}
+
+export type LayeringMode = "safe" | "contrast" | "experimental";
+
+export interface LayeringSuggestion {
+  first: FragranceSummary;
+  second: FragranceSummary;
+  mode: LayeringMode;
+  score: number;
+  shared_notes: string[];
+  complementary_accords: string[];
+  season_overlap: number;
+}
+
+export interface RecommendationPayload {
+  discovery: DiscoveryResult[];
+  layering: Record<LayeringMode, LayeringSuggestion[]>;
+}
+
+export interface RecommendationBundle {
+  payload: RecommendationPayload;
+  input_version: number;
+  generated_at: string | null;
+  is_stale: boolean;
+  refresh_status: "fresh" | "pending" | "fallback";
+}
+
+export interface CollectionItem {
+  id: string;
+  ownership_type: OwnershipType;
+  bottle_size_ml: number | null;
+  remaining_ml: number | null;
+  /** Decimal string, e.g. "129.50". */
+  purchase_price: string | null;
+  purchase_date: string | null;
+  user_rating: number | null;
+  custom_longevity: number | null;
+  custom_projection: Projection | null;
+  status: CollectionStatus;
+  fragrance: FragranceSummary;
+}
+
+export interface WearLogEntry {
+  recommendation_id?: string | null;
+  id: string;
+  collection_item_id: string;
+  fragrance_id: string;
+  fragrance_name: string;
+  brand_name: string;
+  worn_at: string;
+  sprays: number | null;
+  occasion: Occasion | null;
+  setting: string | null;
+  notes: string | null;
+}
+
+export interface Preferences {
+  location: string | null;
+  /** The place `location` resolved to; null until it has been found. */
+  location_label: string | null;
+  timezone: string | null;
+  temperature_unit: TemperatureUnit | null;
+  preferred_season: Season | null;
+  preferred_occasion: Occasion | null;
+  preferred_projection: Projection | null;
+  preferred_longevity: number | null;
+  maximum_sprays: number | null;
+}
+
+export interface Me {
+  id: string;
+  email: string;
+  display_name: string;
+  lifecycle_state: LifecycleState;
+  created_at: string;
+  preferences: Preferences;
+}
+
+export interface WeightedSlice {
+  label: string;
+  count: number;
+  share: number;
+}
+
+export interface CountSlice {
+  label: string;
+  count: number;
+}
+
+export interface MostWornEntry {
+  collection_item_id: string;
+  fragrance_id: string;
+  fragrance_name: string;
+  brand_name: string;
+  wear_count: number;
+}
+
+export interface OwnedInsightEntry extends MostWornEntry {
+  last_worn_at: string | null;
+  user_rating: number | null;
+  cost_per_wear: string | null;
+}
+
+export interface CollectionInsights {
+  least_worn?: OwnedInsightEntry[];
+  neglected?: OwnedInsightEntry[];
+  highest_rated?: OwnedInsightEntry[];
+  cost_per_wear?: OwnedInsightEntry[];
+  note_frequency?: {label: string; stage: string; count: number; share: number}[];
+  redundancy_pairs?: {first_id: string; first_name: string; second_id: string; second_name: string; overlap: number; shared_accords: string[]}[];
+  season_coverage_score?: number | null;
+  season_evidence_coverage?: number;
+  season_gaps?: string[];
+  occasion_behavior?: WeightedSlice[];
+  total_items: number;
+  owned_items: number;
+  wishlist_items: number;
+  retired_items: number;
+  custom_items: number;
+  /** Decimal string, or null when nothing is priced. */
+  total_purchase_value: string | null;
+  priced_items: number;
+  average_rating: number | null;
+  rated_items: number;
+  total_wears: number;
+  wears_last_30_days: number;
+  distinct_fragrances_worn: number;
+  most_worn: MostWornEntry[];
+  accords: WeightedSlice[];
+  seasons: WeightedSlice[];
+  occasions: WeightedSlice[];
+  ownership_types: CountSlice[];
+  /** Items with no shared-catalog classification behind the breakdowns. */
+  unclassified_items: number;
+}
+
+export interface DashboardPageData {
+  me: Me;
+  insights: CollectionInsights;
+  recent_wears: WearLogEntry[];
+}
+
+export interface LayeringPageData {
+  collection: CollectionItem[];
+  recommendations: RecommendationBundle;
+}
+
+export interface WeekFragrance extends FragranceSummary {
+  seasons: { season: Season; weight: number }[];
+  occasions: { occasion: Occasion; weight: number }[];
+  community: FragranceDetail["community"];
+}
+
+export interface WeekPageData {
+  me: Me;
+  owned: WeekFragrance[];
+}
+
+export interface FragrancePageData {
+  fragrance: FragranceDetail;
+  collection_item: CollectionItem | null;
+  recent_wears: WearLogEntry[];
+}
+
+export interface DeletionAccepted {
+  lifecycle_state: LifecycleState;
+  deletion_requested_at: string;
+}
+
+export type WeatherCondition =
+  | "clear"
+  | "partly_cloudy"
+  | "cloudy"
+  | "fog"
+  | "drizzle"
+  | "rain"
+  | "snow"
+  | "thunderstorm"
+  | "unknown";
+
+export interface ForecastDay {
+  /** Local calendar date, `YYYY-MM-DD`. */
+  date: string;
+  condition: WeatherCondition;
+  high_celsius: number;
+  low_celsius: number | null;
+  /** 0 to 1. */
+  precipitation_probability: number | null;
+  humidity: number | null;
+}
+
+export interface WeatherForecast {
+  location_label: string;
+  timezone: string | null;
+  temperature_unit: TemperatureUnit;
+  fetched_at: string;
+  /** True when the provider was unreachable and a cached forecast is shown. */
+  stale: boolean;
+  days: ForecastDay[];
+}
+
+export type CalendarProviderName = "google" | "microsoft";
+export type CalendarConnectionStatus = "active" | "reauth_required";
+
+export interface CalendarProviderStatus {
+  provider: CalendarProviderName;
+  /** False when this deployment has no credentials for the provider. */
+  available: boolean;
+}
+
+export interface CalendarSource {
+  id: string;
+  name: string;
+  color: string | null;
+  is_primary: boolean;
+  is_selected: boolean;
+}
+
+export interface CalendarConnection {
+  id: string;
+  provider: CalendarProviderName;
+  account_email: string;
+  status: CalendarConnectionStatus;
+  last_synced_at: string | null;
+  last_error_code: string | null;
+  sources: CalendarSource[];
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  starts_at: string;
+  /** Exclusive. All-day events run midnight to midnight UTC of their dates. */
+  ends_at: string;
+  is_all_day: boolean;
+  location_label: string | null;
+  occasion: Occasion;
+  formality: "formal" | "smart" | "casual" | null;
+  is_hidden: boolean;
+  calendar_name: string | null;
+  provider: CalendarProviderName | null;
+}

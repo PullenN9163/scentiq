@@ -1,0 +1,13 @@
+packages:
+  - apps/web
+
+allowBuilds:
+  # Prebuilt dist; its postinstall only prints a telemetry notice.
+  '@clerk/shared': false
+  protobufjs: true
+  unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - '@clerk/backend@3.23.1'
+  - '@clerk/shared@4.39.1'
+  - '@clerk/testing@2.2.44'
