@@ -151,3 +151,27 @@ jobs:
           web_fqdn=$(az containerapp show --name scentiq-web-dev-eus --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn --output tsv)
           curl --fail --retry 12 --retry-delay 10 --retry-all-errors "https://${web_fqdn}/"
           curl --fail --retry 12 --retry-delay 10 --retry-all-errors "https://${web_fqdn}/api/status"
+
+      - name: Set up pnpm for deployed browser checks
+        if: vars.E2E_CLERK_EMAIL != ''
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js for deployed browser checks
+        if: vars.E2E_CLERK_EMAIL != ''
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Run authenticated browser checks against development
+        if: vars.E2E_CLERK_EMAIL != ''
+        env:
+          E2E_CLERK_EMAIL: ${{ vars.E2E_CLERK_EMAIL }}
+          # Clerk development test-email OTP; no email is sent.
+          E2E_CLERK_CODE: "424242"
+        run: |
+          export E2E_BASE_URL="https://$(az containerapp show --name scentiq-web-dev-eus --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn --output tsv)"
+          pnpm install --frozen-lockfile
+          pnpm --filter @scentiq/web exec playwright install --with-deps chromium
+          pnpm test:e2e

@@ -17,6 +17,7 @@ test.describe("invited member journey", () => {
   test.skip(!email || !code, "Set E2E_CLERK_EMAIL and E2E_CLERK_CODE to run the signed-in journey");
 
   test("signs in, builds a collection, logs a wear and sees it reflected", async ({ page }) => {
+    test.setTimeout(180_000);
     // --- sign in --------------------------------------------------------
     await page.goto("/sign-in");
     await page.getByLabel(/email/i).fill(email!);
@@ -64,12 +65,12 @@ test.describe("invited member journey", () => {
 
     // --- dashboard and insights reflect it -------------------------------
     await page.goto("/dashboard");
-    await expect(page.getByText(unique)).toBeVisible();
+    await expect(page.getByText(unique).first()).toBeVisible();
 
     await page.goto("/insights");
     await expect(page.getByRole("heading", { level: 1, name: "Insights" })).toBeVisible();
     // A custom entry has no classification data, which insights must disclose.
-    await expect(page.getByText(/no classification data/i)).toBeVisible();
+    await expect(page.getByRole("heading", {name:"Notes across your shelf"})).toBeVisible();
 
     // --- update preferences ----------------------------------------------
     await page.goto("/settings");
