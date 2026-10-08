@@ -1,9 +1,11 @@
+import { hasApplicationOrigin } from "@/lib/server/request-origin";
 import { apiClient, ApiError } from "@/lib/server/api-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<Response> {
+  if (!hasApplicationOrigin(request)) return Response.json({message:"Invalid request origin."},{status:403});
   try {
     // Bound actual bytes, including requests without Content-Length.
     if (!request.body) return Response.json({ message: "Enter a question." }, { status: 400 });

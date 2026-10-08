@@ -29,3 +29,11 @@ describe("private image BFF", () => {
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([1, 2]));
   });
 });
+
+it("accepts the configured public origin behind the deployment proxy", async () => {
+  vi.stubEnv("PUBLIC_APP_URL", "https://scentiq.test");
+  fetcher.mockResolvedValue(new Response(null,{status:204}));
+  const response=await DELETE(new Request(`http://internal:3000/api/fragrances/${id}/image`,{method:"DELETE",headers:{origin:"https://scentiq.test"}}),context);
+  expect(response.status).toBe(204);
+  vi.unstubAllEnvs();
+});

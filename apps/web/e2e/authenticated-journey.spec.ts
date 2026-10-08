@@ -22,7 +22,9 @@ test.describe("invited member journey", () => {
     await page.getByLabel(/email/i).fill(email!);
     await page.getByRole("button", { name: /continue/i }).click();
     await page.getByLabel(/code/i).fill(code!);
-    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/(dashboard)?$/, { timeout: 30_000 });
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", {level:1})).toContainText("Hello");
 
     // --- create a custom fragrance --------------------------------------
     await page.goto("/collection");
@@ -37,7 +39,8 @@ test.describe("invited member journey", () => {
 
     // --- add it to the collection ---------------------------------------
     await page.getByRole("button", { name: /from catalog/i }).click();
-    await page.getByLabel("Catalog fragrance").selectOption({ label: `E2E House â€” ${unique}` });
+    await page.getByRole("searchbox", {name:"Search the catalog"}).fill(unique);
+    await page.getByRole("radio", {name:new RegExp(unique)}).check();
     await page.getByLabel("Bottle size (ml)").fill("100");
     await page.getByLabel("Remaining (ml)").fill("100");
     await page.getByLabel("Purchase price").fill("120.00");
@@ -97,7 +100,7 @@ test.describe("invited member journey", () => {
     await hero.getByRole("button", { name: /^Choose / }).last().click();
     await hero.getByRole("button", { name: "Wear This" }).click();
     await page.getByRole("button", { name: "Log wear", exact: true }).click();
-    await page.getByLabel("Rating (1–5)").fill("5");
+    await page.getByLabel(/^Rating/).fill("5");
     await page.getByRole("button", { name: "Save feedback" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.goto("/week");
@@ -172,7 +175,9 @@ test.describe("intelligence screens", () => {
     await page.getByLabel(/email/i).fill(email!);
     await page.getByRole("button", { name: /continue/i }).click();
     await page.getByLabel(/code/i).fill(code!);
-    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/(dashboard)?$/, { timeout: 30_000 });
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", {level:1})).toContainText("Hello");
   });
 
   const routes = [

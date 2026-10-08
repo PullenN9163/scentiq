@@ -1,3 +1,4 @@
+import { hasApplicationOrigin } from "@/lib/server/request-origin";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
@@ -8,7 +9,7 @@ async function proxyImage(request: Request, context: Context): Promise<Response>
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return Response.json({ message: "Image not found." }, { status: 404 });
   const token = await (await auth()).getToken();
   if (!token) return Response.json({ message: "Sign in to continue." }, { status: 401 });
-  if (request.method !== "GET" && request.headers.get("origin") !== new URL(request.url).origin) return Response.json({ message: "Invalid request origin." }, { status: 403 });
+  if (request.method !== "GET" && !hasApplicationOrigin(request)) return Response.json({ message: "Invalid request origin." }, { status: 403 });
   const base = process.env.API_INTERNAL_URL || (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
   if (!base) return Response.json({ message: "Image storage is unavailable." }, { status: 503 });
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` };

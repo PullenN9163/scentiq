@@ -25,3 +25,5 @@ Azure's configured soft-delete and version-retention policies still apply to del
 ## Verification
 
 `tests/test_fragrance_images.py` covers byte validation, metadata removal, ownership isolation, removal, and account cleanup. The web image-route tests cover authentication, mutation-origin validation, the upload bound, and private response caching. Deployment smoke tests should upload a custom image, replace it, verify the updated preview, confirm another member cannot retrieve it, and remove it.
+
+The web deployment must set `PUBLIC_APP_URL` to the canonical public HTTPS origin. Mutation routes compare the browser Origin header with this server configuration, so reverse proxy HTTP transport cannot reject legitimate uploads. Missing configuration in production and cross-site mutation origins fail closed. The advisor uses the same check.
