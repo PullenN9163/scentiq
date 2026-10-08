@@ -808,6 +808,10 @@ else {
     Assert-True ($null -ne $deploymentParameters -and $deploymentParameters.postgresAzureServicesFirewallRuleName.value -is [string] -and $deploymentParameters.postgresAzureServicesFirewallRuleName.value.Length -gt 0) "$Mode parameters must supply an explicit deterministic PostgreSQL firewall rule name"
 }
 
+Assert-True (@($tlsConfiguration.dependsOn) -contains 'scentiqDatabase') 'PostgreSQL TLS configuration must wait for the database operation'
+Assert-True (@($extensionsConfiguration.dependsOn) -contains 'requireSecureTransport') 'PostgreSQL extension configuration must wait for TLS configuration'
+Assert-True (@($azureServicesRule.dependsOn) -contains 'catalogExtensions') 'PostgreSQL firewall configuration must wait for extension configuration'
+
 if ($failures.Count -gt 0) {
     $failures | ForEach-Object { Write-Error $_ }
     exit 1

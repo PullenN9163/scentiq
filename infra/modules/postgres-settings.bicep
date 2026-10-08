@@ -20,6 +20,7 @@ resource scentiqDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@20
 resource requireSecureTransport 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2024-08-01' = {
   parent: server
   name: 'require_secure_transport'
+  dependsOn: [scentiqDatabase]
   properties: {
     value: 'on'
     source: 'user-override'
@@ -29,6 +30,7 @@ resource requireSecureTransport 'Microsoft.DBforPostgreSQL/flexibleServers/confi
 resource catalogExtensions 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2024-08-01' = {
   parent: server
   name: 'azure.extensions'
+  dependsOn: [requireSecureTransport]
   properties: {
     value: 'PG_TRGM'
     source: 'user-override'
@@ -38,6 +40,7 @@ resource catalogExtensions 'Microsoft.DBforPostgreSQL/flexibleServers/configurat
 resource azureServicesFirewallRule 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2024-08-01' = if (allowAzureServicesFirewallRule) {
   parent: server
   name: azureServicesFirewallRuleName
+  dependsOn: [catalogExtensions]
   properties: {
     startIpAddress: '0.0.0.0'
     endIpAddress: '0.0.0.0'
