@@ -14,7 +14,7 @@ See the [wear formula](../architecture/wear-intelligence.md), [layering formula]
 4. Configure the Azure inference endpoint, model deployment and managed identity role before enabling live inference. The deterministic advisor remains usable without inference credentials. Do not expose model credentials to the browser.
 5. Run the invited-member browser journey against a seeded test environment with Clerk test credentials. Verify Today, Week, advisor, pair/triple save/wear/rating, feedback, images, keyboard use and the configured viewport sizes.
 
-## Validation snapshot — 2026-10-08
+## Validation snapshot - 2026-10-08
 
 | Check | Result |
 | --- | --- |
