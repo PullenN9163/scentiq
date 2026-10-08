@@ -20,12 +20,13 @@ See the [wear formula](../architecture/wear-intelligence.md), [layering formula]
 | --- | --- |
 | API unit tests | 389 passed |
 | PostgreSQL integration tests | 53 passed |
-| Web component and stream tests | 131 passed |
+| Web component and stream tests | 135 passed |
 | Python lint/format and ESLint | Passed |
 | Strict mypy and TypeScript | Passed |
 | Generated API contract drift | Passed |
 | Production web build and API/web Docker builds | Passed |
 | PostgreSQL downgrade to base, upgrade to head, schema drift | Passed |
 | Bicep compilation, development parameter compilation, infrastructure safety | Passed |
+| Deployed authenticated browser journey | 10 passed |
 
-The signed-in browser journey requires `CLERK_SECRET_KEY`, `E2E_CLERK_EMAIL` and `E2E_CLERK_CODE`; it has not been executed for this release in the local verification environment. Live Azure inference, deployed managed identity access, cloud image storage and visual/accessibility inspection require the configured test deployment. Provider tests use controlled streams and verify tool grounding, ownership, cancellation, timeout and output bounds; they do not validate every factual statement a live model could produce.
+The signed-in journey ran against the Azure development deployment with a Clerk testing token and reusable browser state. It verified recommendation and feedback persistence, the seven-day plan, pair/triple layering, deterministic advisor fallback, Discover, Insights, keyboard navigation, responsive widths from 375px to 1440px, and private image upload, reload and removal. Live Azure inference remains pending an Azure model endpoint and deployment. Provider tests use controlled streams and verify tool grounding, ownership, cancellation, timeout and output bounds; they do not validate every factual statement a live model could produce.

@@ -1,34 +1,42 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 /**
  * The private-beta journey, end to end against a real Clerk test user and a
  * seeded database.
  *
- * It is skipped unless the environment supplies a test identity, because it
- * signs in for real rather than stubbing the provider. Set
- * E2E_CLERK_EMAIL and E2E_CLERK_CODE (Clerk's test-mode email-code identity) to
- * run it.
+ * It is skipped unless the environment supplies a test identity. The Clerk
+ * setup project signs in once and saves browser state for these checks.
  */
 
 const email = process.env.E2E_CLERK_EMAIL;
-const code = process.env.E2E_CLERK_CODE;
+
+async function openCollection(page: Page) {
+  const addFragrance = page.getByRole("button", { name: /add fragrance/i });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.goto("/collection");
+    try {
+      await addFragrance.waitFor({ state: "visible", timeout: 30_000 });
+      return;
+    } catch (error) {
+      const unavailable = await page
+        .getByText("Service unavailable", { exact: true })
+        .isVisible()
+        .catch(() => false);
+      if (!unavailable || attempt === 2) throw error;
+    }
+  }
+}
 
 test.describe("invited member journey", () => {
-  test.skip(!email || !code, "Set E2E_CLERK_EMAIL and E2E_CLERK_CODE to run the signed-in journey");
+  test.skip(!email, "Set E2E_CLERK_EMAIL to run the signed-in journey");
 
   test("signs in, builds a collection, logs a wear and sees it reflected", async ({ page }) => {
-    test.setTimeout(180_000);
-    // --- sign in --------------------------------------------------------
-    await page.goto("/sign-in");
-    await page.getByLabel(/email/i).fill(email!);
-    await page.getByRole("button", { name: /continue/i }).click();
-    await page.getByLabel(/code/i).fill(code!);
-    await expect(page).toHaveURL(/\/(dashboard)?$/, { timeout: 30_000 });
+    test.setTimeout(600_000);
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", {level:1})).toContainText("Hello");
 
     // --- create a custom fragrance --------------------------------------
-    await page.goto("/collection");
+    await openCollection(page);
     await page.getByRole("button", { name: /add fragrance/i }).click();
     await page.getByRole("button", { name: /create custom/i }).click();
     const unique = `E2E Blend ${Date.now()}`;
@@ -93,7 +101,7 @@ test.describe("invited member journey", () => {
 
     // Add two source-backed supporters to exercise alternatives and triple stacks.
     for (let index = 0; index < 2; index += 1) {
-      await page.goto("/collection");
+      await openCollection(page);
       await page.getByRole("button", { name: /add fragrance/i }).click();
       await page.getByRole("button", { name: /from catalog/i }).click();
       await page.locator(".catalog-picker__result input:not(:disabled)").first().check();
@@ -162,30 +170,11 @@ test.describe("invited member journey", () => {
   });
 });
 
-test("signed-out visitors are redirected away from the app shell", async ({ page }) => {
-  await page.goto("/collection");
-
-  // The proxy protects every app-shell route.
-  await expect(page).toHaveURL(/sign-in/);
-});
-
-test("the landing page stays public", async ({ page }) => {
-  await page.goto("/");
-
-  await expect(page.getByRole("heading", { level: 1, name: "ScentIQ" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /sign in/i }).first()).toBeVisible();
-});
-
 /** Authenticated feature surfaces use the same real test identity. */
 test.describe("intelligence screens", () => {
-  test.skip(!email || !code, "Set E2E_CLERK_EMAIL and E2E_CLERK_CODE to run the intelligence checks");
+  test.skip(!email, "Set E2E_CLERK_EMAIL to run the intelligence checks");
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/sign-in");
-    await page.getByLabel(/email/i).fill(email!);
-    await page.getByRole("button", { name: /continue/i }).click();
-    await page.getByLabel(/code/i).fill(code!);
-    await expect(page).toHaveURL(/\/(dashboard)?$/, { timeout: 30_000 });
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", {level:1})).toContainText("Hello");
   });

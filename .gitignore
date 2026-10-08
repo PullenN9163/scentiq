@@ -24,6 +24,7 @@ out/
 coverage/
 playwright-report/
 test-results/
+apps/web/playwright/.clerk/
 *.tsbuildinfo
 
 # Local tooling and generated artifacts

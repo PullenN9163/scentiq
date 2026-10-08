@@ -62,19 +62,23 @@ These belong to the **`development` environment**, not the repository scope, bec
 ```bash
 gh variable set CLERK_ISSUER --env development --body "<frontend-api-url>"
 gh secret set CLERK_SECRET_KEY_SECRET_URI --env development
+gh secret set CLERK_SECRET_KEY --env development
+gh variable set E2E_CLERK_EMAIL --env development --body "<test-user+clerk_test@example.com>"
 ```
 
 | Name | Kind | Value |
 | --- | --- | --- |
 | `CLERK_SECRET_KEY_SECRET_URI` | Secret | Key Vault URI of `clerk-secret-key` |
+| `CLERK_SECRET_KEY` | Secret | Clerk development secret key for the deployed Playwright gate |
 | `CLERK_WEBHOOK_SECRET_URI` | Secret | Key Vault URI of `clerk-webhook-secret` |
 | `INTERNAL_SERVICE_TOKEN_SECRET_URI` | Secret | Key Vault URI of `internal-service-token` |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Variable | `pk_test_…` |
+| `E2E_CLERK_EMAIL` | Variable | Existing invited `+clerk_test` deployment-test user |
 | `CLERK_ISSUER` | Variable | Clerk Frontend API URL |
 | `CLERK_AUDIENCE` | Variable | Audience configured on the JWT template |
 | `CLERK_AUTHORIZED_PARTIES` | Variable | `https://<web-app>.<region>.azurecontainerapps.io` |
 
-`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is a **variable, not a secret**, and is a build argument rather than a runtime value: Clerk inlines it into the client bundle, so it must be present when the web image is built. `next build` fails without it, and the deploy workflow stops early with an explicit message rather than pushing a broken image.
+`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is a **variable, not a secret**, and is a build argument rather than a runtime value: Clerk inlines it into the client bundle, so it must be present when the web image is built. `next build` fails without it, and the deploy workflow stops early with an explicit message rather than pushing a broken image. `CLERK_SECRET_KEY` is exposed only to the deployment job's browser-check step and lets Clerk issue a short-lived testing token; the URI variant remains the source used by the deployed web container through Key Vault.
 
 ### What each component receives
 
@@ -106,7 +110,7 @@ curl -fsS https://<web-host>/api/status
 
 Expect `{"api":"available"}`.
 
-Then, signed in as an invited member, confirm that Settings loads a profile and that the collection screen renders. A `503 authentication_unavailable` from the API means `CLERK_ISSUER` is unset on the API revision.
+The deployment workflow then signs in the configured test user once, reuses its stored browser state, and runs the authenticated product journey. A `503 authentication_unavailable` from the API means `CLERK_ISSUER` is unset on the API revision.
 
 ## Account deletion
 

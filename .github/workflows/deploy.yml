@@ -168,8 +168,8 @@ jobs:
         if: vars.E2E_CLERK_EMAIL != ''
         env:
           E2E_CLERK_EMAIL: ${{ vars.E2E_CLERK_EMAIL }}
-          # Clerk development test-email OTP; no email is sent.
-          E2E_CLERK_CODE: "424242"
+          CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
         run: |
           export E2E_BASE_URL="https://$(az containerapp show --name scentiq-web-dev-eus --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn --output tsv)"
           pnpm install --frozen-lockfile

@@ -1,5 +1,23 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const hasClerkTestIdentity = Boolean(
+  process.env.E2E_CLERK_EMAIL &&
+  process.env.CLERK_PUBLISHABLE_KEY &&
+  process.env.CLERK_SECRET_KEY,
+);
+
+const browserProject = {
+  name: "chromium",
+  testIgnore: /global\.setup\.ts/,
+  use: {
+    ...devices["Desktop Chrome"],
+    ...(hasClerkTestIdentity
+      ? { storageState: "playwright/.clerk/user.json" }
+      : {}),
+  },
+  ...(hasClerkTestIdentity ? { dependencies: ["setup"] } : {}),
+};
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: !process.env.E2E_BASE_URL,
@@ -17,5 +35,14 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: hasClerkTestIdentity
+    ? [
+        {
+          name: "setup",
+          testMatch: /global\.setup\.ts/,
+          use: { ...devices["Desktop Chrome"] },
+        },
+        browserProject,
+      ]
+    : [browserProject],
 });
