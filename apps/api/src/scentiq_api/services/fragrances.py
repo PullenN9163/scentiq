@@ -41,7 +41,11 @@ def to_fragrance_summary(item: Fragrance) -> FragranceSummary:
         concentration=item.concentration,
         release_year=item.release_year,
         image_blob_path=item.image_blob_path,
-        image_url=item.image_url,
+        image_url=(
+            f"/api/fragrances/{item.id}/image?v={int(item.updated_at.timestamp() * 1_000_000)}"
+            if item.owner_user_id is not None and item.image_blob_path
+            else item.image_url
+        ),
         gender=item.gender,
         olfactory_family=item.olfactory_family,
         rating_average=float(item.rating_average) if item.rating_average is not None else None,

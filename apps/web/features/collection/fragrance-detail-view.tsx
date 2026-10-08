@@ -3,6 +3,9 @@
 import { Pencil, PlusCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useState } from "react";
+import { toast } from "sonner";
+import { CustomImageUpload } from "./custom-image-upload";
+import { WearFeedbackDialog } from "./wear-feedback-dialog";
 
 import { Field, FormMessage } from "@/components/shared/form-field";
 import { CatalogImage } from "@/components/catalog-image";
@@ -52,12 +55,13 @@ export function FragranceDetailView({
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [feedbackWearId, setFeedbackWearId] = useState<string | null>(null);
   // Closing happens inside the action, after the save resolves, rather than in
   // an effect reacting to the result. An effect would re-render to close.
   const [editState, editAction, editPending] = useActionState(
     async (previous: ActionState, formData: FormData) => {
       const result = await updateCollectionItem(previous, formData);
-      if (result.status === "success") setEditOpen(false);
+      if (result.status === "success") { setEditOpen(false); toast.success(result.message); }
       return result;
     },
     idleState,
@@ -65,7 +69,7 @@ export function FragranceDetailView({
   const [wearState, wearAction, wearPending] = useActionState(
     async (previous: ActionState, formData: FormData) => {
       const result = await logWear(previous, formData);
-      if (result.status === "success") setLogOpen(false);
+      if (result.status === "success") { setLogOpen(false); toast.success(result.message); }
       return result;
     },
     idleState,
@@ -83,7 +87,7 @@ export function FragranceDetailView({
       </Link>
 
       <div className="detail-hero">
-        <CatalogImage className="detail-art" id={fragrance.id} name={fragrance.name} brand={fragrance.brand.name} imageUrl={fragrance.image_url} priority />
+        <div><CatalogImage key={fragrance.image_url} className="detail-art" id={fragrance.id} name={fragrance.name} brand={fragrance.brand.name} imageUrl={fragrance.image_url} priority />{fragrance.is_custom && <CustomImageUpload fragranceId={fragrance.id} hasImage={Boolean(fragrance.image_blob_path)} />}</div>
         <div>
           <p className="eyebrow">{fragrance.brand.name}</p>
           <h1 className="serif">{fragrance.name}</h1>
@@ -148,11 +152,6 @@ export function FragranceDetailView({
               </Link>
             </Button>
           </div>
-          {editState.status === "success" || wearState.status === "success" ? (
-            <p className="success-note" role="status">
-              {editState.status === "success" ? editState.message : wearState.message}
-            </p>
-          ) : null}
         </div>
       </div>
 
@@ -223,6 +222,7 @@ export function FragranceDetailView({
                   {formatWhen(wear.worn_at)}
                   {wear.occasion ? ` · ${wear.occasion}` : ""}
                   {wear.sprays === null ? "" : ` · ${wear.sprays} sprays`}
+                  <Button variant="ghost" onClick={() => setFeedbackWearId(wear.id)}>Rate this wear</Button>
                 </p>
               ))
             )}
@@ -379,6 +379,7 @@ export function FragranceDetailView({
           </Dialog>
         </>
       ) : null}
+      {feedbackWearId && <WearFeedbackDialog key={feedbackWearId} wearId={feedbackWearId} onClose={() => setFeedbackWearId(null)} />}
     </section>
   );
 }

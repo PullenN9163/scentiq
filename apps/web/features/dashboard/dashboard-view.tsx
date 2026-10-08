@@ -1,11 +1,11 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/shared/page-header";
-import { EmptyState, PreviewNotice } from "@/components/shared/states";
-import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/shared/states";
+import { RecommendationCard } from "@/features/recommendations/recommendation-card";
+import type { WearPlan } from "@/types/wear-intelligence";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EventsCard } from "@/features/dashboard/events-card";
@@ -13,14 +13,6 @@ import { WeatherCard } from "@/features/dashboard/weather-card";
 import type { CalendarResult } from "@/lib/calendar";
 import type { WeatherResult } from "@/lib/weather";
 import type { CollectionInsights, Me, WearLogEntry } from "@/types/api";
-
-/**
- * The Today screen.
- *
- * Collection totals, recent wears, the weather and today's events are real. The
- * recommendation remains a preview and is labelled as such, because no scoring
- * engine is connected yet.
- */
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString("en-GB", {
@@ -37,7 +29,9 @@ export function DashboardView({
   weather,
   calendar,
   timeZone,
+  plan,
 }: {
+  plan?: WearPlan;
   me: Me;
   insights: CollectionInsights;
   recentWears: WearLogEntry[];
@@ -80,6 +74,11 @@ export function DashboardView({
             : `${insights.owned_items} owned · ${insights.total_wears} wears logged`
         }
       />
+
+      {plan?.recommendations.map(recommendation => <RecommendationCard key={recommendation.context_key} recommendation={recommendation}/>)}
+      {plan && plan.recommendations.length === 0 && <p>Add an owned fragrance to receive recommendations.</p>}
+      {plan?.gaps.map(gap => <p className="muted" key={gap}>{gap}</p>)}
+      <div className="grid grid-2 detail-sections"><WeatherCard weather={weather}/><EventsCard calendar={calendar} timeZone={timeZone}/></div>
 
       <div className="metric-grid">
         <Card>
@@ -149,26 +148,7 @@ export function DashboardView({
         </Card>
       </div>
 
-      <div className="grid grid-3 detail-sections">
-        <Card>
-          <CardContent>
-            <div className="section-title">
-              <Sparkles size={19} />
-              <h3>Recommendation</h3>
-            </div>
-            <PreviewNotice>Not connected yet — nothing here is personalised or saved.</PreviewNotice>
-            <p className="muted">
-              Daily recommendations arrive once the scoring engine is connected. Your collection and
-              wear history are already being recorded, which is what it will use.
-            </p>
-            <Badge>Preview</Badge>
-          </CardContent>
-        </Card>
 
-        <WeatherCard weather={weather} />
-
-        <EventsCard calendar={calendar} timeZone={timeZone} />
-      </div>
     </section>
   );
 }

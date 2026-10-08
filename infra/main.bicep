@@ -48,6 +48,17 @@ param hybridCatalogVersion string = 'catalog-v1'
 param hybridAlgorithmVersion string = 'v1'
 param recommendationMaxAgeSeconds int = 21600
 
+@description('Existing Azure OpenAI or Foundry account name. Empty disables inference RBAC integration.')
+param foundryAccountName string = ''
+param foundryResourceGroupName string = resourceGroup().name
+@description('Optional existing Foundry project; the application uses the account v1 Responses endpoint.')
+param foundryProjectName string = ''
+@description('Azure OpenAI account origin or /openai/v1 base URL. Empty enables deterministic Agent fallback.')
+param azureOpenAIEndpoint string = ''
+@description('Operator-created model deployment supporting Responses and function tools.')
+param azureOpenAIDeployment string = ''
+param agentEnabled bool = true
+
 param apiImage string = 'scentiqacrdevus.azurecr.io/scentiq-api@sha256:63804207a705c4140ea2be122fc846a05a264beac35be55f29eac23f7d33ff7b'
 param webImage string = 'scentiqacrdevus.azurecr.io/scentiq-web@sha256:cd2bcadef061c1b9bf3933623a9de3aefd0b88868f1f6be09808296895ebb3d7'
 @secure()
@@ -511,6 +522,14 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
       { name: 'HYBRID_CATALOG_VERSION', value: hybridCatalogVersion }
       { name: 'HYBRID_ALGORITHM_VERSION', value: hybridAlgorithmVersion }
       { name: 'RECOMMENDATION_MAX_AGE_SECONDS', value: string(recommendationMaxAgeSeconds) }
+      { name: 'AGENT_ENABLED', value: string(agentEnabled) }
+      { name: 'AZURE_OPENAI_ENDPOINT', value: azureOpenAIEndpoint }
+      { name: 'AZURE_OPENAI_DEPLOYMENT', value: azureOpenAIDeployment }
+      { name: 'AGENT_PROMPT_VERSION', value: 'scentiq-agent-v1' }
+      { name: 'AGENT_MAX_TOOL_CALLS', value: '6' }
+      { name: 'AGENT_MAX_TURNS', value: '4' }
+      { name: 'AGENT_TIMEOUT_SECONDS', value: '25' }
+      { name: 'CUSTOM_IMAGE_CONTAINER', value: 'uploads' }
       { name: 'CORS_ORIGINS', value: 'https://${webAppName}.${containerEnvironment.outputs.defaultDomain}' }
       { name: 'DEMO_USER_ID', value: '00000000-0000-4000-8000-000000000001' }
       { name: 'AZURE_CLIENT_ID', value: useExistingFoundation ? adoptedIdentity!.outputs.clientId : identity!.outputs.clientId }
@@ -524,6 +543,16 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
       { name: 'GOOGLE_OAUTH_CLIENT_ID', value: googleOAuthClientId }
       { name: 'MICROSOFT_OAUTH_CLIENT_ID', value: microsoftOAuthClientId }
     ]
+  }
+}
+
+module agentAccess 'modules/agent-access.bicep' = if (agentEnabled && !empty(foundryAccountName)) {
+  name: 'agent-access-${environmentName}'
+  scope: resourceGroup(foundryResourceGroupName)
+  params: {
+    accountName: foundryAccountName
+    projectName: foundryProjectName
+    apiPrincipalId: useExistingFoundation ? adoptedIdentity!.outputs.principalId : identity!.outputs.principalId
   }
 }
 

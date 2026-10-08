@@ -53,6 +53,22 @@ function item(overrides: Partial<CollectionItem> = {}): CollectionItem {
 }
 
 describe("CollectionView", () => {
+  it("opens a quick detail while preserving full detail navigation", async () => {
+    render(<CollectionView items={[item()]} catalog={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Preview Source Scent" }));
+    const dialog = screen.getByRole("dialog", { name: "Source Scent" });
+    expect(within(dialog).getByRole("link", { name: "Open full detail" })).toHaveAttribute("href", "/collection/11111111-1111-4111-8111-111111111111");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Preview Source Scent" })).toHaveFocus();
+  });
+  it("changes collection filters from the responsive panel", async () => {
+    render(<CollectionView items={[item()]} catalog={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Filters and sort" }));
+    const dialog = screen.getByRole("dialog", { name: "Collection filters" });
+    await userEvent.selectOptions(within(dialog).getByLabelText("Ownership"), "sample");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Show results" }));
+    expect(screen.getByText("No fragrances found")).toBeVisible();
+  });
   it("shows onboarding guidance for an empty account", () => {
     render(<CollectionView items={[]} catalog={[]} />);
 

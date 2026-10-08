@@ -10,6 +10,7 @@ dependencies = [
   "azure-storage-queue>=12.14,<12.15",
   "fastapi[standard]>=0.141,<0.142",
   "httpx>=0.28,<0.29",
+  "pillow>=12.3,<13",
   "psycopg[binary]>=3.3,<3.4",
   "pydantic-settings>=2.15,<2.16",
   "pyjwt[crypto]>=2.10,<3",

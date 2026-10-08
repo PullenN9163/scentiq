@@ -8,10 +8,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import Row, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Load, Session, selectinload
 
 from scentiq_api.models import (
     Accord,
@@ -23,11 +24,43 @@ from scentiq_api.models import (
     UserCollectionItem,
     WearLog,
 )
+from scentiq_api.repositories.fragrances import _catalog_options
 
 
 class InsightsRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def owned_items(self, user_id: UUID) -> list[UserCollectionItem]:
+        return list(
+            self._session.scalars(
+                select(UserCollectionItem)
+                .where(UserCollectionItem.user_id == user_id, UserCollectionItem.status == "owned")
+                .options(
+                    selectinload(UserCollectionItem.fragrance).options(
+                        *cast(tuple[Load, ...], _catalog_options())
+                    )
+                )
+                .order_by(UserCollectionItem.id)
+            )
+        )
+
+    def item_wear_history(self, user_id: UUID) -> dict[UUID, tuple[int, datetime]]:
+        rows = self._session.execute(
+            select(WearLog.collection_item_id, func.count(WearLog.id), func.max(WearLog.worn_at))
+            .where(WearLog.user_id == user_id)
+            .group_by(WearLog.collection_item_id)
+        ).all()
+        return {item_id: (count, last) for item_id, count, last in rows}
+
+    def occasion_behavior(self, user_id: UUID) -> list[tuple[str, int]]:
+        rows = self._session.execute(
+            select(WearLog.occasion, func.count(WearLog.id))
+            .where(WearLog.user_id == user_id, WearLog.occasion.is_not(None))
+            .group_by(WearLog.occasion)
+            .order_by(func.count(WearLog.id).desc())
+        ).all()
+        return [(label, count) for label, count in rows if label is not None]
 
     def collection_totals(
         self, user_id: UUID

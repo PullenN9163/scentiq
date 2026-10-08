@@ -3,6 +3,8 @@
 import { Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { motion } from "motion/react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 import { AddFragranceDialog } from "@/features/collection/add-fragrance-dialog";
 import { CatalogImage } from "@/components/catalog-image";
@@ -10,7 +12,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import type { CollectionItem, FragranceSummary } from "@/types/api";
 
 /**
@@ -46,6 +48,8 @@ export function CollectionView({
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState("rating");
   const [addOpen, setAddOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [preview, setPreview] = useState<CollectionItem | null>(null);
 
   const counts = useMemo(() => {
     const result: Record<string, number> = {};
@@ -95,6 +99,7 @@ export function CollectionView({
 
       {items.length > 0 ? (
         <div className="collection-tools">
+          <Button variant="secondary" onClick={() => setFilterOpen(true)}>Filters and sort</Button>
           <label className="search-field">
             <Search size={18} />
             <span className="sr-only">Search collection</span>
@@ -144,14 +149,14 @@ export function CollectionView({
       ) : null}
 
       {visible.length > 0 ? (
-        <div className="fragrance-grid">
+        <motion.div layout className="fragrance-grid">
           {visible.map((item) => (
-            <Card key={item.id} className="fragrance-card" data-testid="fragrance-card">
+            <motion.div layout key={item.id} className="card fragrance-card" data-testid="fragrance-card">
               <Link
                 href={`/collection/${item.fragrance.id}`}
                 aria-label={`Open ${item.fragrance.name}`}
               >
-                <CatalogImage className="fragrance-card__art" id={item.fragrance.id} name={item.fragrance.name} brand={item.fragrance.brand.name} imageUrl={item.fragrance.image_url} />
+                <motion.div layoutId={`collection-image-${item.fragrance.id}`}><CatalogImage className="fragrance-card__art" id={item.fragrance.id} name={item.fragrance.name} brand={item.fragrance.brand.name} imageUrl={item.fragrance.image_url} /></motion.div>
                 <CardContent>
                   <div className="cluster">
                     <Badge>{OWNERSHIP_LABELS[item.ownership_type] ?? item.ownership_type}</Badge>
@@ -159,7 +164,7 @@ export function CollectionView({
                       {item.user_rating === null ? "Not rated" : `★ ${item.user_rating}`}
                     </span>
                   </div>
-                  <h2 className="serif">{item.fragrance.name}</h2>
+                  <motion.h2 layoutId={`collection-name-${item.fragrance.id}`} className="serif">{item.fragrance.name}</motion.h2>
                   <p>
                     {item.fragrance.brand.name} · {item.fragrance.concentration ?? "Concentration unknown"}
                   </p>
@@ -176,9 +181,10 @@ export function CollectionView({
                   </small>
                 </CardContent>
               </Link>
-            </Card>
+              <Button variant="ghost" aria-label={`Preview ${item.fragrance.name}`} onClick={() => setPreview(item)}>Quick detail</Button>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       ) : (
         <EmptyState
           title={items.length ? "No fragrances found" : "Start your fragrance wardrobe"}
@@ -212,6 +218,13 @@ export function CollectionView({
         catalog={catalog}
         ownedFragranceIds={items.map((item) => item.fragrance.id)}
       />
+      <Dialog open={filterOpen} onOpenChange={setFilterOpen}><DialogContent title="Collection filters"><div className="stack">
+        <label>Ownership<select className="select" value={ownership} onChange={(event) => setOwnership(event.target.value)}><option value="all">All</option><option value="bottle">Bottle</option><option value="decant">Decant</option><option value="sample">Sample</option></select></label>
+        <label>Status<select className="select" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All</option><option value="owned">Owned</option><option value="wishlist">Wishlist</option><option value="finished">Finished</option><option value="sold">Sold</option></select></label>
+        <label>Sort<select className="select" value={sort} onChange={(event) => setSort(event.target.value)}><option value="rating">Highest rated</option><option value="name">Name</option></select></label>
+        <Button onClick={() => setFilterOpen(false)}>Show results</Button>
+      </div></DialogContent></Dialog>
+      <Dialog open={Boolean(preview)} onOpenChange={(open) => { if (!open) setPreview(null); }}>{preview && <DialogContent title={preview.fragrance.name} eyebrow={preview.fragrance.brand.name}><motion.div layoutId={`collection-image-${preview.fragrance.id}`}><CatalogImage className="quick-detail-art" id={preview.fragrance.id} name={preview.fragrance.name} brand={preview.fragrance.brand.name} imageUrl={preview.fragrance.image_url} /></motion.div><motion.p className="serif" layoutId={`collection-name-${preview.fragrance.id}`}>{preview.fragrance.name}</motion.p><div className="cluster">{preview.fragrance.top_accords.map((accord) => <Badge key={accord}>{accord}</Badge>)}</div><p>{preview.user_rating ? `Your rating: ${preview.user_rating} / 5` : "Not rated"} · {preview.ownership_type}</p><Button asChild><Link href={`/collection/${preview.fragrance.id}`}>Open full detail</Link></Button></DialogContent>}</Dialog>
     </section>
   );
 }

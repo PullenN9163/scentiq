@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from scentiq_api.auth import AuthenticatedUser, CurrentUserDependency
 from scentiq_api.repositories import DiscoveryRepository
 from scentiq_api.schemas import DiscoveryResult
+from scentiq_api.schemas.discovery import DiscoveryMode
 from scentiq_api.services import DiscoveryService
 
 
@@ -23,6 +24,7 @@ def create_discover_router(get_session: object, current_user: CurrentUserDepende
         season: Literal["spring", "summer", "fall", "winter"] | None = None,
         accord: Annotated[str | None, Query(max_length=100)] = None,
         minimum_value: Annotated[float | None, Query(ge=1, le=5)] = None,
+        mode: DiscoveryMode = "balance",
     ) -> list[DiscoveryResult]:
         return DiscoveryService(DiscoveryRepository(session)).discover(
             user.user_id,
@@ -33,6 +35,7 @@ def create_discover_router(get_session: object, current_user: CurrentUserDepende
             season=season,
             accord=accord,
             minimum_value=minimum_value,
+            mode=mode,
         )
 
     return router

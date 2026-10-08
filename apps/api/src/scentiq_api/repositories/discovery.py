@@ -41,6 +41,7 @@ def _discovery_options() -> tuple[ExecutableOption, ...]:
         joinedload(Fragrance.brand),
         selectinload(Fragrance.note_links).joinedload(FragranceNote.note),
         selectinload(Fragrance.accord_links).joinedload(FragranceAccord.accord),
+        selectinload(Fragrance.seasons),
     )
 
 

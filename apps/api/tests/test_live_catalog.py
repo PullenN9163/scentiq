@@ -188,13 +188,13 @@ def test_discovery_loads_only_relationships_and_columns_used_for_scoring(
     assert "brand" not in state.unloaded
     assert "note_links" not in state.unloaded
     assert "accord_links" not in state.unloaded
+    assert "seasons" not in state.unloaded
     assert {
         "community",
         "description",
         "occasions",
         "perfumer_links",
         "search_text",
-        "seasons",
         "source_links",
     }.issubset(state.unloaded)
 

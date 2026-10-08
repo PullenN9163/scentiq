@@ -98,6 +98,10 @@ export interface FragranceDetail extends FragranceSummary {
 }
 
 export interface DiscoveryResult {
+  mode?: "balance" | "taste" | "explore" | "seasonal";
+  season_fit?: number | null;
+  evidence_coverage?: number;
+  reasons?: string[];
   fragrance: FragranceSummary;
   taste_match: number;
   collection_expansion: number;
@@ -146,6 +150,7 @@ export interface CollectionItem {
 }
 
 export interface WearLogEntry {
+  recommendation_id?: string | null;
   id: string;
   collection_item_id: string;
   fragrance_id: string;
@@ -199,7 +204,23 @@ export interface MostWornEntry {
   wear_count: number;
 }
 
+export interface OwnedInsightEntry extends MostWornEntry {
+  last_worn_at: string | null;
+  user_rating: number | null;
+  cost_per_wear: string | null;
+}
+
 export interface CollectionInsights {
+  least_worn?: OwnedInsightEntry[];
+  neglected?: OwnedInsightEntry[];
+  highest_rated?: OwnedInsightEntry[];
+  cost_per_wear?: OwnedInsightEntry[];
+  note_frequency?: {label: string; stage: string; count: number; share: number}[];
+  redundancy_pairs?: {first_id: string; first_name: string; second_id: string; second_name: string; overlap: number; shared_accords: string[]}[];
+  season_coverage_score?: number | null;
+  season_evidence_coverage?: number;
+  season_gaps?: string[];
+  occasion_behavior?: WeightedSlice[];
   total_items: number;
   owned_items: number;
   wishlist_items: number;

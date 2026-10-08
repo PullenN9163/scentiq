@@ -12,8 +12,10 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
+from scentiq_api.config import Settings
 from scentiq_api.repositories import IdentityRepository
 from scentiq_api.services import IdentityEventService
+from scentiq_api.storage.images import image_storage
 
 
 class IdentityEventRequest(BaseModel):
@@ -33,6 +35,7 @@ class IdentityEventResult(BaseModel):
 def create_identity_event_router(
     get_session: object,
     require_service_token: Callable[..., None],
+    settings: Settings | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/internal/identity-events", tags=["internal"])
 
@@ -47,7 +50,13 @@ def create_identity_event_router(
         payload: IdentityEventRequest,
         session: Annotated[Session, Depends(get_session)],
     ) -> IdentityEventResult:
-        service = IdentityEventService(IdentityRepository(session))
+        images = (
+            image_storage(settings)
+            if settings is not None
+            and (settings.azure_storage_account_url or settings.local_custom_image_directory)
+            else None
+        )
+        service = IdentityEventService(IdentityRepository(session), images=images)
         applied = service.handle_user_deleted(
             event_id=payload.event_id,
             subject=payload.subject,

@@ -1,11 +1,15 @@
 from collections.abc import Callable, Iterator, Mapping
+from contextlib import suppress
+from uuid import UUID
 
 from fastapi import APIRouter
 from sqlalchemy.orm import Session
 
+from scentiq_api.api.v1.agent import create_agent_router
 from scentiq_api.api.v1.calendar import create_calendar_router
 from scentiq_api.api.v1.collection import create_collection_router
 from scentiq_api.api.v1.discover import create_discover_router
+from scentiq_api.api.v1.fragrance_images import create_fragrance_image_router
 from scentiq_api.api.v1.fragrances import create_fragrance_router
 from scentiq_api.api.v1.identity_events import create_identity_event_router
 from scentiq_api.api.v1.insights import create_insights_router
@@ -14,6 +18,7 @@ from scentiq_api.api.v1.me import create_me_router
 from scentiq_api.api.v1.page_data import create_page_data_router
 from scentiq_api.api.v1.recommendations import create_recommendations_router
 from scentiq_api.api.v1.wear_logs import create_wear_log_router
+from scentiq_api.api.v1.wear_recommendations import create_wear_recommendations_router
 from scentiq_api.api.v1.weather import create_weather_router
 from scentiq_api.auth import (
     SigningKeyResolver,
@@ -21,6 +26,7 @@ from scentiq_api.auth import (
     require_internal_service_token,
 )
 from scentiq_api.config import Settings
+from scentiq_api.errors import ApiError
 from scentiq_api.integrations.calendar import (
     CalendarProvider,
     GoogleCalendarProvider,
@@ -28,6 +34,8 @@ from scentiq_api.integrations.calendar import (
 )
 from scentiq_api.integrations.crypto import TokenCipher
 from scentiq_api.integrations.weather import OpenMeteoClient, WeatherProvider
+from scentiq_api.repositories import CalendarRepository, UserRepository, WeatherRepository
+from scentiq_api.services import CalendarService, WeatherService
 
 
 def create_v1_router(
@@ -69,6 +77,7 @@ def create_v1_router(
         )
     )
     router.include_router(create_fragrance_router(get_session, current_user))
+    router.include_router(create_fragrance_image_router(get_session, current_user, settings))
     router.include_router(create_discover_router(get_session, current_user))
     router.include_router(create_layering_router(get_session, current_user))
     router.include_router(create_collection_router(get_session, current_user))
@@ -90,6 +99,23 @@ def create_v1_router(
     )
     token_keys = settings.integration_token_keys
     token_cipher = TokenCipher(token_keys) if token_keys else None
+
+    def refresh_context(session: Session, user_id: UUID) -> None:
+        with suppress(ApiError):
+            WeatherService(
+                UserRepository(session), WeatherRepository(session), resolved_weather_provider
+            ).forecast(user_id)
+        CalendarService(
+            CalendarRepository(session),
+            resolved_calendar_providers,
+            token_cipher,
+            settings.public_app_url,
+        ).sync_stale(user_id)
+
+    router.include_router(
+        create_wear_recommendations_router(get_session, current_user, refresh_context)
+    )
+    router.include_router(create_agent_router(get_session, current_user, settings, refresh_context))
     router.include_router(
         create_page_data_router(
             get_session,
@@ -112,7 +138,9 @@ def create_v1_router(
         )
     )
     router.include_router(
-        create_identity_event_router(get_session, require_internal_service_token(settings))
+        create_identity_event_router(
+            get_session, require_internal_service_token(settings), settings
+        )
     )
     return router
 

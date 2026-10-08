@@ -45,7 +45,7 @@ export default function Home() {
         <h2 className="serif">Less scrolling. Better choices.</h2>
         <div className="feature-grid">{features.map(([Icon, title, copy]) => <article key={title}><Icon size={22} /><h3>{title}</h3><p>{copy}</p></article>)}</div>
       </section>
-      <section id="how-it-works" className="landing-section landing-how"><div className="container"><p className="eyebrow">How it works</p><h2 className="serif">Your taste becomes useful context.</h2><ol><li><span>01</span><strong>Add your collection</strong><p>Bottles, decants, samples, and ratings.</p></li><li><span>02</span><strong>Set the scene</strong><p>Weather and schedule connections are planned; preview inputs explain the experience today.</p></li><li><span>03</span><strong>Choose with confidence</strong><p>Wear, log, and let future recommendations improve.</p></li></ol></div></section>
+      <section id="how-it-works" className="landing-section landing-how"><div className="container"><p className="eyebrow">How it works</p><h2 className="serif">Your taste becomes useful context.</h2><ol><li><span>01</span><strong>Add your collection</strong><p>Bottles, decants, samples, and ratings.</p></li><li><span>02</span><strong>Set the scene</strong><p>Connect Google or Outlook and save your location for live weather and calendar context.</p></li><li><span>03</span><strong>Choose with confidence</strong><p>Wear, log, and let future recommendations improve.</p></li></ol></div></section>
       <footer className="landing-footer container"><span className="serif">ScentIQ</span><span>Public product example · No account data loaded</span></footer>
     </main>
   );

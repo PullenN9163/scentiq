@@ -135,6 +135,14 @@ class WeatherSnapshot(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
 class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "recommendations"
     __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "context_key",
+            "input_fingerprint",
+            "algorithm_version",
+            name="wear_recommendation_inputs",
+        ),
+        CheckConstraint("evidence_coverage BETWEEN 0 AND 1", name="evidence_coverage_range"),
         CheckConstraint("score BETWEEN 0 AND 100", name="score_range"),
         CheckConstraint("recommended_sprays BETWEEN 1 AND 30", name="recommended_sprays_range"),
     )
@@ -142,6 +150,16 @@ class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     recommended_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     context: Mapped[str] = mapped_column(String(40))
+    context_key: Mapped[str | None] = mapped_column(String(160), index=True)
+    calendar_event_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("calendar_events.id", ondelete="SET NULL")
+    )
+    input_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    context_data: Mapped[dict[str, object]] = mapped_column(JSON, default=dict, server_default="{}")
+    score_components: Mapped[dict[str, float]] = mapped_column(
+        JSON, default=dict, server_default="{}"
+    )
+    evidence_coverage: Mapped[float] = mapped_column(Numeric(5, 4), default=0, server_default="0")
     fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id", ondelete="CASCADE"))
     score: Mapped[Decimal] = mapped_column(Numeric(5, 2))
     recommended_sprays: Mapped[int]
@@ -168,6 +186,24 @@ class RecommendationCandidate(UUIDPrimaryKeyMixin, Base):
     rank: Mapped[int]
     score: Mapped[Decimal] = mapped_column(Numeric(5, 2))
     score_components: Mapped[dict[str, float]] = mapped_column(JSON)
+    guidance: Mapped[dict[str, object]] = mapped_column(JSON, default=dict, server_default="{}")
+
+
+class RecommendationDecision(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "recommendation_decisions"
+    __table_args__ = (
+        CheckConstraint(
+            "action IN ('accepted','rejected','replaced','dismissed')", name="action_value"
+        ),
+    )
+    recommendation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("recommendations.id", ondelete="CASCADE"), unique=True
+    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    action: Mapped[str] = mapped_column(String(20))
+    selected_fragrance_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("fragrances.id", ondelete="SET NULL")
+    )
 
 
 class LayeringLog(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):

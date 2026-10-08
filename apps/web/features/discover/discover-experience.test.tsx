@@ -13,6 +13,38 @@ vi.mock("@/lib/server/actions", () => ({
 afterEach(cleanup);
 
 describe("DiscoverExperience", () => {
+  it("shows the selected discovery direction, season and supporting reasons", () => {
+    render(
+      <DiscoverExperience
+        mode="explore"
+        selectedSeason="summer"
+        results={[
+          discoveryResult({
+            reasons: ["A new amber profile"],
+            evidence_coverage: 0.5,
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByLabelText("Discovery direction")).toHaveValue("explore");
+    expect(screen.getByLabelText("Season")).toHaveValue("summer");
+    expect(screen.getByText("A new amber profile")).toBeVisible();
+    expect(screen.getByText(/50% catalog evidence/)).toBeVisible();
+  });
+  it("shows an existing wishlist entry as saved and prevents another add", () => {
+    render(
+      <DiscoverExperience
+        results={[discoveryResult()]}
+        wishlistIds={["11111111-1111-4111-8111-111111111111"]}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Saved to wishlist" }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Add to wishlist" }),
+    ).not.toBeInTheDocument();
+  });
   it("renders source-backed recommendations and supported filters", () => {
     render(<DiscoverExperience results={[discoveryResult()]} />);
 
@@ -20,7 +52,9 @@ describe("DiscoverExperience", () => {
     expect(screen.getByText("Taste match")).toBeVisible();
     expect(screen.getByText("80%")).toBeVisible();
     expect(screen.getByLabelText("Family")).toBeVisible();
-    expect(screen.getByRole("button", { name: /add to wishlist/i })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: /add to wishlist/i }),
+    ).toBeVisible();
     expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
       "href",
       "/collection/11111111-1111-4111-8111-111111111111?from=discover",
@@ -43,9 +77,9 @@ describe("DiscoverExperience", () => {
       />,
     );
 
-    expect(screen.getByRole("searchbox", { name: "Search the fragrance catalog" })).toHaveValue(
-      "source",
-    );
+    expect(
+      screen.getByRole("searchbox", { name: "Search the fragrance catalog" }),
+    ).toHaveValue("source");
     expect(screen.getByRole("heading", { name: "Source Scent" })).toBeVisible();
     expect(screen.getByText("Eau de parfum")).toBeVisible();
     expect(screen.queryByText("Taste match")).not.toBeInTheDocument();
@@ -56,9 +90,11 @@ describe("DiscoverExperience", () => {
   });
 
   it("explains when catalog search has no matches", () => {
-    render(<DiscoverExperience results={[]} query="missing" catalogResults={[]} />);
+    render(
+      <DiscoverExperience results={[]} query="missing" catalogResults={[]} />,
+    );
 
-    expect(screen.getByText('No fragrances found for “missing”')).toBeVisible();
+    expect(screen.getByText("No fragrances found for “missing”")).toBeVisible();
     expect(screen.getByRole("link", { name: "Clear search" })).toHaveAttribute(
       "href",
       "/discover",

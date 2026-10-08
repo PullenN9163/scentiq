@@ -6,6 +6,8 @@ import { ApiError } from "@/lib/server/api-client";
 import { eventsOn, localDate, safeTimeZone, type CalendarResult } from "@/lib/calendar";
 import { getCalendarAround, getDashboardPage, getWeather } from "@/lib/server/queries";
 import type { WeatherResult } from "@/lib/weather";
+import { apiClient } from "@/lib/server/api-client";
+import type { WearPlan } from "@/types/wear-intelligence";
 import type { DashboardPageData } from "@/types/api";
 
 async function DashboardBoundary() {
@@ -28,10 +30,12 @@ async function DashboardBoundary() {
     throw error;
   }
 
+  const plan = await apiClient.get<WearPlan>("/api/v1/recommendations/today");
   const timeZone = safeTimeZone(page.me.preferences.timezone);
   const today = localDate(new Date(), timeZone);
   return (
     <DashboardView
+      plan={plan}
       me={page.me}
       insights={page.insights}
       recentWears={page.recent_wears}

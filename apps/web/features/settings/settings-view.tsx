@@ -1,12 +1,11 @@
 "use client";
 
-import { Bell, Lock, MapPin, SlidersHorizontal, UserRound } from "lucide-react";
+import { Lock, MapPin, SlidersHorizontal, UserRound } from "lucide-react";
 import { useActionState } from "react";
 
 import { ApiStatus } from "@/components/api-status";
 import { Field, FormMessage } from "@/components/shared/form-field";
 import { PageHeader } from "@/components/shared/page-header";
-import { PreviewNotice } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,11 +16,8 @@ import { updatePreferences, updateProfile } from "@/lib/server/actions";
 import type { CalendarConnection, CalendarProviderStatus, Me } from "@/types/api";
 
 /**
- * Settings, split between persisted values and surfaces that remain previews.
- *
- * Profile, preferences, the forecast location and calendar connections save to
- * the service. Notifications are still a preview and say so, so nothing implies
- * it was saved.
+ * Persisted profile, preferences, forecast location, and calendar connections.
+ * Notification delivery is represented by a roadmap note.
  */
 export function SettingsView({
   me,
@@ -230,31 +226,7 @@ export function SettingsView({
           notice={calendarNotice}
         />
 
-        <Card>
-          <CardContent>
-            <div className="settings-title">
-              <Bell size={19} />
-              <h2>Notifications</h2>
-            </div>
-            <PreviewNotice>
-              Notification settings are not stored, so these toggles reset on reload.
-            </PreviewNotice>
-            <label className="toggle-row">
-              <span>
-                <strong>Morning recommendation</strong>
-                <small>Preview only</small>
-              </span>
-              <input type="checkbox" />
-            </label>
-            <label className="toggle-row">
-              <span>
-                <strong>Weekly planning reminder</strong>
-                <small>Preview only</small>
-              </span>
-              <input type="checkbox" />
-            </label>
-          </CardContent>
-        </Card>
+        <Card><CardContent><h2>Notifications</h2><p className="muted">Morning recommendations and weekly reminders are on the roadmap.</p></CardContent></Card>
 
         <Card>
           <CardContent>

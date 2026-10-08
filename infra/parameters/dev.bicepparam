@@ -13,6 +13,12 @@ param deploymentMode = 'dev'
 param networkMode = 'publicDev'
 param productionApproved = false
 param useExistingFoundation = true
+// Operator-selected existing account/deployment. Empty values use the Agent fallback.
+param foundryAccountName = ''
+param foundryProjectName = ''
+param azureOpenAIEndpoint = ''
+param azureOpenAIDeployment = ''
+param agentEnabled = true
 // Shared Key disablement and delete locks are enabled after identity and recovery rehearsals.
 param enableStorageSharedKeyAccess = true
 param enableFoundationLocks = false

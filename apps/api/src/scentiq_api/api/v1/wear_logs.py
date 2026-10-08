@@ -12,7 +12,9 @@ from scentiq_api.errors import unprocessable
 from scentiq_api.repositories import CollectionRepository, WearLogRepository
 from scentiq_api.repositories.wear import MAX_WEAR_LOG_LIMIT
 from scentiq_api.schemas import WearLogCreateRequest, WearLogResponse
+from scentiq_api.schemas.wear import WearFeedbackRequest, WearFeedbackResponse
 from scentiq_api.services import WearLogService
+from scentiq_api.services.wear_feedback import WearFeedbackService
 
 
 def create_wear_log_router(
@@ -57,5 +59,24 @@ def create_wear_log_router(
         created = _service(session).add(user.user_id, payload)
         session.commit()
         return created
+
+    @router.get("/{wear_id}/feedback", response_model=WearFeedbackResponse | None)
+    def get_feedback(
+        wear_id: UUID,
+        session: Annotated[Session, Depends(get_session)],
+        user: Annotated[AuthenticatedUser, Depends(current_user)],
+    ) -> WearFeedbackResponse | None:
+        return WearFeedbackService(session).get(user.user_id, wear_id)
+
+    @router.put("/{wear_id}/feedback", response_model=WearFeedbackResponse)
+    def put_feedback(
+        wear_id: UUID,
+        payload: WearFeedbackRequest,
+        session: Annotated[Session, Depends(get_session)],
+        user: Annotated[AuthenticatedUser, Depends(current_user)],
+    ) -> WearFeedbackResponse:
+        result = WearFeedbackService(session).put(user.user_id, wear_id, payload)
+        session.commit()
+        return result
 
     return router

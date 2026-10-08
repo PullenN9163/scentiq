@@ -20,6 +20,7 @@ from scentiq_api.config import Settings
 from scentiq_api.database import create_database_engine
 from scentiq_api.repositories import IdentityRepository
 from scentiq_api.services import RECONCILIATION_GRACE, IdentityEventService
+from scentiq_api.storage.images import image_storage
 
 
 def _parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
@@ -48,7 +49,8 @@ def main(argv: list[str] | None = None) -> int:
     grace = timedelta(hours=arguments.grace_hours)
     now = datetime.now(UTC)
 
-    engine = create_database_engine(Settings().database_url_value)
+    settings = Settings()
+    engine = create_database_engine(settings.database_url_value)
     try:
         with Session(engine) as session:
             identities = IdentityRepository(session)
@@ -62,7 +64,14 @@ def main(argv: list[str] | None = None) -> int:
                     "user_ids": sorted(str(user.id) for user in stale),
                 }
             else:
-                purged = IdentityEventService(identities).reconcile(now=now, grace=grace)
+                images = (
+                    image_storage(settings)
+                    if settings.azure_storage_account_url or settings.local_custom_image_directory
+                    else None
+                )
+                purged = IdentityEventService(identities, images=images).reconcile(
+                    now=now, grace=grace
+                )
                 session.commit()
                 summary = {
                     "dry_run": False,

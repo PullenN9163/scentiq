@@ -163,6 +163,22 @@ const cachedGet = cache((path: string, signal?: AbortSignal) =>
 );
 
 export const apiClient = {
+  stream: async (path: string, body: unknown, signal: AbortSignal): Promise<Response> => {
+    const { getToken } = await auth();
+    const token = await getToken();
+    if (!token) throw new ApiError("unauthorized", 401, { code: "unauthorized", message: "Sign in again to continue." });
+    let response: Response;
+    try {
+      response = await fetch(`${internalBaseUrl()}${path}`, {
+        method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body), signal, cache: "no-store",
+      });
+    } catch {
+      throw new ApiError("unavailable", 503, { code: "service_unreachable", message: "ScentIQ could not reach the advisor. Try again." });
+    }
+    if (!response.ok) throw new ApiError(kindFor(response.status), response.status, await readErrorBody(response));
+    return response;
+  },
   get: <T>(path: string, options?: Omit<RequestOptions, "method" | "body">) =>
     cachedGet(path, options?.signal) as Promise<T>,
   post: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "method" | "body">) =>

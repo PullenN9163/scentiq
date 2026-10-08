@@ -1,123 +1,94 @@
 "use client";
 
-import { ArrowRight, Sparkles } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
+import { Send, Sparkles, Square } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { PageHeader } from "@/components/shared/page-header";
-import { Badge } from "@/components/ui/badge";
-import { occasionLabel } from "@/lib/calendar";
-import { rankFragrances, seasonForMonth } from "@/lib/catalog-ranking";
-import { conditionLabel, formatTemperature } from "@/lib/weather";
-import { contextFor, type PlanDay } from "@/lib/week";
-import type {
-  CollectionInsights,
-  FragranceDetail,
-  LayeringSuggestion,
-  TemperatureUnit,
-} from "@/types/api";
+import { Button } from "@/components/ui/button";
+import { AgentResultCard } from "./result-card";
+import { readAgentStream, type AgentCard } from "./stream";
+import "./agent.css";
 
-const prompts = ["What should I wear today?", "What is my most worn fragrance?", "What can I layer?"] as const;
+const prompts = [
+  ["Wear today", "What should I wear today?"],
+  ["Plan my week", "Plan my week"],
+  ["Date night", "What should I wear to dinner tonight?"],
+  ["Neglected bottles", "Which fragrances am I neglecting?"],
+  ["Layer this fragrance", "Help me choose an owned anchor fragrance to layer"],
+  ["Build a 3-scent stack", "Build me a three-fragrance layering stack"],
+  ["What should I buy next?", "What should I buy next?"],
+] as const;
 
-/** What "today" holds for the member, when a forecast or calendar supplies it. */
-export interface AgentToday {
-  day: PlanDay;
-  timeZone: string;
-  temperatureUnit: TemperatureUnit;
-}
+type Message = { id: string; role: "user" | "assistant"; text: string; cards: AgentCard[]; fallback?: string; error?: string };
 
-function todayReasons(today: AgentToday): string {
-  const reasons: string[] = [];
-  const { weather, events } = today.day;
-  if (weather) {
-    reasons.push(
-      `${formatTemperature(weather.high_celsius, today.temperatureUnit)} and ${conditionLabel(weather.condition).toLowerCase()}`,
-    );
+export function AgentExperience({ authenticated }: { authenticated: boolean }) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [draft, setDraft] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const [status, setStatus] = useState("");
+  const [announcement, setAnnouncement] = useState("");
+  const controller = useRef<AbortController | null>(null);
+  const last = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => () => { controller.current?.abort(); }, []);
+  useEffect(() => { last.current?.scrollIntoView?.({ block: "nearest" }); }, [messages.length, streaming]);
+
+  async function ask(question: string) {
+    const message = question.trim();
+    if (!authenticated || streaming || !message || message.length > 2000 || controller.current) return;
+    const active = new AbortController();
+    controller.current = active;
+    const id = crypto.randomUUID();
+    const history = messages.filter((turn) => turn.text && !turn.error).slice(-8).map((turn) => ({ role: turn.role, content: turn.text.slice(0, 2000) }));
+    while (history.reduce((total, turn) => total + turn.content.length, message.length) > 12000) history.shift();
+    setMessages((items) => [...items.slice(-30), { id: crypto.randomUUID(), role: "user", text: message, cards: [] }, { id, role: "assistant", text: "", cards: [] }]);
+    setDraft(""); setStreaming(true); setStatus("Checking your ScentIQ context…"); setAnnouncement("ScentIQ is preparing your answer.");
+    function update(change: (turn: Message) => Message) { setMessages((items) => items.map((turn) => turn.id === id ? change(turn) : turn)); }
+    try {
+      const response = await fetch("/api/agent/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, history }), signal: active.signal });
+      if (!response.ok || !response.body) throw new Error(response.status === 401 ? "Your session expired. Sign in again to continue." : "The advisor could not complete your request. Please try again.");
+      for await (const event of readAgentStream(response.body)) {
+        if (event.type === "text_delta") update((turn) => ({ ...turn, text: turn.text + event.delta }));
+        else if (event.type === "card") update((turn) => ({ ...turn, cards: [...turn.cards, event.card] }));
+        else if (event.type === "fallback") update((turn) => ({ ...turn, fallback: event.label }));
+        else if (event.type === "done") { setAnnouncement("ScentIQ's answer is ready."); setStatus(""); }
+        else setStatus(event.label ?? "Checking your context…");
+      }
+    } catch (error) {
+      const stopped = active.signal.aborted;
+      update((turn) => ({ ...turn, error: stopped ? "Response stopped." : error instanceof Error ? error.message : "The advisor is unavailable." }));
+      setAnnouncement(stopped ? "Response stopped." : "The advisor request failed.");
+    } finally {
+      controller.current = null; setStreaming(false); setStatus(""); composer.current?.focus();
+    }
   }
-  const occasion = contextFor(today.day, today.timeZone).occasion;
-  const lead = occasion ? events.find((event) => event.occasion === occasion) : undefined;
-  if (lead) reasons.push(`your ${occasionLabel(lead.occasion).toLowerCase()} plans (${lead.title})`);
-  return reasons.length ? ` with ${reasons.join(" and ")}` : "";
-}
 
-export function AgentExperience({
-  owned,
-  insights,
-  layering,
-  today = null,
-}: {
-  owned: FragranceDetail[];
-  insights: CollectionInsights;
-  layering: LayeringSuggestion[];
-  today?: AgentToday | null;
-}) {
-  const [answer, setAnswer] = useState<string | null>(null);
-  function ask(prompt: (typeof prompts)[number]) {
-    if (owned.length === 0) {
-      setAnswer("Your owned collection is empty. Add a fragrance before asking for a collection-based answer.");
-      return;
-    }
-    if (prompt === prompts[0]) {
-      const now = new Date();
-      const context = today
-        ? contextFor(today.day, today.timeZone)
-        : {
-            season: seasonForMonth(now.getMonth()),
-            daypart: now.getHours() >= 17 ? ("night" as const) : ("day" as const),
-            coolWeather: now.getMonth() < 2 || now.getMonth() > 9,
-          };
-      const best = rankFragrances(owned, context)[0];
-      setAnswer(
-        `${best.name} is the strongest catalog-supported match in your collection for today${today ? todayReasons(today) : ""}.`,
-      );
-      return;
-    }
-    if (prompt === prompts[1]) {
-      const most = insights.most_worn[0];
-      setAnswer(most ? `${most.fragrance_name} leads your wear history with ${most.wear_count} wears.` : "You have not logged a wear yet.");
-      return;
-    }
-    const pair = layering[0];
-    setAnswer(pair ? `${pair.first.name} + ${pair.second.name} is your highest-ranked ${pair.mode} pairing.` : "Add at least two owned fragrances to receive layering guidance.");
-  }
-  const uses = today && (today.day.weather || today.day.events.length > 0);
   return (
     <section className="page agent-page">
-      <PageHeader
-        eyebrow="Collection advisor"
-        title="Ask ScentIQ"
-        description="Deterministic answers grounded in your persisted collection and insights."
-      />
-      <p className="muted" role="note">
-        {uses
-          ? "Answers about today use your forecast and connected calendars."
-          : "Add a location and connect a calendar in Settings, and answers about today will use them."}
-      </p>
+      <PageHeader eyebrow="Your fragrance advisor" title="Ask ScentIQ" description="Choose what to wear, explore your collection, or build a thoughtful layering stack." />
+      <p className="muted">Recommendations come from your collection and ScentIQ’s scoring. Your conversation stays in this session.</p>
       <div className="agent-shell">
-        <div className="conversation" aria-live="polite">
-          {answer ? (
-            <div className="agent-bubble">
-              <Badge>Collection answer</Badge>
-              <p>{answer}</p>
-              <Link href="/collection">
-                Open collection <ArrowRight size={15} />
-              </Link>
-            </div>
-          ) : (
-            <div className="agent-welcome">
-              <Sparkles />
-              <h2 className="serif">What would you like to decide?</h2>
-            </div>
-          )}
+        <div className="conversation" role="region" aria-label="Fragrance conversation" aria-busy={streaming}>
+          {messages.length === 0 && <div className="agent-welcome"><Sparkles aria-hidden="true" /><h2 className="serif">What would you like to decide?</h2><p>Start with today’s plans or an overlooked bottle.</p></div>}
+          {messages.map((turn) => <article key={turn.id} className={turn.role === "user" ? "agent-user-message" : "agent-bubble"} aria-label={turn.role === "user" ? "Your question" : "ScentIQ answer"}>
+            {turn.fallback && <p className="agent-fallback"><small>{turn.fallback}</small></p>}
+            {turn.text && <p className="agent-answer-text">{turn.text}</p>}
+            {turn.cards.map((card, index) => <AgentResultCard key={index} card={card} />)}
+            {turn.error && <p role="alert">{turn.error}</p>}
+          </article>)}
+          {status && <p className="agent-status">{status}</p>}
+          <div ref={last} />
         </div>
-        <div className="quick-prompts">
-          {prompts.map((prompt) => (
-            <button key={prompt} onClick={() => ask(prompt)}>
-              {prompt}
-            </button>
-          ))}
-        </div>
+        <div className="quick-prompts" aria-label="Suggested questions">{prompts.map(([label, text]) => <button key={label} disabled={!authenticated || streaming} onClick={() => void ask(text)}>{label}</button>)}</div>
+        <form className="agent-composer" onSubmit={(event) => { event.preventDefault(); void ask(draft); }}>
+          <label htmlFor="advisor-question" className="sr-only">Ask your fragrance advisor</label>
+          <textarea ref={composer} id="advisor-question" rows={2} maxLength={2000} value={draft} disabled={!authenticated || streaming} placeholder={authenticated ? "What should I wear to dinner tonight?" : "Sign in to ask ScentIQ"} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(draft); } }} />
+          {streaming ? <Button type="button" variant="secondary" onClick={() => controller.current?.abort()}><Square size={16} aria-hidden="true" /> Stop</Button> : <Button type="submit" disabled={!authenticated || !draft.trim()}><Send size={16} aria-hidden="true" /> Send</Button>}
+          <small className="muted">Enter to send · Shift+Enter for a new line</small>
+        </form>
       </div>
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
     </section>
   );
 }

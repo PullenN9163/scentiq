@@ -32,9 +32,10 @@ export function CatalogImage({
   className?: string;
   priority?: boolean;
 }) {
-  const [failed, setFailed] = useState(false);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const remoteEnabled = useContext(RemoteImagesContext);
-  if (!remoteEnabled || !imageUrl || failed) {
+  const privateImage = imageUrl?.startsWith("/api/fragrances/") ?? false;
+  if ((!remoteEnabled && !privateImage) || !imageUrl || failedUrl === imageUrl) {
     return (
       <div
         className={className}
@@ -55,7 +56,8 @@ export function CatalogImage({
         height={500}
         sizes="(max-width: 640px) 42vw, (max-width: 1200px) 24vw, 240px"
         priority={priority}
-        onError={() => setFailed(true)}
+        unoptimized={privateImage}
+        onError={() => setFailedUrl(imageUrl)}
       />
     </div>
   );

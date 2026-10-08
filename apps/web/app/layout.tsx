@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { RemoteImagesProvider } from "@/components/catalog-image";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 import "./globals.css";
 
@@ -19,7 +20,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <ClerkProvider>
       <html lang="en" data-scroll-behavior="smooth">
         <body>
-          <RemoteImagesProvider enabled={remoteImagesEnabled}>{children}</RemoteImagesProvider>
+          <MotionProvider><RemoteImagesProvider enabled={remoteImagesEnabled}>{children}</RemoteImagesProvider></MotionProvider>
         </body>
       </html>
     </ClerkProvider>

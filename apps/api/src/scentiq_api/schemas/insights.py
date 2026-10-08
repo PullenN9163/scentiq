@@ -7,9 +7,10 @@ many items could not be classified rather than silently dropping them.
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CountSlice(BaseModel):
@@ -30,6 +31,28 @@ class MostWornEntry(BaseModel):
     fragrance_name: str
     brand_name: str
     wear_count: int
+
+
+class OwnedInsightEntry(MostWornEntry):
+    last_worn_at: datetime | None
+    user_rating: int | None
+    cost_per_wear: str | None
+
+
+class NoteFrequency(BaseModel):
+    label: str
+    stage: str
+    count: int
+    share: float
+
+
+class RedundancyPair(BaseModel):
+    first_id: UUID
+    first_name: str
+    second_id: UUID
+    second_name: str
+    overlap: float
+    shared_accords: list[str]
 
 
 class CollectionInsightsResponse(BaseModel):
@@ -53,3 +76,13 @@ class CollectionInsightsResponse(BaseModel):
     ownership_types: list[CountSlice]
     # Items with no shared-catalog classification to aggregate.
     unclassified_items: int
+    least_worn: list[OwnedInsightEntry] = Field(default_factory=list)
+    neglected: list[OwnedInsightEntry] = Field(default_factory=list)
+    highest_rated: list[OwnedInsightEntry] = Field(default_factory=list)
+    cost_per_wear: list[OwnedInsightEntry] = Field(default_factory=list)
+    note_frequency: list[NoteFrequency] = Field(default_factory=list)
+    redundancy_pairs: list[RedundancyPair] = Field(default_factory=list)
+    season_coverage_score: float | None = None
+    season_evidence_coverage: float = 0
+    season_gaps: list[str] = Field(default_factory=list)
+    occasion_behavior: list[WeightedSlice] = Field(default_factory=list)

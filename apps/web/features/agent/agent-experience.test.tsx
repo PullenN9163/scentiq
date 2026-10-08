@@ -1,86 +1,61 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
-
-import {
-  collectionInsights,
-  fragranceDetail,
-  layeringSuggestion,
-} from "@/test/catalog-fixtures";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AgentExperience } from "./agent-experience";
 
-afterEach(cleanup);
+vi.mock("@/features/recommendations/recommendation-card", () => ({ RecommendationCard: () => null }));
+
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+function response(events: unknown[]) {
+  return new Response(events.map((event) => JSON.stringify(event)).join("\n") + "\n", { headers: { "Content-Type": "application/x-ndjson" } });
+}
 
 describe("AgentExperience", () => {
-  it("answers supported quick actions with deterministic collection context", async () => {
+  it("sends free text with bounded session history and renders grounded cards", async () => {
+    const fetcher = vi.fn().mockResolvedValue(response([
+      { type: "tool_started", tool: "get_collection_insights", label: "Comparing your collection…" },
+      { type: "fallback", label: "AI explanation unavailable — showing ScentIQ's structured answer" },
+      { type: "card", card: { kind: "insights", data: { total_wears: 3, total_purchase_value: "120.00", owned_items: 2 } } },
+      { type: "text_delta", delta: "You have recorded three wears." }, { type: "done" },
+    ]));
+    vi.stubGlobal("fetch", fetcher);
     const user = userEvent.setup();
-    render(
-      <AgentExperience
-        owned={[fragranceDetail()]}
-        insights={collectionInsights()}
-        layering={[layeringSuggestion()]}
-      />,
-    );
-    await user.click(screen.getByRole("button", { name: "What should I wear today?" }));
-    expect(screen.getByText(/Source Scent is the strongest catalog-supported match/i)).toBeVisible();
+    render(<AgentExperience authenticated />);
+    await user.type(screen.getByRole("textbox", { name: "Ask your fragrance advisor" }), "What is my most worn fragrance?");
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(screen.getByText("You have recorded three wears.")).toBeVisible());
+    expect(fetcher.mock.calls[0][0]).toBe("/api/agent/chat");
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({ message: "What is my most worn fragrance?", history: [] });
+    expect(screen.getByText(/AI explanation unavailable/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open Insights" })).toHaveAttribute("href", "/insights");
+    expect(screen.queryByText("get_collection_insights")).not.toBeInTheDocument();
   });
 
-  it("does not answer from fictional collection data", async () => {
+  it("keeps Shift+Enter as a newline and disables an unauthenticated composer", async () => {
     const user = userEvent.setup();
-    render(
-      <AgentExperience owned={[]} insights={collectionInsights({ total_items: 0 })} layering={[]} />,
-    );
-    await user.click(screen.getByRole("button", { name: "What should I wear today?" }));
-    expect(screen.getByText(/owned collection is empty/i)).toBeVisible();
+    const view = render(<AgentExperience authenticated />);
+    const input = screen.getByRole("textbox", { name: "Ask your fragrance advisor" });
+    await user.type(input, "Dinner");
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+    expect(input).toHaveValue("Dinner\n");
+    view.rerender(<AgentExperience authenticated={false} />);
+    expect(input).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });
-});
 
-describe("AgentExperience with today's context", () => {
-  it("explains today's pick from the forecast and calendar", async () => {
+  it("aborts the active stream and exposes a useful interrupted state", async () => {
+    let signal: AbortSignal | undefined;
+    vi.stubGlobal("fetch", vi.fn((_url: string, init: RequestInit) => {
+      signal = init.signal as AbortSignal;
+      return new Promise((_resolve, reject) => signal?.addEventListener("abort", () => reject(new DOMException("Stopped", "AbortError"))));
+    }));
     const user = userEvent.setup();
-    render(
-      <AgentExperience
-        owned={[fragranceDetail()]}
-        insights={collectionInsights()}
-        layering={[]}
-        today={{
-          timeZone: "UTC",
-          temperatureUnit: "celsius",
-          day: {
-            date: "2026-09-26",
-            weather: {
-              date: "2026-09-26",
-              condition: "rain",
-              high_celsius: 14,
-              low_celsius: 9,
-              precipitation_probability: 0.8,
-              humidity: 85,
-            },
-            events: [
-              {
-                id: "e1",
-                title: "Client pitch",
-                starts_at: "2026-09-26T10:00:00Z",
-                ends_at: "2026-09-26T11:00:00Z",
-                is_all_day: false,
-                location_label: null,
-                occasion: "work",
-                formality: "smart",
-                is_hidden: false,
-                calendar_name: "Work",
-                provider: "microsoft",
-              },
-            ],
-          },
-        }}
-      />,
-    );
-
-    expect(screen.getByRole("note")).toHaveTextContent(/forecast and connected calendars/);
-    await user.click(screen.getByRole("button", { name: "What should I wear today?" }));
-    expect(
-      screen.getByText(/for today with 14°C and rain and your work plans \(Client pitch\)/),
-    ).toBeVisible();
+    render(<AgentExperience authenticated />);
+    await user.click(screen.getByRole("button", { name: "Wear today" }));
+    await user.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(signal?.aborted).toBe(true));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Response stopped.");
   });
 });

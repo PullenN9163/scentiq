@@ -161,6 +161,9 @@ class WearLog(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     collection_item_id: Mapped[UUID] = mapped_column(
         ForeignKey("user_collection.id", ondelete="CASCADE")
     )
+    recommendation_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("recommendations.id", ondelete="SET NULL"), index=True
+    )
     worn_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     sprays: Mapped[int | None]
     occasion: Mapped[str | None] = mapped_column(String(20))

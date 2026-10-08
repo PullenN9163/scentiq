@@ -70,6 +70,12 @@ param hybridWorkerPrincipalId string = ''
 param hybridCatalogVersion string = 'catalog-v1'
 param hybridAlgorithmVersion string = 'v1'
 param recommendationMaxAgeSeconds int = 21600
+param foundryAccountName string = ''
+param foundryResourceGroupName string = resourceGroupName
+param foundryProjectName string = ''
+param azureOpenAIEndpoint string = ''
+param azureOpenAIDeployment string = ''
+param agentEnabled bool = true
 
 param apiImage string
 param webImage string
@@ -225,6 +231,12 @@ module platform 'main.bicep' = {
     hybridCatalogVersion: hybridCatalogVersion
     hybridAlgorithmVersion: hybridAlgorithmVersion
     recommendationMaxAgeSeconds: recommendationMaxAgeSeconds
+    foundryAccountName: foundryAccountName
+    foundryResourceGroupName: foundryResourceGroupName
+    foundryProjectName: foundryProjectName
+    azureOpenAIEndpoint: azureOpenAIEndpoint
+    azureOpenAIDeployment: azureOpenAIDeployment
+    agentEnabled: agentEnabled
     apiImage: apiImage
     webImage: webImage
     databaseSecretUri: databaseSecretUri

@@ -1,29 +1,10 @@
 import { WeekPlanner } from "@/features/week/week-planner";
-import { safeTimeZone, type CalendarResult } from "@/lib/calendar";
-import { getCalendarRange, getWeather, getWeekPage } from "@/lib/server/queries";
-import type { WeatherResult } from "@/lib/weather";
-import { buildWeek, nextDates, spanOf } from "@/lib/week";
+import { apiClient } from "@/lib/server/api-client";
+import { getCalendarAround, getWeather } from "@/lib/server/queries";
+import type { WearPlan } from "@/types/wear-intelligence";
 
 export default async function WeekPage() {
-  const weatherPromise: Promise<WeatherResult> = getWeather();
-  const page = await getWeekPage();
-  const timeZone = safeTimeZone(page.me.preferences.timezone);
-  const dates = nextDates(new Date(), timeZone);
-  const { start, end } = spanOf(dates, timeZone);
-  const [weather, calendar]: [WeatherResult, CalendarResult] = await Promise.all([
-    weatherPromise,
-    getCalendarRange(start, end),
-  ]);
-
-  return (
-    <WeekPlanner
-      owned={page.owned}
-      days={buildWeek(dates, weather, calendar, timeZone)}
-      timeZone={timeZone}
-      temperatureUnit={weather.status === "ok" ? weather.forecast.temperature_unit : "fahrenheit"}
-      weatherStatus={weather.status}
-      calendarStatus={calendar.status}
-      needsReconnect={calendar.status === "ok" && calendar.needsReconnect}
-    />
-  );
+  const [,calendar]=await Promise.all([getWeather(),getCalendarAround()]);
+  const plan=await apiClient.get<WearPlan>("/api/v1/recommendations/week");
+  return <WeekPlanner plan={plan} events={calendar.status === "ok" ? calendar.events : []}/>;
 }

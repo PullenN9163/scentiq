@@ -30,6 +30,55 @@
         "title": "AccordResponse",
         "type": "object"
       },
+      "AgentChatRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/AgentTurn"
+            },
+            "maxItems": 8,
+            "title": "History",
+            "type": "array"
+          },
+          "message": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "AgentChatRequest",
+        "type": "object"
+      },
+      "AgentTurn": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "AgentTurn",
+        "type": "object"
+      },
       "AuthorizationResponse": {
         "properties": {
           "authorization_url": {
@@ -368,6 +417,13 @@
             ],
             "title": "Average Rating"
           },
+          "cost_per_wear": {
+            "items": {
+              "$ref": "#/components/schemas/OwnedInsightEntry"
+            },
+            "title": "Cost Per Wear",
+            "type": "array"
+          },
           "custom_items": {
             "title": "Custom Items",
             "type": "integer"
@@ -376,11 +432,46 @@
             "title": "Distinct Fragrances Worn",
             "type": "integer"
           },
+          "highest_rated": {
+            "items": {
+              "$ref": "#/components/schemas/OwnedInsightEntry"
+            },
+            "title": "Highest Rated",
+            "type": "array"
+          },
+          "least_worn": {
+            "items": {
+              "$ref": "#/components/schemas/OwnedInsightEntry"
+            },
+            "title": "Least Worn",
+            "type": "array"
+          },
           "most_worn": {
             "items": {
               "$ref": "#/components/schemas/MostWornEntry"
             },
             "title": "Most Worn",
+            "type": "array"
+          },
+          "neglected": {
+            "items": {
+              "$ref": "#/components/schemas/OwnedInsightEntry"
+            },
+            "title": "Neglected",
+            "type": "array"
+          },
+          "note_frequency": {
+            "items": {
+              "$ref": "#/components/schemas/NoteFrequency"
+            },
+            "title": "Note Frequency",
+            "type": "array"
+          },
+          "occasion_behavior": {
+            "items": {
+              "$ref": "#/components/schemas/WeightedSlice"
+            },
+            "title": "Occasion Behavior",
             "type": "array"
           },
           "occasions": {
@@ -409,9 +500,39 @@
             "title": "Rated Items",
             "type": "integer"
           },
+          "redundancy_pairs": {
+            "items": {
+              "$ref": "#/components/schemas/RedundancyPair"
+            },
+            "title": "Redundancy Pairs",
+            "type": "array"
+          },
           "retired_items": {
             "title": "Retired Items",
             "type": "integer"
+          },
+          "season_coverage_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Coverage Score"
+          },
+          "season_evidence_coverage": {
+            "default": 0,
+            "title": "Season Evidence Coverage",
+            "type": "number"
+          },
+          "season_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Season Gaps",
+            "type": "array"
           },
           "seasons": {
             "items": {
@@ -1171,8 +1292,33 @@
             "title": "Collection Expansion",
             "type": "number"
           },
+          "evidence_coverage": {
+            "default": 0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Evidence Coverage",
+            "type": "number"
+          },
           "fragrance": {
             "$ref": "#/components/schemas/FragranceSummary"
+          },
+          "mode": {
+            "default": "balance",
+            "enum": [
+              "balance",
+              "taste",
+              "explore",
+              "seasonal"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
           },
           "redundancy_risk": {
             "maximum": 1.0,
@@ -1183,6 +1329,17 @@
           "score": {
             "title": "Score",
             "type": "number"
+          },
+          "season_fit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Fit"
           },
           "taste_match": {
             "maximum": 1.0,
@@ -1809,6 +1966,54 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "LayeringIntelligencePage": {
+        "properties": {
+          "saved": {
+            "items": {
+              "$ref": "#/components/schemas/SavedLayeringStack"
+            },
+            "title": "Saved",
+            "type": "array"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/LayeringStackSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          },
+          "supported_goals": {
+            "items": {
+              "enum": [
+                "fresher",
+                "warmer",
+                "sweeter",
+                "darker",
+                "cleaner",
+                "softer",
+                "more_projection",
+                "more_intimate",
+                "daytime",
+                "evening",
+                "spring",
+                "summer",
+                "fall",
+                "winter"
+              ],
+              "type": "string"
+            },
+            "title": "Supported Goals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "supported_goals",
+          "suggestions",
+          "saved"
+        ],
+        "title": "LayeringIntelligencePage",
+        "type": "object"
+      },
       "LayeringPageResponse": {
         "properties": {
           "collection": {
@@ -1856,6 +2061,504 @@
         "title": "LayeringRecommendationPayload",
         "type": "object"
       },
+      "LayeringScoreComponents": {
+        "properties": {
+          "bridge": {
+            "title": "Bridge",
+            "type": "number"
+          },
+          "complement": {
+            "title": "Complement",
+            "type": "number"
+          },
+          "longevity_balance": {
+            "title": "Longevity Balance",
+            "type": "number"
+          },
+          "novelty": {
+            "title": "Novelty",
+            "type": "number"
+          },
+          "overload_penalty": {
+            "title": "Overload Penalty",
+            "type": "number"
+          },
+          "projection_balance": {
+            "title": "Projection Balance",
+            "type": "number"
+          },
+          "redundancy_penalty": {
+            "title": "Redundancy Penalty",
+            "type": "number"
+          },
+          "season_context": {
+            "title": "Season Context",
+            "type": "number"
+          },
+          "user_affinity": {
+            "title": "User Affinity",
+            "type": "number"
+          }
+        },
+        "required": [
+          "bridge",
+          "complement",
+          "season_context",
+          "projection_balance",
+          "longevity_balance",
+          "novelty",
+          "user_affinity",
+          "redundancy_penalty",
+          "overload_penalty"
+        ],
+        "title": "LayeringScoreComponents",
+        "type": "object"
+      },
+      "LayeringStackItem": {
+        "properties": {
+          "application_order": {
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Application Order",
+            "type": "integer"
+          },
+          "fragrance": {
+            "$ref": "#/components/schemas/FragranceSummary"
+          },
+          "role": {
+            "enum": [
+              "anchor",
+              "bridge",
+              "accent"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "suggested_sprays": {
+            "maximum": 6.0,
+            "minimum": 1.0,
+            "title": "Suggested Sprays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fragrance",
+          "role",
+          "application_order",
+          "suggested_sprays"
+        ],
+        "title": "LayeringStackItem",
+        "type": "object"
+      },
+      "LayeringStackRatingRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "rating": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Rating",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rating"
+        ],
+        "title": "LayeringStackRatingRequest",
+        "type": "object"
+      },
+      "LayeringStackRenameRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "LayeringStackRenameRequest",
+        "type": "object"
+      },
+      "LayeringStackRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "fragrance_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 2,
+            "title": "Fragrance Ids",
+            "type": "array"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "fresher",
+                  "warmer",
+                  "sweeter",
+                  "darker",
+                  "cleaner",
+                  "softer",
+                  "more_projection",
+                  "more_intimate",
+                  "daytime",
+                  "evening",
+                  "spring",
+                  "summer",
+                  "fall",
+                  "winter"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "mode": {
+            "default": "balanced",
+            "enum": [
+              "safe",
+              "balanced",
+              "contrast",
+              "experimental"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fragrance_ids"
+        ],
+        "title": "LayeringStackRequest",
+        "type": "object"
+      },
+      "LayeringStackSaveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "fragrance_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 2,
+            "title": "Fragrance Ids",
+            "type": "array"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "fresher",
+                  "warmer",
+                  "sweeter",
+                  "darker",
+                  "cleaner",
+                  "softer",
+                  "more_projection",
+                  "more_intimate",
+                  "daytime",
+                  "evening",
+                  "spring",
+                  "summer",
+                  "fall",
+                  "winter"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "mode": {
+            "default": "balanced",
+            "enum": [
+              "safe",
+              "balanced",
+              "contrast",
+              "experimental"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "fragrance_ids",
+          "name"
+        ],
+        "title": "LayeringStackSaveRequest",
+        "type": "object"
+      },
+      "LayeringStackSuggestion": {
+        "properties": {
+          "algorithm_version": {
+            "default": "layering-v2",
+            "title": "Algorithm Version",
+            "type": "string"
+          },
+          "best_contexts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Best Contexts",
+            "type": "array"
+          },
+          "bridge_signals": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Bridge Signals",
+            "type": "array"
+          },
+          "complementary_signals": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Complementary Signals",
+            "type": "array"
+          },
+          "evidence_coverage": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Evidence Coverage",
+            "type": "number"
+          },
+          "evidence_label": {
+            "enum": [
+              "limited",
+              "partial",
+              "strong"
+            ],
+            "title": "Evidence Label",
+            "type": "string"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "fresher",
+                  "warmer",
+                  "sweeter",
+                  "darker",
+                  "cleaner",
+                  "softer",
+                  "more_projection",
+                  "more_intimate",
+                  "daytime",
+                  "evening",
+                  "spring",
+                  "summer",
+                  "fall",
+                  "winter"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LayeringStackItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "mode": {
+            "enum": [
+              "safe",
+              "balanced",
+              "contrast",
+              "experimental"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "score_components": {
+            "$ref": "#/components/schemas/LayeringScoreComponents"
+          },
+          "shared_accords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Shared Accords",
+            "type": "array"
+          },
+          "shared_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Shared Notes",
+            "type": "array"
+          },
+          "total_sprays": {
+            "title": "Total Sprays",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "mode",
+          "score",
+          "score_components",
+          "shared_notes",
+          "shared_accords",
+          "bridge_signals",
+          "complementary_signals",
+          "best_contexts",
+          "reasons",
+          "warnings",
+          "total_sprays",
+          "evidence_coverage",
+          "evidence_label"
+        ],
+        "title": "LayeringStackSuggestion",
+        "type": "object"
+      },
+      "LayeringStackWearRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "worn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worn At"
+          }
+        },
+        "title": "LayeringStackWearRequest",
+        "type": "object"
+      },
+      "LayeringStackWearResponse": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "stack_id": {
+            "format": "uuid",
+            "title": "Stack Id",
+            "type": "string"
+          },
+          "worn_at": {
+            "format": "date-time",
+            "title": "Worn At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "stack_id",
+          "worn_at",
+          "rating",
+          "notes"
+        ],
+        "title": "LayeringStackWearResponse",
+        "type": "object"
+      },
       "LayeringSuggestion": {
         "properties": {
           "complementary_accords": {
@@ -1871,6 +2574,7 @@
           "mode": {
             "enum": [
               "safe",
+              "balanced",
               "contrast",
               "experimental"
             ],
@@ -2004,6 +2708,34 @@
         "title": "MostWornEntry",
         "type": "object"
       },
+      "NoteFrequency": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "stage",
+          "count",
+          "share"
+        ],
+        "title": "NoteFrequency",
+        "type": "object"
+      },
       "NoteResponse": {
         "properties": {
           "id": {
@@ -2100,6 +2832,78 @@
           "weight"
         ],
         "title": "OccasionResponse",
+        "type": "object"
+      },
+      "OwnedInsightEntry": {
+        "properties": {
+          "brand_name": {
+            "title": "Brand Name",
+            "type": "string"
+          },
+          "collection_item_id": {
+            "format": "uuid",
+            "title": "Collection Item Id",
+            "type": "string"
+          },
+          "cost_per_wear": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Wear"
+          },
+          "fragrance_id": {
+            "format": "uuid",
+            "title": "Fragrance Id",
+            "type": "string"
+          },
+          "fragrance_name": {
+            "title": "Fragrance Name",
+            "type": "string"
+          },
+          "last_worn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Worn At"
+          },
+          "user_rating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Rating"
+          },
+          "wear_count": {
+            "title": "Wear Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "collection_item_id",
+          "fragrance_id",
+          "fragrance_name",
+          "brand_name",
+          "wear_count",
+          "last_worn_at",
+          "user_rating",
+          "cost_per_wear"
+        ],
+        "title": "OwnedInsightEntry",
         "type": "object"
       },
       "PerfumerResponse": {
@@ -2452,6 +3256,243 @@
         "title": "RecommendationBundleResponse",
         "type": "object"
       },
+      "RecommendationContext": {
+        "additionalProperties": false,
+        "properties": {
+          "calendar_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calendar Event Id"
+          },
+          "condition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condition"
+          },
+          "context_key": {
+            "title": "Context Key",
+            "type": "string"
+          },
+          "daypart": {
+            "enum": [
+              "day",
+              "night"
+            ],
+            "title": "Daypart",
+            "type": "string"
+          },
+          "formality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formality"
+          },
+          "high_celsius": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High Celsius"
+          },
+          "humidity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Humidity"
+          },
+          "local_date": {
+            "format": "date",
+            "title": "Local Date",
+            "type": "string"
+          },
+          "low_celsius": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low Celsius"
+          },
+          "occasion": {
+            "anyOf": [
+              {
+                "enum": [
+                  "work",
+                  "casual",
+                  "date",
+                  "dinner",
+                  "party",
+                  "formal",
+                  "gym",
+                  "travel",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occasion"
+          },
+          "precipitation_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precipitation Probability"
+          },
+          "recommended_for": {
+            "format": "date-time",
+            "title": "Recommended For",
+            "type": "string"
+          },
+          "season": {
+            "enum": [
+              "spring",
+              "summer",
+              "fall",
+              "winter"
+            ],
+            "title": "Season",
+            "type": "string"
+          },
+          "setting": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setting"
+          },
+          "source": {
+            "enum": [
+              "today",
+              "day",
+              "event",
+              "manual",
+              "agent"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "context_key",
+          "recommended_for",
+          "local_date",
+          "timezone",
+          "daypart",
+          "season",
+          "source"
+        ],
+        "title": "RecommendationContext",
+        "type": "object"
+      },
+      "RecommendationDecisionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "accepted",
+              "rejected",
+              "replaced",
+              "dismissed"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "selected_fragrance_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Fragrance Id"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "RecommendationDecisionRequest",
+        "type": "object"
+      },
+      "RecommendationDecisionResponse": {
+        "properties": {
+          "action": {
+            "enum": [
+              "accepted",
+              "rejected",
+              "replaced",
+              "dismissed"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "selected_fragrance_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Fragrance Id"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "RecommendationDecisionResponse",
+        "type": "object"
+      },
       "RecommendationPayload": {
         "properties": {
           "discovery": {
@@ -2469,6 +3510,329 @@
           "layering"
         ],
         "title": "RecommendationPayload",
+        "type": "object"
+      },
+      "RecommendationPreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "daypart": {
+            "anyOf": [
+              {
+                "enum": [
+                  "day",
+                  "night"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daypart"
+          },
+          "formality": {
+            "anyOf": [
+              {
+                "enum": [
+                  "casual",
+                  "smart",
+                  "formal"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formality"
+          },
+          "high_celsius": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": -60.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High Celsius"
+          },
+          "low_celsius": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": -60.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low Celsius"
+          },
+          "occasion": {
+            "anyOf": [
+              {
+                "enum": [
+                  "work",
+                  "casual",
+                  "date",
+                  "dinner",
+                  "party",
+                  "formal",
+                  "gym",
+                  "travel",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occasion"
+          },
+          "recommended_for": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended For"
+          },
+          "setting": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setting"
+          },
+          "source": {
+            "default": "manual",
+            "enum": [
+              "manual",
+              "agent"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "title": "RecommendationPreviewRequest",
+        "type": "object"
+      },
+      "RecommendationWearRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "occasion": {
+            "anyOf": [
+              {
+                "enum": [
+                  "work",
+                  "casual",
+                  "date",
+                  "dinner",
+                  "party",
+                  "formal",
+                  "gym",
+                  "travel",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occasion"
+          },
+          "selected_fragrance_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Fragrance Id"
+          },
+          "setting": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setting"
+          },
+          "sprays": {
+            "anyOf": [
+              {
+                "maximum": 30.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sprays"
+          },
+          "worn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worn At"
+          }
+        },
+        "title": "RecommendationWearRequest",
+        "type": "object"
+      },
+      "RedundancyPair": {
+        "properties": {
+          "first_id": {
+            "format": "uuid",
+            "title": "First Id",
+            "type": "string"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "overlap": {
+            "title": "Overlap",
+            "type": "number"
+          },
+          "second_id": {
+            "format": "uuid",
+            "title": "Second Id",
+            "type": "string"
+          },
+          "second_name": {
+            "title": "Second Name",
+            "type": "string"
+          },
+          "shared_accords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Shared Accords",
+            "type": "array"
+          }
+        },
+        "required": [
+          "first_id",
+          "first_name",
+          "second_id",
+          "second_name",
+          "overlap",
+          "shared_accords"
+        ],
+        "title": "RedundancyPair",
+        "type": "object"
+      },
+      "SavedLayeringStack": {
+        "properties": {
+          "average_rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Rating"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_worn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Worn At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "suggestion": {
+            "$ref": "#/components/schemas/LayeringStackSuggestion"
+          },
+          "wear_count": {
+            "title": "Wear Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "notes",
+          "created_at",
+          "last_worn_at",
+          "average_rating",
+          "wear_count",
+          "suggestion"
+        ],
+        "title": "SavedLayeringStack",
         "type": "object"
       },
       "SeasonResponse": {
@@ -2558,6 +3922,142 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WearFeedbackRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "comments": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comments"
+          },
+          "longevity": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longevity"
+          },
+          "projection": {
+            "anyOf": [
+              {
+                "enum": [
+                  "intimate",
+                  "moderate",
+                  "strong"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projection"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          }
+        },
+        "title": "WearFeedbackRequest",
+        "type": "object"
+      },
+      "WearFeedbackResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "comments": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comments"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "longevity": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longevity"
+          },
+          "projection": {
+            "anyOf": [
+              {
+                "enum": [
+                  "intimate",
+                  "moderate",
+                  "strong"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projection"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "wear_log_id": {
+            "format": "uuid",
+            "title": "Wear Log Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "wear_log_id"
+        ],
+        "title": "WearFeedbackResponse",
         "type": "object"
       },
       "WearLogCreateRequest": {
@@ -2698,6 +4198,18 @@
             ],
             "title": "Occasion"
           },
+          "recommendation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommendation Id"
+          },
           "setting": {
             "anyOf": [
               {
@@ -2735,6 +4247,187 @@
           "worn_at"
         ],
         "title": "WearLogResponse",
+        "type": "object"
+      },
+      "WearRecommendationCandidate": {
+        "properties": {
+          "evidence_coverage": {
+            "title": "Evidence Coverage",
+            "type": "number"
+          },
+          "fragrance": {
+            "$ref": "#/components/schemas/FragranceSummary"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "recommended_sprays": {
+            "title": "Recommended Sprays",
+            "type": "integer"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "score_components": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Score Components",
+            "type": "object"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fragrance",
+          "score",
+          "evidence_coverage",
+          "recommended_sprays",
+          "score_components",
+          "reasons",
+          "warnings"
+        ],
+        "title": "WearRecommendationCandidate",
+        "type": "object"
+      },
+      "WearRecommendationPlan": {
+        "properties": {
+          "gaps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "local_date": {
+            "format": "date",
+            "title": "Local Date",
+            "type": "string"
+          },
+          "recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/WearRecommendationResponse"
+            },
+            "title": "Recommendations",
+            "type": "array"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timezone",
+          "local_date",
+          "recommendations",
+          "gaps"
+        ],
+        "title": "WearRecommendationPlan",
+        "type": "object"
+      },
+      "WearRecommendationResponse": {
+        "properties": {
+          "algorithm_version": {
+            "title": "Algorithm Version",
+            "type": "string"
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/WearRecommendationCandidate"
+            },
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "context": {
+            "$ref": "#/components/schemas/RecommendationContext"
+          },
+          "context_key": {
+            "title": "Context Key",
+            "type": "string"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecommendationDecisionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence_coverage": {
+            "title": "Evidence Coverage",
+            "type": "number"
+          },
+          "fragrance": {
+            "$ref": "#/components/schemas/FragranceSummary"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "recommended_for": {
+            "format": "date-time",
+            "title": "Recommended For",
+            "type": "string"
+          },
+          "recommended_sprays": {
+            "title": "Recommended Sprays",
+            "type": "integer"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "score_components": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Score Components",
+            "type": "object"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fragrance",
+          "score",
+          "evidence_coverage",
+          "recommended_sprays",
+          "score_components",
+          "reasons",
+          "warnings",
+          "id",
+          "context_key",
+          "recommended_for",
+          "context",
+          "algorithm_version",
+          "alternatives"
+        ],
+        "title": "WearRecommendationResponse",
         "type": "object"
       },
       "WeatherForecastResponse": {
@@ -3025,6 +4718,68 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/agent/chat": {
+      "post": {
+        "operationId": "chat_api_v1_agent_chat_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "NDJSON events: status, tool_started, tool_finished, text_delta, card, fallback, done"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
     "/api/v1/calendar/connections": {
       "get": {
         "operationId": "list_connections_api_v1_calendar_connections_get",
@@ -3917,6 +5672,22 @@
             }
           },
           {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "balance",
+              "enum": [
+                "balance",
+                "taste",
+                "explore",
+                "seasonal"
+              ],
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -4267,6 +6038,200 @@
         ]
       }
     },
+    "/api/v1/fragrances/{fragrance_id}/image": {
+      "delete": {
+        "operationId": "delete_image_api_v1_fragrances__fragrance_id__image_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fragrance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Fragrance Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Image",
+        "tags": [
+          "fragrances"
+        ]
+      },
+      "get": {
+        "operationId": "get_image_api_v1_fragrances__fragrance_id__image_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fragrance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Fragrance Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Image",
+        "tags": [
+          "fragrances"
+        ]
+      },
+      "put": {
+        "operationId": "put_image_api_v1_fragrances__fragrance_id__image_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fragrance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Fragrance Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Put Image Api V1 Fragrances  Fragrance Id  Image Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Image",
+        "tags": [
+          "fragrances"
+        ]
+      }
+    },
     "/api/v1/insights/collection": {
       "get": {
         "operationId": "collection_insights_api_v1_insights_collection_get",
@@ -4316,6 +6281,777 @@
         ]
       }
     },
+    "/api/v1/layering/intelligence": {
+      "get": {
+        "operationId": "intelligence_api_v1_layering_intelligence_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "anchor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Anchor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "balanced",
+              "enum": [
+                "safe",
+                "balanced",
+                "contrast",
+                "experimental"
+              ],
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "goal",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "fresher",
+                    "warmer",
+                    "sweeter",
+                    "darker",
+                    "cleaner",
+                    "softer",
+                    "more_projection",
+                    "more_intimate",
+                    "daytime",
+                    "evening",
+                    "spring",
+                    "summer",
+                    "fall",
+                    "winter"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Goal"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayeringIntelligencePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Intelligence",
+        "tags": [
+          "layering"
+        ]
+      }
+    },
+    "/api/v1/layering/stacks": {
+      "get": {
+        "operationId": "saved_stacks_api_v1_layering_stacks_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SavedLayeringStack"
+                  },
+                  "title": "Response Saved Stacks Api V1 Layering Stacks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Saved Stacks",
+        "tags": [
+          "layering"
+        ]
+      },
+      "post": {
+        "operationId": "save_api_v1_layering_stacks_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayeringStackSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedLayeringStack"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save",
+        "tags": [
+          "layering"
+        ]
+      }
+    },
+    "/api/v1/layering/stacks/evaluate": {
+      "post": {
+        "operationId": "evaluate_api_v1_layering_stacks_evaluate_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayeringStackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayeringStackSuggestion"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluate",
+        "tags": [
+          "layering"
+        ]
+      }
+    },
+    "/api/v1/layering/stacks/suggestions": {
+      "get": {
+        "operationId": "stack_suggestions_api_v1_layering_stacks_suggestions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "anchor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Anchor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "balanced",
+              "enum": [
+                "safe",
+                "balanced",
+                "contrast",
+                "experimental"
+              ],
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "goal",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "fresher",
+                    "warmer",
+                    "sweeter",
+                    "darker",
+                    "cleaner",
+                    "softer",
+                    "more_projection",
+                    "more_intimate",
+                    "daytime",
+                    "evening",
+                    "spring",
+                    "summer",
+                    "fall",
+                    "winter"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Goal"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 12,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_triples",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Triples",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stack_size",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    2,
+                    3
+                  ],
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stack Size"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LayeringStackSuggestion"
+                  },
+                  "title": "Response Stack Suggestions Api V1 Layering Stacks Suggestions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stack Suggestions",
+        "tags": [
+          "layering"
+        ]
+      }
+    },
+    "/api/v1/layering/stacks/{stack_id}": {
+      "delete": {
+        "operationId": "delete_api_v1_layering_stacks__stack_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stack_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stack Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete",
+        "tags": [
+          "layering"
+        ]
+      },
+      "patch": {
+        "operationId": "rename_api_v1_layering_stacks__stack_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stack_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stack Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayeringStackRenameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedLayeringStack"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rename",
+        "tags": [
+          "layering"
+        ]
+      }
+    },
+    "/api/v1/layering/stacks/{stack_id}/wears": {
+      "get": {
+        "operationId": "history_api_v1_layering_stacks__stack_id__wears_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stack_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stack Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LayeringStackWearResponse"
+                  },
+                  "title": "Response History Api V1 Layering Stacks  Stack Id  Wears Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "History",
+        "tags": [
+          "layering"
+        ]
+      },
+      "post": {
+        "operationId": "wear_api_v1_layering_stacks__stack_id__wears_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stack_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stack Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayeringStackWearRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayeringStackWearResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Wear",
+        "tags": [
+          "layering"
+        ]
+      }
+    },
+    "/api/v1/layering/stacks/{stack_id}/wears/{wear_id}/rating": {
+      "patch": {
+        "operationId": "rate_api_v1_layering_stacks__stack_id__wears__wear_id__rating_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stack_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stack Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "wear_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Wear Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayeringStackRatingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayeringStackWearResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rate",
+        "tags": [
+          "layering"
+        ]
+      }
+    },
     "/api/v1/layering/suggestions": {
       "get": {
         "operationId": "suggestions_api_v1_layering_suggestions_get",
@@ -4328,6 +7064,7 @@
               "default": "safe",
               "enum": [
                 "safe",
+                "balanced",
                 "contrast",
                 "experimental"
               ],
@@ -4944,6 +7681,301 @@
         ]
       }
     },
+    "/api/v1/recommendations/preview": {
+      "post": {
+        "operationId": "preview_api_v1_recommendations_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendationPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearRecommendationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview",
+        "tags": [
+          "wear-recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/today": {
+      "get": {
+        "operationId": "today_api_v1_recommendations_today_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearRecommendationPlan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Today",
+        "tags": [
+          "wear-recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/week": {
+      "get": {
+        "operationId": "week_api_v1_recommendations_week_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearRecommendationPlan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Week",
+        "tags": [
+          "wear-recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/{recommendation_id}/decision": {
+      "post": {
+        "operationId": "decision_api_v1_recommendations__recommendation_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recommendation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recommendation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendationDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationDecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decision",
+        "tags": [
+          "wear-recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/{recommendation_id}/wear": {
+      "post": {
+        "operationId": "wear_api_v1_recommendations__recommendation_id__wear_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recommendation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recommendation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendationWearRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearLogResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Wear",
+        "tags": [
+          "wear-recommendations"
+        ]
+      }
+    },
     "/api/v1/wear-logs": {
       "get": {
         "operationId": "list_wear_logs_api_v1_wear_logs_get",
@@ -5129,6 +8161,140 @@
           }
         },
         "summary": "Add Wear Log",
+        "tags": [
+          "wear-logs"
+        ]
+      }
+    },
+    "/api/v1/wear-logs/{wear_id}/feedback": {
+      "get": {
+        "operationId": "get_feedback_api_v1_wear_logs__wear_id__feedback_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wear_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Wear Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/WearFeedbackResponse"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Feedback Api V1 Wear Logs  Wear Id  Feedback Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Feedback",
+        "tags": [
+          "wear-logs"
+        ]
+      },
+      "put": {
+        "operationId": "put_feedback_api_v1_wear_logs__wear_id__feedback_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wear_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Wear Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WearFeedbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearFeedbackResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Feedback",
         "tags": [
           "wear-logs"
         ]

@@ -9,6 +9,7 @@ vi.mock("@/lib/server/actions", () => ({
   logWear: vi.fn(),
   updateCollectionItem: vi.fn(),
 }));
+vi.mock("@/lib/server/feedback-actions", () => ({ getWearFeedback: vi.fn(), saveWearFeedback: vi.fn() }));
 
 describe("FragranceDetailView", () => {
   it("returns a Discover visitor to their catalog search", () => {

@@ -7,11 +7,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from scentiq_api.schemas.enums import Occasion
+from scentiq_api.schemas.enums import Occasion, Projection
 
 
 class WearLogResponse(BaseModel):
     id: UUID
+    recommendation_id: UUID | None = None
     collection_item_id: UUID
     fragrance_id: UUID
     fragrance_name: str
@@ -49,3 +50,16 @@ class WearLogCreateRequest(BaseModel):
             return None
         stripped = value.strip()
         return stripped or None
+
+
+class WearFeedbackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    rating: int | None = Field(default=None, ge=1, le=5)
+    longevity: float | None = Field(default=None, ge=0, le=10)
+    projection: Projection | None = None
+    comments: str | None = Field(default=None, max_length=2000)
+
+
+class WearFeedbackResponse(WearFeedbackRequest):
+    id: UUID
+    wear_log_id: UUID

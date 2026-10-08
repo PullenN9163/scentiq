@@ -5,6 +5,7 @@ from uuid import UUID
 from scentiq_api.models import Fragrance
 from scentiq_api.repositories import DiscoveryRepository
 from scentiq_api.schemas import DiscoveryResult
+from scentiq_api.schemas.discovery import DiscoveryMode
 from scentiq_api.services.fragrances import to_fragrance_summary
 
 
@@ -42,6 +43,7 @@ class DiscoveryService:
         season: str | None = None,
         accord: str | None = None,
         minimum_value: float | None = None,
+        mode: DiscoveryMode = "balance",
     ) -> list[DiscoveryResult]:
         owned = self._repository.owned(user_id)
         candidates = self._repository.candidates(
@@ -88,7 +90,44 @@ class DiscoveryService:
                     len(set(candidate_accords) & owned_item_accords) / len(union) if union else 0
                 )
                 risk = max(risk, overlap, similarities.get((candidate.id, owned_item.id), 0.0))
-            score = 0.55 * taste + 0.35 * expansion - 0.25 * risk
+            season_fit = (
+                max(
+                    (float(link.weight) for link in candidate.seasons if link.season == season),
+                    default=0.0,
+                )
+                if season
+                else None
+            )
+            if mode == "taste":
+                score = 0.80 * taste + 0.15 * expansion - 0.10 * risk
+            elif mode == "explore":
+                score = 0.15 * taste + 0.70 * expansion - 0.35 * risk
+            elif mode == "seasonal":
+                score = 0.35 * taste + 0.25 * expansion + 0.40 * (season_fit or 0) - 0.20 * risk
+            else:
+                score = 0.55 * taste + 0.35 * expansion - 0.25 * risk
+            evidence = (
+                sum(
+                    (
+                        bool(candidate_accords),
+                        bool(candidate_notes),
+                        bool(candidate.seasons),
+                        bool(candidate.olfactory_family),
+                    )
+                )
+                / 4
+            )
+            reasons = [
+                f"{round(taste * 100)}% recorded taste overlap with your owned collection.",
+                f"{round(expansion * 100)}% of recorded profile signals add collection variety.",
+                f"{round(risk * 100)}% nearest-profile redundancy risk.",
+            ]
+            if season_fit is not None:
+                reasons.append(f"Recorded {season} suitability: {round(season_fit * 100)}%.")
+            if evidence < 0.5:
+                reasons.append(
+                    "Limited catalog evidence; compare the fragrance details before deciding."
+                )
             results.append(
                 DiscoveryResult(
                     fragrance=to_fragrance_summary(candidate),
@@ -96,6 +135,10 @@ class DiscoveryService:
                     collection_expansion=round(expansion, 4),
                     redundancy_risk=round(risk, 4),
                     score=round(score, 4),
+                    mode=mode,
+                    season_fit=season_fit,
+                    evidence_coverage=evidence,
+                    reasons=reasons,
                 )
             )
         ranked = sorted(

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { Field, FormMessage } from "@/components/shared/form-field";
 import { CatalogImage } from "@/components/catalog-image";
@@ -42,7 +43,7 @@ export function AddFragranceDialog({
   const [addState, addAction, addPending] = useActionState(
     async (previous: ActionState, formData: FormData) => {
       const result = await addToCollection(previous, formData);
-      if (result.status === "success") onOpenChange(false);
+      if (result.status === "success") { onOpenChange(false); toast.success(result.message); }
       return result;
     },
     idleState,

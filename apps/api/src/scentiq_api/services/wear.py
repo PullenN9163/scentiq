@@ -41,6 +41,7 @@ class WearLogService:
         return [
             WearLogResponse(
                 id=entry.id,
+                recommendation_id=entry.recommendation_id,
                 collection_item_id=entry.collection_item_id,
                 fragrance_id=fragrance_id_value,
                 fragrance_name=fragrance_name,

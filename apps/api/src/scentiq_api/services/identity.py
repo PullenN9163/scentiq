@@ -18,6 +18,7 @@ from scentiq_api.schemas import (
 )
 from scentiq_api.services.hybrid_jobs import HybridJobService
 from scentiq_api.services.weather import location_not_found, resolve_place
+from scentiq_api.storage.images import ImageStorage
 
 # How long a deletion-pending user waits before reconciliation cleans it up.
 RECONCILIATION_GRACE = timedelta(hours=24)
@@ -153,8 +154,11 @@ class AccountDeletionService:
 class IdentityEventService:
     """Phase two: process the provider's signed identity events idempotently."""
 
-    def __init__(self, identities: IdentityRepository) -> None:
+    def __init__(
+        self, identities: IdentityRepository, *, images: ImageStorage | None = None
+    ) -> None:
         self._identities = identities
+        self._images = images
 
     def handle_user_deleted(self, *, event_id: str, subject: str) -> bool:
         """Remove the user behind `subject`. Returns True when work was done.
@@ -175,6 +179,8 @@ class IdentityEventService:
 
         user = self._identities.find_user_by_subject(CLERK_PROVIDER, subject)
         if user is not None:
+            if self._images is not None:
+                self._images.delete_user(user.id)
             self._identities.purge_user(user.id)
 
         # Marked processed either way: a subject with no user is already clean,
@@ -188,6 +194,8 @@ class IdentityEventService:
         purged: list[UUID] = []
         for user in stale:
             user_id = user.id
+            if self._images is not None:
+                self._images.delete_user(user_id)
             self._identities.purge_user(user_id)
             purged.append(user_id)
         return purged

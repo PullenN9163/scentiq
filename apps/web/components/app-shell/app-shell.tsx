@@ -1,13 +1,16 @@
 "use client";
 
 import { UserButton, useUser } from "@clerk/nextjs";
-import { BarChart3, Beaker, CalendarDays, Compass, Home, Menu, Settings, Sparkles, UserRound } from "lucide-react";
+import { BarChart3, Beaker, CalendarDays, Compass, Home, Menu, Search, Settings, Sparkles, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { motion } from "motion/react";
+import { CommandMenu } from "./command-menu";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 
 const primary = [
@@ -28,6 +31,7 @@ function NavLink({ href, label, icon: Icon, pathname, compact = false, onNavigat
   const active = pathname === href || (href === "/collection" && pathname.startsWith("/collection/"));
   return (
     <Link className={compact ? "bottom-nav__link" : "side-nav__link"} href={href} aria-current={active ? "page" : undefined} onClick={onNavigate}>
+      {active && <motion.span className={compact ? "nav-indicator nav-indicator--mobile" : "nav-indicator"} layoutId={compact ? "mobile-active-nav" : onNavigate ? "more-active-nav" : "desktop-active-nav"} aria-hidden="true" />}
       <Icon size={compact ? 20 : 18} aria-hidden="true" />
       <span>{label === "My Week" && compact ? "Week" : label}</span>
     </Link>
@@ -46,6 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="sidebar">
         <Link href="/" className="brand"><span className="brand__mark">S</span><span>ScentIQ</span></Link>
         <Badge className="sidebar__demo">Private beta</Badge>
+        <CommandMenu />
         <nav className="side-nav" aria-label="Primary navigation">
           {primary.map((item) => <NavLink key={item.href} {...item} pathname={pathname} />)}
         </nav>
@@ -54,6 +59,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="mobile-header">
         <Link href="/" className="brand"><span className="brand__mark">S</span><span>ScentIQ</span></Link>
         <Badge>Beta</Badge>
+        <Button variant="ghost" aria-label="Search ScentIQ" onClick={() => window.dispatchEvent(new Event("scentiq:command"))}><Search size={18} /></Button>
       </header>
       <main className="app-main">{children}<footer className="data-note">Catalogue data includes Fragrantica data via Kaggle (ledecanteur/fragrantica-perfumes), CC BY-NC-SA 4.0, and Parfumo and Luckyscent listings.</footer></main>
       <DialogContent title="More destinations" className="more-panel">

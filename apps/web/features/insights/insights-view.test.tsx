@@ -6,8 +6,12 @@ import type { CollectionInsights } from "@/types/api";
 
 // Recharts needs layout measurement that jsdom does not provide.
 vi.mock("recharts", () => ({
-  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  BarChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  BarChart: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   Bar: () => null,
   CartesianGrid: () => null,
   XAxis: () => null,
@@ -15,7 +19,9 @@ vi.mock("recharts", () => ({
   Tooltip: () => null,
 }));
 
-function insights(overrides: Partial<CollectionInsights> = {}): CollectionInsights {
+function insights(
+  overrides: Partial<CollectionInsights> = {},
+): CollectionInsights {
   return {
     total_items: 2,
     owned_items: 2,
@@ -61,7 +67,11 @@ describe("InsightsView", () => {
   });
 
   it("says when nothing is priced rather than showing zero", () => {
-    render(<InsightsView insights={insights({ total_purchase_value: null, priced_items: 0 })} />);
+    render(
+      <InsightsView
+        insights={insights({ total_purchase_value: null, priced_items: 0 })}
+      />,
+    );
 
     expect(screen.getByText("Not recorded")).toBeVisible();
   });
@@ -69,7 +79,11 @@ describe("InsightsView", () => {
   it("reports how much of the collection the breakdowns cover", () => {
     render(
       <InsightsView
-        insights={insights({ total_items: 3, unclassified_items: 1, custom_items: 1 })}
+        insights={insights({
+          total_items: 3,
+          unclassified_items: 1,
+          custom_items: 1,
+        })}
       />,
     );
 
@@ -80,13 +94,19 @@ describe("InsightsView", () => {
   it("explains an absent accord breakdown", () => {
     render(<InsightsView insights={insights({ accords: [] })} />);
 
-    expect(screen.getByText(/None of your fragrances carry accord data/)).toBeVisible();
+    expect(
+      screen.getByText(/None of your fragrances carry accord data/),
+    ).toBeVisible();
   });
 
   it("notes when only some items have a price", () => {
-    render(<InsightsView insights={insights({ priced_items: 1, total_items: 2 })} />);
+    render(
+      <InsightsView insights={insights({ priced_items: 1, total_items: 2 })} />,
+    );
 
-    expect(screen.getByText(/1 of 2 items have a recorded price/)).toBeVisible();
+    expect(
+      screen.getByText(/1 of 2 items have a recorded price/),
+    ).toBeVisible();
   });
 
   it("ranks the most worn fragrance", () => {
@@ -94,5 +114,48 @@ describe("InsightsView", () => {
 
     expect(screen.getByText("Source Scent")).toBeVisible();
     expect(screen.getByText("3")).toBeVisible();
+  });
+
+  it("shows neglected value and seasonal evidence without inventing occasion coverage", () => {
+    render(
+      <InsightsView
+        insights={insights({
+          neglected: [
+            {
+              collection_item_id: "n1",
+              fragrance_id: "n",
+              fragrance_name: "Quiet bottle",
+              brand_name: "House",
+              wear_count: 0,
+              last_worn_at: null,
+              user_rating: null,
+              cost_per_wear: null,
+            },
+          ],
+          cost_per_wear: [
+            {
+              collection_item_id: "v1",
+              fragrance_id: "v",
+              fragrance_name: "Good value",
+              brand_name: "House",
+              wear_count: 4,
+              last_worn_at: "2026-10-07T00:00:00Z",
+              user_rating: 5,
+              cost_per_wear: "25.00",
+            },
+          ],
+          season_coverage_score: 0.4,
+          season_evidence_coverage: 0.5,
+          season_gaps: ["summer"],
+          occasion_behavior: [],
+        })}
+      />,
+    );
+    expect(screen.getByText("Quiet bottle")).toBeVisible();
+    expect(screen.getByText(/25.00 per wear/)).toBeVisible();
+    expect(
+      screen.getByText(/50% of owned fragrances have season evidence/),
+    ).toBeVisible();
+    expect(screen.getByText(/Not enough occasion history yet/)).toBeVisible();
   });
 });

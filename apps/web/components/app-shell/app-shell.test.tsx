@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "./app-shell";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/collection" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/collection", useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("@/lib/server/collection-search", () => ({ searchOwnCollection: vi.fn().mockResolvedValue([]) }));
 
 // The shell reads the signed-in user from Clerk.
 vi.mock("@clerk/nextjs", () => ({

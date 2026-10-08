@@ -11,6 +11,13 @@ const props = {
 };
 
 describe("CatalogImage", () => {
+  it("retries a replaced private image after an earlier load failure", () => {
+    const url = `/api/fragrances/${props.id}/image?v=1`;
+    const { rerender } = render(<CatalogImage {...props} imageUrl={url} />);
+    fireEvent.error(screen.getByRole("img"));
+    rerender(<CatalogImage {...props} imageUrl={`/api/fragrances/${props.id}/image?v=2`} />);
+    expect(screen.getByRole("img")).toBeInTheDocument();
+  });
   it("uses deterministic art when remote images are disabled", () => {
     render(
       <RemoteImagesProvider enabled={false}>

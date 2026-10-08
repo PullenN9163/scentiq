@@ -111,6 +111,51 @@ class Settings(BaseSettings):
         gt=0,
         validation_alias="RECOMMENDATION_MAX_AGE_SECONDS",
     )
+    azure_openai_endpoint: str | None = Field(
+        default=None, validation_alias="AZURE_OPENAI_ENDPOINT"
+    )
+    azure_openai_deployment: str | None = Field(
+        default=None, validation_alias="AZURE_OPENAI_DEPLOYMENT"
+    )
+    azure_openai_api_key: SecretStr | None = Field(
+        default=None, validation_alias="AZURE_OPENAI_API_KEY"
+    )
+    agent_enabled: bool = Field(default=True, validation_alias="AGENT_ENABLED")
+    agent_max_tool_calls: int = Field(
+        default=6, ge=1, le=6, validation_alias="AGENT_MAX_TOOL_CALLS"
+    )
+    agent_max_turns: int = Field(default=4, ge=1, le=4, validation_alias="AGENT_MAX_TURNS")
+    agent_timeout_seconds: float = Field(
+        default=25, gt=0, le=25, validation_alias="AGENT_TIMEOUT_SECONDS"
+    )
+    agent_prompt_version: Literal["scentiq-agent-v1"] = Field(
+        default="scentiq-agent-v1", validation_alias="AGENT_PROMPT_VERSION"
+    )
+    custom_image_container: str = Field(
+        default="uploads", validation_alias="CUSTOM_IMAGE_CONTAINER"
+    )
+    local_custom_image_directory: str | None = Field(
+        default=None, validation_alias="LOCAL_CUSTOM_IMAGE_DIRECTORY"
+    )
+
+    @field_validator("azure_openai_endpoint")
+    @classmethod
+    def validate_agent_endpoint(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        from urllib.parse import urlsplit
+
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("AZURE_OPENAI_ENDPOINT must be an https endpoint without credentials")
+        return value.rstrip("/")
 
     @field_validator(
         "clerk_issuer",
@@ -126,6 +171,10 @@ class Settings(BaseSettings):
         "microsoft_oauth_client_secret",
         "integration_token_encryption_key",
         "integration_token_previous_keys",
+        "azure_openai_endpoint",
+        "azure_openai_deployment",
+        "azure_openai_api_key",
+        "local_custom_image_directory",
         mode="before",
     )
     @classmethod
