@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { discoveryResult, fragranceSummary } from "@/test/catalog-fixtures";
 
 import { DiscoverExperience } from "./discover-experience";
+import userEvent from "@testing-library/user-event";
 import { searchCatalogPage } from "@/lib/server/actions";
 
 vi.mock("@/lib/server/actions", () => ({
@@ -14,6 +15,23 @@ vi.mock("@/lib/server/actions", () => ({
 afterEach(cleanup);
 
 describe("DiscoverExperience", () => {
+  it("offers discovery directions while preserving active filters",()=>{
+    render(<DiscoverExperience results={[discoveryResult()]} selectedFamily="Woody" selectedSeason="fall" selectedGender="unisex" selectedMinimumValue="4"/>);
+    const direction=screen.getByRole("link",{name:"Explore something new"});
+    expect(direction).toHaveAttribute("href","/discover?mode=explore&family=Woody&season=fall&gender=unisex&minimum_value=4");
+    expect(screen.getByText("Featured discovery")).toBeVisible();
+  });
+  it("switches gallery density and retains entered filters when the panel closes",async()=>{
+    render(<DiscoverExperience results={[discoveryResult()]}/>);
+    const user=userEvent.setup();
+    await user.click(screen.getByRole("button",{name:"Compact view"}));
+    expect(screen.getByRole("button",{name:"Compact view"})).toHaveAttribute("aria-pressed","true");
+    await user.click(screen.getByRole("button",{name:/More filters/}));
+    await user.type(screen.getByLabelText("Family"),"Amber");
+    await user.click(screen.getByRole("button",{name:/More filters/}));
+    await user.click(screen.getByRole("button",{name:/More filters/}));
+    expect(screen.getByLabelText("Family")).toHaveValue("Amber");
+  });
   it("reflects all active filters", () => {
     render(<DiscoverExperience results={[]} selectedFamily="Woody" selectedGender="unisex" selectedMinimumValue="4" />);
     expect(screen.getByLabelText("Family")).toHaveValue("Woody");
@@ -83,6 +101,7 @@ describe("DiscoverExperience", () => {
     expect(screen.getByRole("heading", { name: "Source Scent" })).toBeVisible();
     expect(screen.getByText("Taste match")).toBeVisible();
     expect(screen.getByText("80%")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", {name:/More filters/}));
     expect(screen.getByLabelText("Family")).toBeVisible();
     expect(
       screen.getByRole("button", { name: /add to wishlist/i }),

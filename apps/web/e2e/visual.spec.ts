@@ -93,3 +93,45 @@ test("failed saves preserve slider and numeric input values",async({page})=>{
   await expect(value).toHaveValue("7");
   await expect(page.getByRole("slider",{name:"Maximum sprays slider"})).toHaveValue("7");
 });
+
+test("expressive workspaces preserve controls and respect reduced motion", async ({page}) => {
+  for (const theme of ["light", "dark"]) {
+    await page.emulateMedia({reducedMotion:"reduce"});
+    await page.goto(`/?view=discover&theme=${theme}`);
+    await expect(page.getByRole("link", {name:"Explore something new", exact:true})).toHaveAttribute("href", "/discover?mode=explore&family=Woody&gender=unisex&minimum_value=4");
+    await page.getByRole("button", {name:"Compact view"}).click();
+    await expect(page.getByRole("button", {name:"Compact view"})).toHaveAttribute("aria-pressed","true");
+    await page.getByLabel("Family", {exact:true}).fill("Amber");
+    await page.getByRole("button", {name:"More filters"}).click();
+    await expect(page.getByLabel("Family", {exact:true})).not.toBeVisible();
+    await page.getByRole("button", {name:"More filters"}).click();
+    await expect(page.getByLabel("Family", {exact:true})).toHaveValue("Amber");
+    await page.goto(`/?view=insights&theme=${theme}`);
+    const fresh=page.getByRole("button", {name:"Inspect Fresh accord"});
+    await fresh.focus(); await page.keyboard.press("Enter");
+    await expect(page.getByTestId("selected-profile")).toContainText("Fresh");
+    await expect(page.getByTestId("selected-profile")).toContainText("25%");
+    const seasonWidth = await page.getByRole("progressbar", {name:"Spring coverage"}).evaluate(element=>element.getBoundingClientRect().width);
+    expect(seasonWidth).toBeGreaterThan(40);
+    await page.goto(`/?view=layering&theme=${theme}`);
+    await page.getByRole("region",{name:"Fragrance composition"}).getByRole("button",{name:"Refine this blend"}).click();
+    await expect(page.getByRole("region",{name:"Stack builder"})).toBeVisible();
+    const animations=await page.locator(".experience-page").evaluate(element=>Array.from(element.querySelectorAll("*")).map(node=>getComputedStyle(node).animationName));
+    expect(animations.every(name=>name==="none")).toBe(true);
+  }
+  await page.emulateMedia({reducedMotion:"no-preference"});
+  await page.goto("/?view=layering&theme=dark");
+  expect(await page.locator(".experience-backdrop i").first().evaluate(element=>getComputedStyle(element).animationName)).not.toBe("none");
+});
+
+test("redesigned workspaces contain long names and missing images at 200% reflow", async ({page}) => {
+  await page.emulateMedia({reducedMotion:"reduce"});
+  for (const width of [375,720]) {
+    await page.setViewportSize({width,height:900});
+    for (const theme of ["light","dark"]) for (const view of ["discover","layering","insights"]) {
+      await page.goto(`/?view=${view}&theme=${theme}&long=1&broken=1`);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth+1),`${view} ${theme} ${width}`).toBe(true);
+      await expect(page.locator("h1")).toBeVisible();
+    }
+  }
+});

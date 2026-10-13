@@ -9,7 +9,11 @@ import {
   Eye,
   Search,
   SlidersHorizontal,
+  Sparkles, ArrowUpRight, Heart, Layers, Sun, LayoutGrid, List, ChevronDown,
 } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import { ExperienceBackdrop } from "@/components/shared/experience";
+import "./discover.css";
 
 import { CatalogImage } from "@/components/catalog-image";
 import { PageHeader } from "@/components/shared/page-header";
@@ -52,6 +56,17 @@ function DiscoverContent({
   recommendationError?: string;
   wishlistError?: string;
 }) {
+  const [compact, setCompact] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(Boolean(selectedFamily || selectedSeason || selectedGender || selectedMinimumValue));
+  const reducedMotion = useReducedMotion();
+  const directionHref = (direction: string) => {
+    const params = new URLSearchParams({ mode: direction });
+    if (selectedFamily) params.set("family", selectedFamily);
+    if (selectedSeason) params.set("season", selectedSeason);
+    if (selectedGender) params.set("gender", selectedGender);
+    if (selectedMinimumValue) params.set("minimum_value", selectedMinimumValue);
+    return `/discover?${params}`;
+  };
   const [matches, setMatches] = useState(catalogResults);
   const [hasMore, setHasMore] = useState(catalogResults.length === 25);
   const [previousResults, setPreviousResults] = useState(catalogResults);
@@ -65,15 +80,25 @@ function DiscoverContent({
   const [isLoadingMore, startLoadingMore] = useTransition();
   const isSearching = query.trim().length > 0;
   return (
-    <section className="page">
+    <section className={`page experience-page discovery-experience ${compact ? "discovery-experience--compact" : ""}`}>
+      <ExperienceBackdrop tone="discover" />
       <PageHeader
         eyebrow="Beyond the shelf"
         title="Discover"
         description="Source-backed recommendations scored against your owned collection."
       />
-      <DiscoverSearch query={query}/>
+      {!isSearching && <nav className="discovery-directions" aria-label="Discovery directions">
+        {[{value:"balance",title:"Balance my collection",description:"Find the missing piece",icon:Layers},{value:"taste",title:"More of what I love",description:"Follow your signature",icon:Heart},{value:"explore",title:"Explore something new",description:"Step beyond the familiar",icon:Sparkles},{value:"seasonal",title:"Prepare for a season",description:"Meet your next season",icon:Sun}].map(({value,title,description,icon:Icon}) => <Link key={value} href={directionHref(value)} aria-label={title} aria-current={mode === value ? "page" : undefined} className="discovery-direction"><Icon size={20} aria-hidden="true" /><strong>{title}</strong><span>{description}</span><ArrowUpRight className="discovery-direction__arrow" size={16} aria-hidden="true" /></Link>)}
+      </nav>}
+      <div className="discovery-toolbar">
+        <DiscoverSearch query={query}/>
+        <div className="discovery-toolbar__actions">
+          {!isSearching && <Button type="button" variant="secondary" aria-expanded={filtersOpen} aria-controls="discovery-filter-panel" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />More filters<ChevronDown size={14} className={filtersOpen ? "discovery-chevron--open" : ""} /></Button>}
+          <div className="discovery-view-switch" aria-label="Result layout"><Button type="button" variant="ghost" aria-label="Gallery view" aria-pressed={!compact} onClick={() => setCompact(false)}><LayoutGrid size={16}/></Button><Button type="button" variant="ghost" aria-label="Compact view" aria-pressed={compact} onClick={() => setCompact(true)}><List size={16}/></Button></div>
+        </div>
+      </div>
       {!isSearching ? (
-        <form className="discover-filters" method="get">
+        <form id="discovery-filter-panel" className="discover-filters" method="get" hidden={!filtersOpen}>
           <SlidersHorizontal size={18} />
           <label>
             Discovery direction
@@ -190,14 +215,16 @@ function DiscoverContent({
         <Card><CardContent className="state-block" role="alert"><h2>Recommendations are taking a moment</h2><p className="muted">{recommendationError}</p><Button asChild variant="secondary"><Link href={`/discover?${new URLSearchParams({mode, family:selectedFamily, gender:selectedGender, season:selectedSeason, minimum_value:selectedMinimumValue})}`}>Try again</Link></Button></CardContent></Card>
       ) : results.length ? (
         <div className="discover-grid">
-          {results.map((result) => {
+          {results.map((result, index) => {
             const item = result.fragrance;
             return (
               <Card
                 key={item.id}
-                className="discovery-card"
+                className={`discovery-card ${index === 0 ? "discovery-featured" : ""}`}
                 data-testid="discovery-card"
               >
+                <motion.div className="discovery-art-stage" initial={false} whileHover={reducedMotion ? undefined : { scale: 1.025 }} transition={{ type:"spring", stiffness:180, damping:24 }}>
+                {index === 0 && <span className="discovery-featured__label"><Sparkles size={14} />Featured discovery</span>}
                 <CatalogImage
                   className="discovery-card__art"
                   id={item.id}
@@ -205,6 +232,7 @@ function DiscoverContent({
                   brand={item.brand.name}
                   imageUrl={item.image_url}
                 />
+                </motion.div>
                 <CardContent>
                   <p className="eyebrow">
                     {item.olfactory_family ?? "Family not recorded"} ·{" "}

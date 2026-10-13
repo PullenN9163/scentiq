@@ -19,6 +19,7 @@ import SignInPage from "@/app/sign-in/[[...sign-in]]/page";
 import SignUpPage from "@/app/sign-up/[[...sign-up]]/page";
 import {fragranceDetail,fragranceSummary,collectionInsights,discoveryResult} from "@/test/catalog-fixtures";
 import type {CollectionItem,Me} from "@/types/api";
+import type {LayeringStackSuggestion} from "@/types/layering";
 import type {WearPlan,WearRecommendation} from "@/types/wear-intelligence";
 import "@/app/globals.css";
 
@@ -34,6 +35,7 @@ const items:CollectionItem[]=fragrances.map((fragrance,index)=>({id:`owned-${ind
 const me:Me={id:"fixture-member",display_name:"Alex",email:"alex@example.com",created_at:"2026-10-13T12:00:00Z",lifecycle_state:"active",preferences:{location:"Philadelphia",location_label:"Philadelphia, PA",maximum_sprays:4,temperature_unit:"fahrenheit",timezone:"America/New_York",preferred_season:null,preferred_occasion:null,preferred_projection:null,preferred_longevity:null}};
 const recommendation:WearRecommendation={id:"fixture-rec",context_key:"day:2026-10-13",recommended_for:"2026-10-13T12:00:00Z",algorithm_version:"wear-v1",context:{context_key:"day:2026-10-13",recommended_for:"2026-10-13T12:00:00Z",local_date:"2026-10-13",timezone:"America/New_York",daypart:"day",season:"fall",source:"day"},fragrance:fragrances[0],score:78,evidence_coverage:.7,recommended_sprays:3,score_components:{occasion:12.5,weather:10,season:15,rotation:10},reasons:["You have not worn it recently","Source-backed seasonal match","Matches your ratings and preferences"],warnings:[],alternatives:[{fragrance:fragrances[1],score:72,evidence_coverage:.5,recommended_sprays:4,score_components:{rotation:10},reasons:["Useful rotation"],warnings:[]}],decision:null};
 const plan:WearPlan={local_date:"2026-10-13",timezone:"America/New_York",recommendations:[recommendation],gaps:[]};
+const blend:LayeringStackSuggestion={items:fragrances.slice(0,2).map((fragrance,index)=>({fragrance,role:index===0?"anchor":"accent",application_order:index+1,suggested_sprays:index===0?2:1})),mode:"balanced",goal:null,score:.78,score_components:{bridge:.7,complement:.6,season_context:.8,projection_balance:.8,longevity_balance:.7,novelty:.5,user_affinity:.6,redundancy_penalty:.1,overload_penalty:0},shared_notes:["cedar"],shared_accords:["woody"],bridge_signals:["cedar"],complementary_signals:["tea"],best_contexts:["fall"],reasons:["A recorded woody bridge with a softer tea accent","Rule-based starting guidance"],warnings:[],total_sprays:3,evidence_coverage:.8,evidence_label:"partial",algorithm_version:"layering-v2"};
 const view=params.get("view")??"today";
 let content;
 switch(view) {
@@ -43,12 +45,12 @@ switch(view) {
   case "week":content=<WeekPlanner plan={plan}/>;break;
   case "collection":content=<CollectionView items={items} catalog={fragrances}/>;break;
   case "detail":content=<FragranceDetailView fragrance={fragrances[0]} ownedItem={items[0]} wears={[]}/>;break;
-  case "discover":content=<DiscoverExperience results={fragrances.map(fragrance=>discoveryResult({fragrance}))} selectedFamily="Woody" selectedGender="unisex" selectedMinimumValue="4"/>;break;
+  case "discover":content=<DiscoverExperience results={fragrances.map(fragrance=>discoveryResult({fragrance,reasons:["Adds a fresh dimension to your woody collection"],evidence_coverage:.8}))} selectedFamily="Woody" selectedGender="unisex" selectedMinimumValue="4"/>;break;
   case "discover-error":content=<DiscoverExperience results={[]} recommendationError="Your recommendations could not be loaded. You can still search the catalog or retry."/>;break;
   case "catalog":content=<DiscoverExperience results={[]} query="scent" catalogResults={Array.from({length:25},(_,index)=>fragranceSummary({id:`fixture-${index}`,name:`Fragrance ${index}`}))}/>;break;
-  case "insights":content=<InsightsView insights={collectionInsights({total_items:26,owned_items:22,total_wears:42})}/>;break;
+  case "insights":content=<InsightsView insights={collectionInsights({total_items:26,owned_items:22,total_wears:42,wears_last_30_days:12,distinct_fragrances_worn:3,ownership_types:[{label:"bottle",count:26}],accords:[{label:"Woody",count:18,share:.375},{label:"Fresh",count:12,share:.25},{label:"Amber",count:8,share:.167},{label:"Floral",count:6,share:.125},{label:"Spicy",count:4,share:.083}],most_worn:fragrances.map((fragrance,index)=>({collection_item_id:items[index].id,fragrance_id:fragrance.id,fragrance_name:fragrance.name,brand_name:fragrance.brand.name,wear_count:[22,12,8][index]})),seasons:[{label:"Spring",count:12,share:.231},{label:"Summer",count:8,share:.154},{label:"Fall",count:18,share:.346},{label:"Winter",count:14,share:.269}],note_frequency:[{label:"Cedar",stage:"base",count:12,share:.55},{label:"Bergamot",stage:"top",count:8,share:.36}]})}/>;break;
   case "settings":content=<SettingsView me={me} calendarProviders={[{provider:"google",available:true},{provider:"microsoft",available:true}]} calendarConnections={[]}/>;break;
-  case "layering":content=<LayeringLab owned={fragrances} initialIntelligence={{suggestions:[],saved:[],supported_goals:["fresher","warmer"]}}/>;break;
+  case "layering":content=<LayeringLab owned={fragrances} initialIntelligence={{suggestions:[blend],saved:[],supported_goals:["fresher","warmer"]}}/>;break;
   case "agent":content=<AgentExperience authenticated/>;break;
   case "states":content=<section className="page"><PageHeader title="Your collection" eyebrow="Collection" description="Deterministic UI states"/><div className="stack"><LoadingState label="Loading fragrances"/><EmptyState title="A fresh start" description="Add your first fragrance to begin."/><UnavailableState/></div></section>;break;
   default:content=<DashboardView me={me} insights={collectionInsights({total_items:26,owned_items:22,total_wears:42})} recentWears={[]} weather={{status:"location_required"}} calendar={{status:"not_connected"}} timeZone="America/New_York" plan={plan}/>;
