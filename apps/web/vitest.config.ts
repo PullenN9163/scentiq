@@ -6,6 +6,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": import.meta.dirname,
+      // Next supplies this server-only marker internally. Unit tests exercise
+      // server modules in Node without Next's module graph.
+      "server-only": `${import.meta.dirname}/node_modules/next/dist/compiled/server-only/empty.js`,
     },
   },
   test: {

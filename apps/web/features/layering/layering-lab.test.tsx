@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fragranceSummary } from "@/test/catalog-fixtures";
@@ -83,6 +83,34 @@ beforeEach(() => {
 });
 
 describe("LayeringLab intelligence", () => {
+  it("does not present an old blend score after the selected goal changes", async () => {
+    actions.getLayeringIntelligence.mockResolvedValue({...page, suggestions: []});
+    render(<LayeringLab owned={[first,second]} initialIntelligence={{...page,supported_goals:[...page.supported_goals]}} initialStack={{...stack,goal:"fresher"}} />);
+    await userEvent.click(screen.getByRole("button", {name:"Keep it balanced"}));
+    const stage = screen.getByRole("region", {name:"Fragrance composition"});
+    await waitFor(() => expect(within(stage).queryByText("70%")).not.toBeInTheDocument());
+    expect(screen.queryByRole("region", {name:"Stack builder"})).not.toBeInTheDocument();
+  });
+  it("keeps the edited ingredients without restoring a stale score after evaluation fails", async () => {
+    actions.evaluateLayerStack.mockRejectedValueOnce(new Error("offline"));
+    render(<LayeringLab owned={[first,second,third]} initialIntelligence={{...page,supported_goals:[...page.supported_goals]}} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", {name:"Refine this blend"}));
+    await user.click(within(screen.getByRole("region", {name:"Stack builder"})).getByRole("button", {name:"Add Warm accent"}));
+    expect(await screen.findByRole("alert")).toBeVisible();
+    const stage = screen.getByRole("region", {name:"Fragrance composition"});
+    expect(within(stage).queryByText("70%")).not.toBeInTheDocument();
+    expect(within(stage).getAllByText("Warm accent")[0]).toBeVisible();
+  });
+  it("shows the actual suggested composition and opens its existing editor from the visual stage",async()=>{
+    render(<LayeringLab owned={[first,second,third]} initialIntelligence={{...page,supported_goals:[...page.supported_goals]}}/>);
+    const stage=screen.getByRole("region",{name:"Fragrance composition"});
+    expect(within(stage).getAllByText(first.name)[0]).toBeVisible();
+    expect(within(stage).getAllByText(second.name)[0]).toBeVisible();
+    await userEvent.click(within(stage).getByRole("button",{name:"Refine this blend"}));
+    expect(screen.getByRole("region",{name:"Stack builder"})).toBeVisible();
+    expect(screen.getAllByTestId("stack-item")).toHaveLength(2);
+  });
   it("starts from one anchor and shows owned support with application guidance", () => {
     render(
       <LayeringLab
@@ -154,9 +182,10 @@ describe("LayeringLab intelligence", () => {
     expect(
       within(builder).queryByRole("button", { name: `Add ${first.name}` }),
     ).not.toBeInTheDocument();
-    await user.click(
-      within(builder).getByRole("button", { name: "Move Warm accent earlier" }),
-    );
+    const moveEarlier=within(builder).getByRole("button", { name: "Move Warm accent earlier" });
+    // Evaluation renders its result before the transition releases controls.
+    await waitFor(()=>expect(moveEarlier).toBeEnabled());
+    await user.click(moveEarlier);
     expect(within(builder).getAllByTestId("stack-item")[1]).toHaveTextContent(
       "Warm accent",
     );
@@ -209,16 +238,16 @@ describe("LayeringLab intelligence", () => {
     expect(
       await screen.findByRole("heading", { name: "Bright morning" }),
     ).toBeVisible();
-    await user.click(
-      screen.getByRole("button", { name: "Wear Bright morning" }),
-    );
+    const wearButton = screen.getByRole("button", { name: "Wear Bright morning" });
+    await waitFor(() => expect(wearButton).toBeEnabled());
+    await user.click(wearButton);
     await user.selectOptions(screen.getByLabelText("Personal rating"), "5");
     await user.type(screen.getByLabelText("Wear notes"), "Lovely");
     await user.click(screen.getByRole("button", { name: "Log this wear" }));
     expect(await screen.findByText("Wear logged")).toBeVisible();
-    await user.click(
-      screen.getByRole("button", { name: "History for Bright morning" }),
-    );
+    const historyButton = screen.getByRole("button", { name: "History for Bright morning" });
+    await waitFor(() => expect(historyButton).toBeEnabled());
+    await user.click(historyButton);
     expect(await screen.findByText("Lovely")).toBeVisible();
   }, 10000);
   it("requires two owned fragrances", () => {

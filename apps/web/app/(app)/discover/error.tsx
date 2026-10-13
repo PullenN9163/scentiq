@@ -5,6 +5,7 @@ import { Compass } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DiscoverSearch } from "@/features/discover/discover-search";
 
 export default function DiscoverError({
   reset,
@@ -19,6 +20,7 @@ export default function DiscoverError({
         title="Discover"
         description="Source-backed recommendations scored against your owned collection."
       />
+      <DiscoverSearch />
       <Card>
         <CardContent className="empty-panel">
           <Compass />

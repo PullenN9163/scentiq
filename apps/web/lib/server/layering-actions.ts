@@ -160,5 +160,8 @@ export async function getDiscoveryIntelligence(
   if (options.season) parameters.set("season", options.season);
   if (options.minimumValue)
     parameters.set("minimum_value", options.minimumValue);
-  return apiClient.get<DiscoveryResult[]>(`/api/v1/discover?${parameters}`);
+  // Measured cold discovery requests can exceed the ordinary ten-second read
+  // deadline. Keep this larger budget scoped to discovery, with a searchable
+  // loading surface and a recoverable error if it still cannot finish.
+  return apiClient.get<DiscoveryResult[]>(`/api/v1/discover?${parameters}`, {timeoutMs:60_000});
 }

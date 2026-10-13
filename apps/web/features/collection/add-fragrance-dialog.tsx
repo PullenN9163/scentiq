@@ -8,6 +8,7 @@ import { CatalogImage } from "@/components/catalog-image";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NumericSlider } from "@/components/ui/numeric-slider";
 import { idleState, type ActionState } from "@/lib/action-state";
 import { addToCollection, createCustomFragrance, searchCatalogPage } from "@/lib/server/actions";
 import type { FragranceSummary } from "@/types/api";
@@ -36,6 +37,7 @@ export function AddFragranceDialog({
   const [results, setResults] = useState(catalog);
   const [selectedId, setSelectedId] = useState("");
   const [isSearching, startSearch] = useTransition();
+  const [searchError, setSearchError] = useState<string | null>(null);
   const searchSequence = useRef(0);
   const isInitialSearch = useRef(true);
   // Close once the save has actually resolved, never optimistically, and from
@@ -60,6 +62,7 @@ export function AddFragranceDialog({
       setQuery("");
       setResults(catalog);
       setSelectedId("");
+      setSearchError(null);
     }
   }
 
@@ -72,10 +75,15 @@ export function AddFragranceDialog({
     const sequence = ++searchSequence.current;
     const handle = window.setTimeout(() => {
       startSearch(async () => {
+        setSearchError(null);
+        try {
         const next = await searchCatalogPage(query, 0);
         if (searchSequence.current === sequence) {
           setResults(next);
           setSelectedId("");
+        }
+        } catch {
+          if (searchSequence.current === sequence) setSearchError("Could not load catalog results. Try searching again.");
         }
       });
     }, 250);
@@ -163,7 +171,7 @@ export function AddFragranceDialog({
               {(props) => <Input type="number" min="0" step="0.01" {...props} />}
             </Field>
             <Field name="remaining_ml" label="Remaining (ml)" state={addState}>
-              {(props) => <Input type="number" min="0" step="0.01" {...props} />}
+              {(props) => <NumericSlider label="Remaining (ml)" min={0} max={100} inputMax={null} step={0.01} {...props} />}
             </Field>
             <Field
               name="purchase_price"
@@ -197,15 +205,24 @@ export function AddFragranceDialog({
                   const sequence = searchSequence.current;
                   const requestQuery = query;
                   startSearch(async () => {
+                    setSearchError(null);
+                    try {
                     const more = await searchCatalogPage(requestQuery, results.length);
                     if (searchSequence.current === sequence && query === requestQuery) {
-                      setResults((current) => [...current, ...more]);
+                      setResults((current) => {
+                        const known = new Set(current.map(item=>item.id));
+                        return [...current, ...more.filter(item=>!known.has(item.id))];
+                      });
+                    }
+                    } catch {
+                      if (searchSequence.current === sequence) setSearchError("Could not load more fragrances. Your results are still here. Try again.");
                     }
                   });
                 }}
               >
                 Load more
               </Button>
+              {searchError && <p className="field-error" role="alert">{searchError}</p>}
             </div>
           </form>
         ) : (

@@ -75,10 +75,11 @@ export function DashboardView({
         }
       />
 
-      {plan?.recommendations.map(recommendation => <RecommendationCard key={recommendation.context_key} recommendation={recommendation}/>)}
+      <div className="dashboard-layout"><div className="dashboard-recommendations">
+      {plan?.recommendations.map((recommendation,index) => <RecommendationCard key={recommendation.context_key} recommendation={recommendation} compact={index > 0}/>)}
       {plan && plan.recommendations.length === 0 && <p>Add an owned fragrance to receive recommendations.</p>}
       {plan?.gaps.map(gap => <p className="muted" key={gap}>{gap}</p>)}
-      <div className="grid grid-2 detail-sections"><WeatherCard weather={weather}/><EventsCard calendar={calendar} timeZone={timeZone}/></div>
+      </div><aside className="dashboard-context" aria-label="Today's context"><WeatherCard weather={weather}/><EventsCard calendar={calendar} timeZone={timeZone}/></aside></div>
 
       <div className="metric-grid">
         <Card>

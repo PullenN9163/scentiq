@@ -14,6 +14,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Carousel } from "@/components/ui/carousel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NumericSlider } from "@/components/ui/numeric-slider";
+import "./recommendation-card.css";
 import { decideRecommendation, wearRecommendation } from "@/lib/server/recommendation-actions";
 import type { WearCandidate, WearRecommendation } from "@/types/wear-intelligence";
 
@@ -38,7 +40,7 @@ function RecommendationContent({recommendation, compact = false, onWearLogged}: 
   const [details, setDetails] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [dismissed, setDismissed] = useState(recommendation.decision?.action === "dismissed");
-  const [accepted, setAccepted] = useState(recommendation.decision?.action === "accepted");
+  const [accepted, setAccepted] = useState(recommendation.decision?.action === "accepted" || recommendation.decision?.action === "replaced");
   const [sprays, setSprays] = useState(initial.recommended_sprays);
   const [occasion, setOccasion] = useState(recommendation.context.occasion ?? "");
   const [setting, setSetting] = useState(recommendation.context.setting ?? "");
@@ -51,7 +53,7 @@ function RecommendationContent({recommendation, compact = false, onWearLogged}: 
     startTransition(async () => {
       const result = await decideRecommendation(recommendation.id, candidate.fragrance.id === recommendation.fragrance.id ? "accepted" : "replaced", candidate.fragrance.id);
       if (!result.ok) {setError(result.error); toast.error(result.error); return;}
-      setSelected(candidate); setSprays(candidate.recommended_sprays); setDismissed(false); setError(null);
+      setSelected(candidate); setSprays(candidate.recommended_sprays); setDismissed(false); setAccepted(true); setError(null);
       toast.success("Recommendation updated");
     });
   }
@@ -60,6 +62,7 @@ function RecommendationContent({recommendation, compact = false, onWearLogged}: 
       const result = await decideRecommendation(recommendation.id, action, action === "accepted" ? fragrance.id : undefined);
       if (!result.ok) {setError(result.error);toast.error(result.error);return;}
       setDismissed(action === "dismissed"); setAccepted(action === "accepted");
+      setError(null);
       toast.success(action === "dismissed" ? "Recommendation dismissed" : "Recommendation accepted");
     });
   }
@@ -104,12 +107,13 @@ function RecommendationContent({recommendation, compact = false, onWearLogged}: 
       </CardContent>
     </Card>
     <Dialog open={details} onOpenChange={setDetails}><DialogContent title="Why this fragrance?"><p>Deterministic scores from your collection and context. Evidence coverage measures available inputs, not statistical confidence.</p><dl className="score-breakdown">{Object.entries(selected.score_components).map(([name,value])=><div key={name}><dt>{name.replaceAll("_"," ")}</dt><dd>{value}</dd></div>)}</dl><p>{evidenceLabel(selected.evidence_coverage)} · {recommendation.algorithm_version}</p></DialogContent></Dialog>
-    <Dialog open={confirm} onOpenChange={setConfirm}><DialogContent title={`Wear ${fragrance.name}`}><p>Adjust this starting guidance for your wear.</p>
-      <label htmlFor={`sprays-${recommendation.id}`}>Sprays</label><Input id={`sprays-${recommendation.id}`} type="number" min={1} max={30} value={sprays} onChange={event=>setSprays(Number(event.target.value))}/>
-      <label htmlFor={`occasion-${recommendation.id}`}>Occasion</label><select id={`occasion-${recommendation.id}`} value={occasion} onChange={event=>setOccasion(event.target.value as typeof occasion)}><option value="">Not specified</option>{["work","casual","date","dinner","party","formal","gym","travel","other"].map(value=><option key={value}>{value}</option>)}</select>
+    <Dialog open={confirm} onOpenChange={setConfirm}><DialogContent title={`Wear ${fragrance.name}`}><div className="recommendation-form"><p className="muted">Adjust this starting guidance for your wear.</p>
+      <label htmlFor={`sprays-${recommendation.id}`}>Sprays</label><NumericSlider id={`sprays-${recommendation.id}`} label="Sprays" min={1} max={30} value={sprays} onValueChange={value=>setSprays(Number(value))}/>
+      <label htmlFor={`occasion-${recommendation.id}`}>Occasion</label><select className="select" id={`occasion-${recommendation.id}`} value={occasion} onChange={event=>setOccasion(event.target.value as typeof occasion)}><option value="">Not specified</option>{["work","casual","date","dinner","party","formal","gym","travel","other"].map(value=><option key={value}>{value}</option>)}</select>
       <label htmlFor={`setting-${recommendation.id}`}>Setting</label><Input id={`setting-${recommendation.id}`} maxLength={40} value={setting} onChange={event=>setSetting(event.target.value)}/>
       <label htmlFor={`note-${recommendation.id}`}>Private note (optional)</label><Input id={`note-${recommendation.id}`} maxLength={2000} value={note} onChange={event=>setNote(event.target.value)}/>
-      <Button disabled={pending || !Number.isInteger(sprays) || sprays < 1 || sprays > 30} onClick={logWear}>{pending ? "Saving…" : "Log wear"}</Button><Button variant="ghost" onClick={()=>setConfirm(false)}>Cancel</Button>
+      {error && <p role="alert" className="field-error">{error}</p>}
+      <div className="cluster"><Button disabled={pending || !Number.isInteger(sprays) || sprays < 1 || sprays > 30} onClick={logWear}>{pending ? "Saving…" : "Log wear"}</Button><Button variant="ghost" onClick={()=>setConfirm(false)}>Cancel</Button></div></div>
     </DialogContent></Dialog>
   </motion.div>;
 }
