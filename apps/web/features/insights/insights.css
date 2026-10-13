@@ -1,0 +1,45 @@
+.insight-metrics { gap: 12px; }
+.insight-metrics .card { background: color-mix(in srgb, var(--surface) 85%, transparent); border-radius: 20px; }
+.insight-metrics .card__content { padding: 24px 20px; }
+.insight-metrics strong { letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
+.insights-experience .insight-stage { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: stretch; }
+.insights-experience .insight-stage > .card:first-child { background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 90%, #8dbdb7), var(--surface)); }
+.fingerprint { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(150px, 1fr); align-items: center; gap: 20px; margin: 24px 0 12px; }
+.fingerprint__visual { position: relative; min-width: 0; aspect-ratio: 1; }
+.fingerprint__rings { width: 100%; height: 100%; position: relative; }
+.fingerprint__halo { position: absolute; inset: 20%; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, #71b4a7 28%, transparent), transparent 70%); animation: fingerprint-breathe 8s ease-in-out infinite alternate; }
+.fingerprint__center { position: absolute; inset: 27%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; }
+.fingerprint__center > strong { font-size: clamp(32px, 4vw, 56px); line-height: 1; letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
+.fingerprint__center strong small { font-size: .4em; }
+.fingerprint__center .eyebrow { font-size: 10px; letter-spacing: .06em; }
+.fingerprint__center > span:not(.eyebrow) { font-weight: 650; overflow-wrap: anywhere; }
+.fingerprint__center > small { color: var(--muted-foreground); font-size: 11px; }
+.fingerprint__legend { display: grid; gap: 7px; }
+.fingerprint__choice { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; color: var(--foreground); border: 1px solid transparent; background: transparent; text-align: left; cursor: pointer; min-height: 44px; }
+.fingerprint__choice[aria-pressed=true] { border-color: var(--border); background: var(--surface-elevated); box-shadow: 0 6px 20px -12px var(--foreground); }
+.fingerprint__choice:hover { background: var(--secondary); }
+.fingerprint__choice i { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--ring-color); }
+.fingerprint__choice span { flex: 1; overflow-wrap: anywhere; }
+.fingerprint__choice strong { font-variant-numeric: tabular-nums; font-size: 13px; }
+.fingerprint__ring--0 { --ring-color: #538f81; }
+.fingerprint__ring--1 { --ring-color: #8d78bd; }
+.fingerprint__ring--2 { --ring-color: #bb8a52; }
+.fingerprint__ring--3 { --ring-color: #5886b8; }
+.fingerprint__ring--4 { --ring-color: #b77388; }
+.fingerprint__ring--5 { --ring-color: #899958; }
+.fingerprint__ring--6 { --ring-color: #ad7360; }
+.fingerprint__ring--7 { --ring-color: #5f9fa4; }
+.fingerprint__ring--8 { --ring-color: #a085a6; }
+.fingerprint__ring--9 { --ring-color: #9b995c; }
+.fingerprint__ring--10 { --ring-color: #8587b6; }
+.fingerprint__ring--11 { --ring-color: #af827c; }
+.insights-experience .note-bars > div { padding: 14px 0; border-bottom: 1px solid var(--border); }
+.insights-experience .note-bars > div:last-child { border: 0; }
+.insights-experience .insight-coverage { background: linear-gradient(130deg, var(--surface), color-mix(in srgb, var(--surface) 90%, #98b3ed)); }
+.insight-coverage .coverage-grid > div { border-radius: 18px; padding: 22px; background: var(--surface-elevated); border: 1px solid var(--border); }
+.insights-experience .insight-notes .card__content { height: 100%; }
+@keyframes fingerprint-breathe { from { transform: scale(.9); opacity: .7; } to { transform: scale(1.25); opacity: 1; } }
+@media (max-width: 1200px) { .insights-experience .insight-stage { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .fingerprint { grid-template-columns: 1fr; } .fingerprint__visual { width: min(100%, 330px); margin: auto; } .fingerprint__legend { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fingerprint__legend .data-note { grid-column: 1 / -1; } .fingerprint__choice { gap: 6px; padding: 10px; } }
+
+.fingerprint__rings circle { transition: opacity .3s ease, stroke-width .3s ease; }

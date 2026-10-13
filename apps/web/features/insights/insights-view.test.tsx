@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 
 import { InsightsView } from "./insights-view";
 import type { CollectionInsights } from "@/types/api";
@@ -54,6 +55,29 @@ function insights(
 }
 
 describe("InsightsView", () => {
+  it("lets a member inspect the accord shares supplied by the API",async()=>{
+    render(<InsightsView insights={insights({accords:[{label:"Woody",count:2,share:.667},{label:"Citrus",count:1,share:.333}]})}/>);
+    await userEvent.click(screen.getByRole("button",{name:"Inspect Citrus accord"}));
+    expect(screen.getByTestId("selected-profile")).toHaveTextContent("Citrus");
+    expect(screen.getByTestId("selected-profile")).toHaveTextContent("33%");
+    expect(screen.getByRole("button",{name:"Inspect Woody accord"})).toHaveTextContent("67%");
+    expect(screen.getByText(/Share of the displayed recorded accord occurrences/)).toBeVisible();
+  });
+  it("renders the selected ring when an accord falls outside the first six", async () => {
+    const {container} = render(<InsightsView insights={insights({accords:Array.from({length:8}, (_,index)=>({label:`Accord ${index+1}`,count:1,share:.125}))})}/>);
+    await userEvent.click(screen.getByRole("button",{name:"Inspect Accord 8 accord"}));
+    expect(screen.getByTestId("selected-profile")).toHaveTextContent("Accord 8");
+    expect(container.querySelector('g[data-selected="true"]')).toHaveAttribute("data-accord","Accord 8");
+  });
+  it("keeps a valid selected ring when refreshed data has fewer accords", async () => {
+    const accords = Array.from({length:8}, (_,index)=>({label:`Accord ${index+1}`,count:1,share:.125}));
+    const {container,rerender} = render(<InsightsView insights={insights({accords})}/>);
+    await userEvent.click(screen.getByRole("button",{name:"Inspect Accord 8 accord"}));
+    rerender(<InsightsView insights={insights({accords:accords.slice(0,5).map(accord=>({...accord,share:.2}))})}/>);
+    expect(container.querySelectorAll('g[data-accord]')).toHaveLength(5);
+    expect(container.querySelector('g[data-selected="true"]')).toHaveAttribute("data-accord","Accord 5");
+    expect(screen.getByRole("button",{name:"Inspect Accord 5 accord"})).toHaveAttribute("aria-pressed","true");
+  });
   it("guides an empty account instead of rendering zeroes", () => {
     render(<InsightsView insights={insights({ total_items: 0 })} />);
 
