@@ -51,7 +51,7 @@ test.describe("invited member journey", () => {
     await page.getByRole("searchbox", {name:"Search the catalog"}).fill(unique);
     await page.getByRole("radio", {name:new RegExp(unique)}).check();
     await page.getByLabel("Bottle size (ml)").fill("100");
-    await page.getByLabel("Remaining (ml)").fill("100");
+    await page.getByRole("spinbutton", {name:"Remaining (ml)",exact:true}).fill("100");
     await page.getByLabel("Purchase price").fill("120.00");
     await page.getByLabel("Your rating (1–5)").fill("5");
     await page.getByRole("button", { name: /add to collection/i }).click();
@@ -69,13 +69,13 @@ test.describe("invited member journey", () => {
     await page.getByRole("button", {name:"Remove image",exact:true}).click();
     await expect(page.getByRole("button", {name:"Remove image",exact:true})).toHaveCount(0);
     await page.getByRole("button", { name: /^edit$/i }).click();
-    await page.getByLabel("Remaining (ml)").fill("80");
+    await page.getByRole("spinbutton", {name:"Remaining (ml)",exact:true}).fill("80");
     await page.getByRole("button", { name: /save changes/i }).click();
     await expect(page.getByText("80ml remaining")).toBeVisible();
 
     // --- log a wear ------------------------------------------------------
     await page.getByRole("button", { name: /log wear/i }).click();
-    await page.getByLabel("Sprays").fill("3");
+    await page.getByRole("spinbutton", {name:"Sprays",exact:true}).fill("3");
     await page.getByLabel("Occasion").selectOption("work");
     await page.getByRole("button", { name: /^log wear$/i }).click();
     await expect(page.getByText(/wear logged/i)).toBeVisible();
@@ -92,7 +92,7 @@ test.describe("invited member journey", () => {
     // --- update preferences ----------------------------------------------
     await page.goto("/settings");
     await page.getByLabel("Location").fill("Manchester");
-    await page.getByLabel("Maximum sprays").fill("4");
+    await page.getByRole("spinbutton", {name:"Maximum sprays",exact:true}).fill("4");
     await page.getByRole("button", { name: /save preferences/i }).click();
     await expect(page.getByText(/preferences saved/i)).toBeVisible();
 
