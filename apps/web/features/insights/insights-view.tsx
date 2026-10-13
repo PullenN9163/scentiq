@@ -172,12 +172,12 @@ export function InsightsView({ insights }: { insights: CollectionInsights }) {
                     <CartesianGrid
                       strokeDasharray="3 3"
                       vertical={false}
-                      stroke="#ded8cc"
+                      stroke="var(--border)"
                     />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip />
-                    <Bar dataKey="value" fill="#b7772f" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="value" fill="var(--chart-1)" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

@@ -1,9 +1,10 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { discoveryResult, fragranceSummary } from "@/test/catalog-fixtures";
 
 import { DiscoverExperience } from "./discover-experience";
+import { searchCatalogPage } from "@/lib/server/actions";
 
 vi.mock("@/lib/server/actions", () => ({
   addToWishlist: vi.fn(),
@@ -13,6 +14,37 @@ vi.mock("@/lib/server/actions", () => ({
 afterEach(cleanup);
 
 describe("DiscoverExperience", () => {
+  it("reflects all active filters", () => {
+    render(<DiscoverExperience results={[]} selectedFamily="Woody" selectedGender="unisex" selectedMinimumValue="4" />);
+    expect(screen.getByLabelText("Family")).toHaveValue("Woody");
+    expect(screen.getByLabelText("Gender")).toHaveValue("unisex");
+    expect(screen.getByLabelText("Minimum value rating")).toHaveValue("4");
+  });
+  it("replaces catalog results when the search changes", () => {
+    const { rerender } = render(<DiscoverExperience results={[]} query="first" catalogResults={[fragranceSummary({name:"First scent"})]} />);
+    rerender(<DiscoverExperience results={[]} query="second" catalogResults={[fragranceSummary({name:"Second scent"})]} />);
+    expect(screen.getByRole("heading", {name:"Second scent"})).toBeVisible();
+    expect(screen.queryByRole("heading", {name:"First scent"})).not.toBeInTheDocument();
+    expect(screen.getByRole("searchbox")).toHaveValue("second");
+  });
+  it("keeps search available when recommendations fail", () => {
+    render(<DiscoverExperience results={[]} recommendationError="Recommendations are unavailable. Try again." />);
+    expect(screen.getByRole("searchbox")).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent("Recommendations are unavailable");
+    expect(screen.queryByText("No recommendations yet")).not.toBeInTheDocument();
+  });
+  it("preserves matches and allows retry after pagination fails", async () => {
+    vi.mocked(searchCatalogPage).mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce([]);
+    const items = Array.from({length:25}, (_, index) => fragranceSummary({id:`item-${index}`,name:`Scent ${index}`}));
+    render(<DiscoverExperience results={[]} query="scent" catalogResults={items} />);
+    const loadMore = screen.getByText("Load more", {selector:"button"});
+    fireEvent.click(loadMore);
+    expect(await screen.findByText(/Could not load more/)).toBeVisible();
+    expect(screen.getAllByTestId("catalog-result-card")).toHaveLength(25);
+    await waitFor(()=>expect(loadMore).toBeEnabled());
+    fireEvent.click(loadMore);
+    await waitFor(()=>expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  },10000);
   it("shows the selected discovery direction, season and supporting reasons", () => {
     render(
       <DiscoverExperience

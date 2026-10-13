@@ -8,7 +8,7 @@ const hasClerkTestIdentity = Boolean(
 
 const browserProject = {
   name: "chromium",
-  testIgnore: /global\.setup\.ts/,
+  testIgnore: /(?:global\.setup\.ts|visual\.spec\.ts)/,
   use: {
     ...devices["Desktop Chrome"],
     ...(hasClerkTestIdentity

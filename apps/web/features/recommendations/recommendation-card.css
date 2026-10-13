@@ -1,0 +1,45 @@
+.recommendation-card { display: block; min-width: 0; overflow: hidden; margin-bottom: 1rem; background: var(--surface); color: var(--foreground); }
+.recommendation-card .card__content { padding: clamp(1.25rem, 2.5vw, 2rem); }
+.recommendation-hero { background: linear-gradient(125deg, var(--surface) 35%, var(--accent-soft)); border-color: color-mix(in srgb, var(--accent) 28%, var(--border)); }
+.recommendation-main { display: grid; grid-template-columns: minmax(145px, .75fr) minmax(0, 1.25fr); gap: clamp(1.25rem, 3vw, 3rem); align-items: center; }
+.recommendation-main > div, .recommendation-main > a { min-width: 0; }
+.recommendation-main h2 { margin: .4rem 0 .5rem; font-size: clamp(1.8rem, 3vw, 3rem); font-weight: 650; letter-spacing: -.045em; overflow-wrap: anywhere; line-height: 1.12; text-wrap: pretty; }
+.recommendation-main p { overflow-wrap: anywhere; }
+.recommendation-main ul { padding-left: 1.1rem; line-height: 1.65; margin: 1.1rem 0; color: var(--muted-foreground); font-size: .9rem; }
+.recommendation-main li + li { margin-top: .3rem; }
+.recommendation-main li::marker { color: var(--accent); }
+.recommendation-bottle { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6rem; width: 100%; height: 280px; text-align: center; padding: 1.5rem; border: 1px solid var(--border); border-radius: 1.25rem; background: linear-gradient(150deg, var(--surface-elevated), var(--secondary)); color: var(--foreground); overflow: hidden; }
+.recommendation-bottle > span { color: var(--muted-foreground); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
+.recommendation-bottle > strong { font-size: 1.4rem; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.recommendation-bottle img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+:root[data-theme="dark"] .recommendation-bottle img { mix-blend-mode: normal; border-radius: .6rem; }
+.recommendation-bottle[data-testid="catalog-image-fallback"]::before { content: "S"; display: grid; place-items: center; width: 4rem; height: 5rem; border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border)); border-top-width: 10px; border-radius: .5rem .5rem 1rem 1rem; color: var(--accent); background: var(--accent-soft); font-size: 1.25rem; }
+.recommendation-chips, .recommendation-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.recommendation-chips .badge { max-width: 100%; white-space: normal; }
+.recommendation-chips .badge:first-child { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.recommendation-actions { margin: 1.5rem 0 0; padding-top: 1.25rem; border-top: 1px solid var(--border); }
+.recommendation-actions .button { max-width: 100%; white-space: normal; text-align: center; }
+.recommendation-card:not(.recommendation-hero) .recommendation-main { grid-template-columns: 140px minmax(0, 1fr); }
+.recommendation-card:not(.recommendation-hero) .recommendation-bottle { height: 190px; padding: .75rem; }
+.recommendation-card:not(.recommendation-hero) h2 { font-size: clamp(1.5rem, 2.5vw, 2.25rem); }
+.score-breakdown { display: grid; gap: .5rem; margin: 1.25rem 0; }
+.score-breakdown > div { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--border); padding: .7rem 0; }
+.score-breakdown dt { text-transform: capitalize; }
+.score-breakdown dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 700; }
+.recommendation-form { display: grid; gap: .65rem; }
+.recommendation-form label { margin-top: .5rem; font-size: .85rem; font-weight: 650; }
+.recommendation-form .cluster { margin-top: 1rem; }
+@media (max-width: 640px) {
+  .recommendation-main, .recommendation-card:not(.recommendation-hero) .recommendation-main { grid-template-columns: 105px minmax(0, 1fr); gap: 1rem; align-items: start; }
+  .recommendation-bottle, .recommendation-card:not(.recommendation-hero) .recommendation-bottle { height: 160px; padding: .6rem; }
+  .recommendation-main h2, .recommendation-card:not(.recommendation-hero) h2 { font-size: 1.45rem; }
+  .recommendation-main .eyebrow { font-size: .65rem; }
+  .recommendation-main ul { font-size: .82rem; }
+  .recommendation-chips .badge { font-size: .68rem; }
+  .recommendation-actions { gap: .4rem; }
+  .recommendation-actions .button { flex: 1 1 auto; font-size: .8rem; padding-inline: .75rem; }
+}
+@media (max-width: 360px) {
+  .recommendation-main, .recommendation-card:not(.recommendation-hero) .recommendation-main { grid-template-columns: 1fr; }
+  .recommendation-bottle, .recommendation-card:not(.recommendation-hero) .recommendation-bottle { height: 190px; }
+}

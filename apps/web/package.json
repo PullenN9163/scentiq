@@ -9,6 +9,7 @@
     "start": "next start",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:visual": "playwright test --config playwright.visual.config.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "contracts:types": "openapi-typescript ../api/openapi.json -o types/api.generated.ts"

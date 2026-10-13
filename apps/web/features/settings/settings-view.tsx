@@ -9,6 +9,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { AppearanceControl } from "@/components/ui/theme-provider";
+import { NumericSlider } from "@/components/ui/numeric-slider";
 import { CalendarConnectionsCard } from "@/features/settings/calendar-connections";
 import { DeleteAccountPanel } from "@/features/settings/delete-account-panel";
 import { idleState } from "@/lib/action-state";
@@ -48,6 +50,7 @@ export function SettingsView({
       />
 
       <div className="settings-grid">
+        <Card className="appearance-card"><CardContent><p className="eyebrow">Your atmosphere</p><h2>Appearance</h2><p className="muted">A little light, a little depth. Choose your view, or follow your device.</p><AppearanceControl expanded /></CardContent></Card>
         <Card>
           <CardContent>
             <div className="settings-title">
@@ -175,7 +178,7 @@ export function SettingsView({
                 state={preferenceState}
                 fallbackValue={preferences.maximum_sprays?.toString() ?? ""}
               >
-                {(props) => <Input type="number" min="1" max="20" step="1" {...props} />}
+                {(props) => <NumericSlider label="Maximum sprays" min={1} max={20} {...props} />}
               </Field>
               <p className="field-hint">
                 Saving replaces the whole set, so anything you clear is removed.

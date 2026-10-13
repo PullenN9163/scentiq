@@ -12,6 +12,7 @@ import { CommandMenu } from "./command-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { AppearanceControl } from "@/components/ui/theme-provider";
 
 const primary = [
   { href: "/dashboard", label: "Today", icon: Home },
@@ -47,6 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <Dialog open={moreOpen} onOpenChange={setMoreOpen}>
     <div className="app-frame">
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <aside className="sidebar">
         <Link href="/" className="brand"><span className="brand__mark">S</span><span>ScentIQ</span></Link>
         <Badge className="sidebar__demo">Private beta</Badge>
@@ -54,14 +56,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="side-nav" aria-label="Primary navigation">
           {primary.map((item) => <NavLink key={item.href} {...item} pathname={pathname} />)}
         </nav>
+        <div className="sidebar__appearance"><AppearanceControl /></div>
         <div className="sidebar__profile"><UserButton showName={false} /><span><strong>{displayName}</strong><small>{user?.primaryEmailAddress?.emailAddress ?? ""}</small></span></div>
       </aside>
       <header className="mobile-header">
         <Link href="/" className="brand"><span className="brand__mark">S</span><span>ScentIQ</span></Link>
-        <Badge>Beta</Badge>
+        <AppearanceControl />
         <Button variant="ghost" aria-label="Search ScentIQ" onClick={() => window.dispatchEvent(new Event("scentiq:command"))}><Search size={18} /></Button>
       </header>
-      <main className="app-main">{children}<footer className="data-note">Catalogue data includes Fragrantica data via Kaggle (ledecanteur/fragrantica-perfumes), CC BY-NC-SA 4.0, and Parfumo and Luckyscent listings.</footer></main>
+      <main className="app-main" id="main-content" tabIndex={-1}>{children}<footer className="data-note app-footer">Catalogue data includes Fragrantica data via Kaggle (ledecanteur/fragrantica-perfumes), CC BY-NC-SA 4.0, and Parfumo and Luckyscent listings.</footer></main>
       <DialogContent title="More destinations" className="more-panel">
           <nav className="more-panel__grid" aria-label="Secondary navigation">
             {more.map((item) => <NavLink key={item.href} {...item} pathname={pathname} onNavigate={() => setMoreOpen(false)} />)}
