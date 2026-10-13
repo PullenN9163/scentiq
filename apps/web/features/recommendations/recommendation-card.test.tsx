@@ -25,6 +25,13 @@ it("shows backend score, evidence and inspectable components", async () => {
   await user.click(screen.getByRole("button",{name:"Why this?"}));
   expect(screen.getByText("12.5")).toBeVisible();
 });
+it("confirms an alternative using replacement semantics in the week planner", async () => {
+  const user=userEvent.setup();render(<RecommendationCard recommendation={recommendation} compact/>);
+  await user.click(screen.getByRole("button",{name:"Another Option"}));
+  await user.click(screen.getByRole("button",{name:"Choose Alternative Scent"}));
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Accepted"})).toBeDisabled());
+  expect(decide).toHaveBeenLastCalledWith("rec1","replaced","second");
+});
 it("persists alternatives and logs the selected fragrance", async () => {
   const user=userEvent.setup(); render(<RecommendationCard recommendation={recommendation}/>);
   await user.click(screen.getByRole("button",{name:"Another Option"}));

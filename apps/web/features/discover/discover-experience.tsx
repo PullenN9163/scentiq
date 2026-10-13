@@ -17,17 +17,28 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { addToWishlist, searchCatalogPage } from "@/lib/server/actions";
+import { DiscoverSearch } from "./discover-search";
 import type { DiscoveryResult, FragranceSummary } from "@/types/api";
 
 const percentage = (value: number) => `${Math.round(value * 100)}%`;
+const emptyCatalog: FragranceSummary[] = [];
 
-export function DiscoverExperience({
+export function DiscoverExperience(props: Parameters<typeof DiscoverContent>[0]) {
+  return <DiscoverContent key={JSON.stringify([props.query, props.mode, props.selectedSeason, props.selectedFamily, props.selectedGender, props.selectedMinimumValue])} {...props} />;
+}
+
+function DiscoverContent({
   results,
   query = "",
-  catalogResults = [],
+  catalogResults = emptyCatalog,
   mode = "balance",
   selectedSeason = "",
   wishlistIds = [],
+  selectedFamily = "",
+  selectedGender = "",
+  selectedMinimumValue = "",
+  recommendationError,
+  wishlistError,
 }: {
   results: DiscoveryResult[];
   query?: string;
@@ -35,9 +46,22 @@ export function DiscoverExperience({
   mode?: string;
   selectedSeason?: string;
   wishlistIds?: string[];
+  selectedFamily?: string;
+  selectedGender?: string;
+  selectedMinimumValue?: string;
+  recommendationError?: string;
+  wishlistError?: string;
 }) {
   const [matches, setMatches] = useState(catalogResults);
   const [hasMore, setHasMore] = useState(catalogResults.length === 25);
+  const [previousResults, setPreviousResults] = useState(catalogResults);
+  const [paginationError, setPaginationError] = useState<string | null>(null);
+  if (previousResults !== catalogResults) {
+    setPreviousResults(catalogResults);
+    setMatches(catalogResults);
+    setHasMore(catalogResults.length === 25);
+    setPaginationError(null);
+  }
   const [isLoadingMore, startLoadingMore] = useTransition();
   const isSearching = query.trim().length > 0;
   return (
@@ -47,24 +71,7 @@ export function DiscoverExperience({
         title="Discover"
         description="Source-backed recommendations scored against your owned collection."
       />
-      <form className="discover-search" method="get" role="search">
-        <label className="search-field">
-          <Search size={18} />
-          <span className="sr-only">Search the fragrance catalog</span>
-          <input
-            name="q"
-            type="search"
-            defaultValue={query}
-            placeholder="Search by brand, fragrance or concentration"
-          />
-        </label>
-        <Button type="submit">Search catalog</Button>
-        {isSearching ? (
-          <Button asChild variant="ghost">
-            <Link href="/discover">Clear search</Link>
-          </Button>
-        ) : null}
-      </form>
+      <DiscoverSearch query={query}/>
       {!isSearching ? (
         <form className="discover-filters" method="get">
           <SlidersHorizontal size={18} />
@@ -82,6 +89,7 @@ export function DiscoverExperience({
             <input
               className="input"
               name="family"
+              defaultValue={selectedFamily}
               placeholder="Woody, Floral…"
             />
           </label>
@@ -101,7 +109,7 @@ export function DiscoverExperience({
           </label>
           <label>
             Gender
-            <select className="select" name="gender" defaultValue="">
+            <select className="select" name="gender" defaultValue={selectedGender}>
               <option value="">All</option>
               <option value="female">Female</option>
               <option value="male">Male</option>
@@ -110,7 +118,7 @@ export function DiscoverExperience({
           </label>
           <label>
             Minimum value rating
-            <select className="select" name="minimum_value" defaultValue="">
+            <select className="select" name="minimum_value" defaultValue={selectedMinimumValue}>
               <option value="">Any</option>
               <option value="3">3+</option>
               <option value="4">4+</option>
@@ -134,6 +142,7 @@ export function DiscoverExperience({
                   item={item}
                   query={query}
                   wishlistSaved={wishlistIds.includes(item.id)}
+                  wishlistUnavailable={Boolean(wishlistError)}
                 />
               ))}
             </div>
@@ -145,17 +154,26 @@ export function DiscoverExperience({
                   disabled={isLoadingMore}
                   onClick={() =>
                     startLoadingMore(async () => {
+                      setPaginationError(null);
+                      try {
                       const more = await searchCatalogPage(
                         query,
                         matches.length,
                       );
-                      setMatches((current) => [...current, ...more]);
+                      setMatches((current) => {
+                        const known = new Set(current.map(item => item.id));
+                        return [...current, ...more.filter(item => !known.has(item.id))];
+                      });
                       setHasMore(more.length === 25);
+                      } catch {
+                        setPaginationError("Could not load more fragrances. Your results are still here. Try again.");
+                      }
                     })
                   }
                 >
                   {isLoadingMore ? "Loading…" : "Load more"}
                 </Button>
+                {paginationError && <p role="alert" className="field-error">{paginationError}</p>}
               </div>
             ) : null}
           </>
@@ -168,6 +186,8 @@ export function DiscoverExperience({
             </CardContent>
           </Card>
         )
+      ) : recommendationError ? (
+        <Card><CardContent className="state-block" role="alert"><h2>Recommendations are taking a moment</h2><p className="muted">{recommendationError}</p><Button asChild variant="secondary"><Link href={`/discover?${new URLSearchParams({mode, family:selectedFamily, gender:selectedGender, season:selectedSeason, minimum_value:selectedMinimumValue})}`}>Try again</Link></Button></CardContent></Card>
       ) : results.length ? (
         <div className="discover-grid">
           {results.map((result) => {
@@ -235,6 +255,7 @@ export function DiscoverExperience({
                     <WishlistButton
                       fragranceId={item.id}
                       initialSaved={wishlistIds.includes(item.id)}
+                      unavailable={Boolean(wishlistError)}
                     />
                   </div>
                 </CardContent>
@@ -254,6 +275,7 @@ export function DiscoverExperience({
           </CardContent>
         </Card>
       )}
+      {wishlistError && <p role="status" className="data-note">{wishlistError}</p>}
     </section>
   );
 }
@@ -262,10 +284,12 @@ function CatalogResultCard({
   item,
   query,
   wishlistSaved,
+  wishlistUnavailable,
 }: {
   item: FragranceSummary;
   query: string;
   wishlistSaved: boolean;
+  wishlistUnavailable?: boolean;
 }) {
   return (
     <Card className="discovery-card" data-testid="catalog-result-card">
@@ -297,7 +321,7 @@ function CatalogResultCard({
               View details
             </Link>
           </Button>
-          <WishlistButton fragranceId={item.id} initialSaved={wishlistSaved} />
+          <WishlistButton fragranceId={item.id} initialSaved={wishlistSaved} unavailable={wishlistUnavailable}/>
         </div>
       </CardContent>
     </Card>
@@ -307,9 +331,11 @@ function CatalogResultCard({
 function WishlistButton({
   fragranceId,
   initialSaved,
+  unavailable = false,
 }: {
   fragranceId: string;
   initialSaved: boolean;
+  unavailable?: boolean;
 }) {
   const [added, setAdded] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -318,7 +344,7 @@ function WishlistButton({
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        if (saved || pending) return;
+        if (saved || pending || unavailable) return;
         const data = new FormData(event.currentTarget);
         startTransition(async () => {
           try {
@@ -332,9 +358,9 @@ function WishlistButton({
       }}
     >
       <input type="hidden" name="fragrance_id" value={fragranceId} />
-      <Button type="submit" disabled={saved || pending}>
+      <Button type="submit" disabled={saved || pending || unavailable}>
         <BookmarkPlus size={16} />
-        {saved ? "Saved to wishlist" : pending ? "Saving…" : "Add to wishlist"}
+        {saved ? "Saved to wishlist" : unavailable ? "Wishlist unavailable" : pending ? "Saving…" : "Add to wishlist"}
       </Button>
     </form>
   );

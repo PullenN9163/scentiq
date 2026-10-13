@@ -375,10 +375,10 @@ export async function logWear(_previous: ActionState, formData: FormData): Promi
   const values = echo(formData, fields);
 
   const submittedWornAt = textOf(formData, "worn_at").trim();
-  // A datetime-local input has no offset; treat it as the browser's moment by
-  // letting the Date constructor apply the server's interpretation, then send
-  // an explicit UTC instant, which the API requires.
-  const wornAtIso = submittedWornAt ? new Date(submittedWornAt).toISOString() : "";
+  // The browser resolves its local input to an explicit instant. Invalid
+  // values go through field validation instead of throwing during conversion.
+  const timestamp = submittedWornAt ? new Date(submittedWornAt) : null;
+  const wornAtIso = timestamp && Number.isFinite(timestamp.getTime()) ? timestamp.toISOString() : "";
 
   const parsed = wearLogSchema.safeParse({
     collection_item_id: textOf(formData, "collection_item_id"),

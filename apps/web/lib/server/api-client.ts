@@ -89,6 +89,7 @@ type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   signal?: AbortSignal;
+  timeoutMs?: number;
 };
 
 async function readErrorBody(response: Response): Promise<ApiErrorBody> {
@@ -107,7 +108,7 @@ async function readErrorBody(response: Response): Promise<ApiErrorBody> {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, signal } = options;
+  const { method = "GET", body, signal, timeoutMs = 10_000 } = options;
 
   const { getToken } = await auth();
   const token = await getToken();
@@ -129,7 +130,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: signal ?? AbortSignal.timeout(10_000),
+      signal: signal ?? AbortSignal.timeout(timeoutMs),
       // Never cached. These responses are per-member and carry a bearer token,
       // so caching them risks serving one member's data to another. Server
       // Actions revalidate by path instead, which re-runs the read.
@@ -139,9 +140,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     if (error instanceof ApiError) {
       throw error;
     }
+    const timedOut = typeof error === "object" && error !== null && "name" in error && error.name === "TimeoutError";
     throw new ApiError("unavailable", 503, {
-      code: "service_unreachable",
-      message: "ScentIQ could not reach the service. Try again in a moment.",
+      code: timedOut ? "service_timeout" : "service_unreachable",
+      message: timedOut ? "That request took longer than expected. Please try again." : "ScentIQ could not reach the service. Try again in a moment.",
     });
   }
 
@@ -158,8 +160,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
 // React clears this memoization between server renders. It only deduplicates
 // identical reads inside one member request; it never becomes a shared cache.
-const cachedGet = cache((path: string, signal?: AbortSignal) =>
-  request<unknown>(path, { method: "GET", signal }),
+const cachedGet = cache((path: string, signal?: AbortSignal, timeoutMs?: number) =>
+  request<unknown>(path, { method: "GET", signal, timeoutMs }),
 );
 
 export const apiClient = {
@@ -180,7 +182,7 @@ export const apiClient = {
     return response;
   },
   get: <T>(path: string, options?: Omit<RequestOptions, "method" | "body">) =>
-    cachedGet(path, options?.signal) as Promise<T>,
+    cachedGet(path, options?.signal, options?.timeoutMs) as Promise<T>,
   post: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "method" | "body">) =>
     request<T>(path, { ...options, method: "POST", body }),
   patch: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "method" | "body">) =>
