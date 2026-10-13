@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fragranceSummary } from "@/test/catalog-fixtures";
@@ -154,9 +154,10 @@ describe("LayeringLab intelligence", () => {
     expect(
       within(builder).queryByRole("button", { name: `Add ${first.name}` }),
     ).not.toBeInTheDocument();
-    await user.click(
-      within(builder).getByRole("button", { name: "Move Warm accent earlier" }),
-    );
+    const moveEarlier=within(builder).getByRole("button", { name: "Move Warm accent earlier" });
+    // Evaluation renders its result before the transition releases controls.
+    await waitFor(()=>expect(moveEarlier).toBeEnabled());
+    await user.click(moveEarlier);
     expect(within(builder).getAllByTestId("stack-item")[1]).toHaveTextContent(
       "Warm accent",
     );
