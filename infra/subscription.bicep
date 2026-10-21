@@ -76,6 +76,15 @@ param foundryProjectName string = ''
 param azureOpenAIEndpoint string = ''
 param azureOpenAIDeployment string = ''
 param agentEnabled bool = true
+param aiRankingShadowEnabled bool = false
+param aiRankingTodayEnabled bool = false
+param aiRankingWeekEnabled bool = false
+param aiRankingDiscoveryEnabled bool = false
+param aiRankingLayeringEnabled bool = false
+param aiRankingAdvisorEnabled bool = false
+@minValue(0)
+@maxValue(25)
+param aiMonthlyBudgetUsd int = 25
 
 param apiImage string
 param webImage string
@@ -237,6 +246,13 @@ module platform 'main.bicep' = {
     azureOpenAIEndpoint: azureOpenAIEndpoint
     azureOpenAIDeployment: azureOpenAIDeployment
     agentEnabled: agentEnabled
+    aiRankingShadowEnabled: aiRankingShadowEnabled
+    aiRankingTodayEnabled: aiRankingTodayEnabled
+    aiRankingWeekEnabled: aiRankingWeekEnabled
+    aiRankingDiscoveryEnabled: aiRankingDiscoveryEnabled
+    aiRankingLayeringEnabled: aiRankingLayeringEnabled
+    aiRankingAdvisorEnabled: aiRankingAdvisorEnabled
+    aiMonthlyBudgetUsd: aiMonthlyBudgetUsd
     apiImage: apiImage
     webImage: webImage
     databaseSecretUri: databaseSecretUri

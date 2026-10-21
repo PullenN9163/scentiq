@@ -335,7 +335,7 @@ def test_wear_tool_shortlist_preserves_saved_alternative_and_seven_daily_context
         assert len(json.dumps(result, ensure_ascii=False)) <= 24000
         first = result["recommendations"][0]
         assert first["decision"]["selected_fragrance_id"] == str(selected)
-        assert first["alternatives"][0]["fragrance"]["id"] == str(selected)
+        assert first["fragrance"]["id"] == str(selected)
     week = tools.execute("get_week_plan", "{}")
     assert len({entry["context"]["local_date"] for entry in week["recommendations"]}) == 7
     assert all(entry["context"]["source"] == "day" for entry in week["recommendations"])

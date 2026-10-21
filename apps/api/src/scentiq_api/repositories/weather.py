@@ -22,6 +22,7 @@ _REFRESHED_FIELDS = (
     "condition",
     "source",
     "fetched_at",
+    "hourly_forecast",
 )
 
 

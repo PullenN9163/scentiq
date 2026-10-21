@@ -17,6 +17,7 @@ from scentiq_api.api.v1.layering import create_layering_router
 from scentiq_api.api.v1.me import create_me_router
 from scentiq_api.api.v1.page_data import create_page_data_router
 from scentiq_api.api.v1.recommendations import create_recommendations_router
+from scentiq_api.api.v1.surface_choices import create_surface_choices_router
 from scentiq_api.api.v1.wear_logs import create_wear_log_router
 from scentiq_api.api.v1.wear_recommendations import create_wear_recommendations_router
 from scentiq_api.api.v1.weather import create_weather_router
@@ -83,6 +84,7 @@ def create_v1_router(
     router.include_router(create_collection_router(get_session, current_user))
     router.include_router(create_wear_log_router(get_session, current_user))
     router.include_router(create_insights_router(get_session, current_user))
+    router.include_router(create_surface_choices_router(get_session, current_user))
     router.include_router(
         create_recommendations_router(
             get_session,

@@ -148,7 +148,7 @@ def create_calendar_router(
         session: Annotated[Session, Depends(get_session)],
         user: Annotated[AuthenticatedUser, Depends(current_user)],
     ) -> CalendarEventResponse:
-        updated = _service(session).set_event_hidden(user.user_id, event_id, payload.is_hidden)
+        updated = _service(session).update_event(user.user_id, event_id, payload)
         session.commit()
         return updated
 

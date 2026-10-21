@@ -25,6 +25,7 @@ from scentiq_api.models import AsyncJob, Fragrance, UserCollectionItem, UserPref
 from scentiq_api.repositories import DiscoveryRepository, HybridJobRepository, LayeringRepository
 from scentiq_api.services import HybridJobService
 from scentiq_api.services.fragrances import to_fragrance_summary
+from scentiq_api.services.taste_profile import TasteProfileService
 
 JOB_QUEUE = "hybrid-jobs"
 RESULT_QUEUE = "hybrid-results"
@@ -118,6 +119,7 @@ class HybridDispatcher:
             )
         )
         preferences = self._session.get(UserPreference, job.user_id)
+        profile = TasteProfileService(self._session).for_user(job.user_id)
         discovery_repository = DiscoveryRepository(self._session)
         owned = LayeringRepository(self._session).owned(job.user_id)
         candidates = discovery_repository.candidates(job.user_id)
@@ -126,6 +128,9 @@ class HybridDispatcher:
             {item.id for item in candidates}, owned_ids
         )
         return RecommendationJobInput(
+            profile_version=profile.version,
+            taste_features=profile.features,
+            excluded_ids=list(profile.excluded_ids),
             job_id=job.id,
             execution_id=job.execution_id,
             input_version=job.input_version,

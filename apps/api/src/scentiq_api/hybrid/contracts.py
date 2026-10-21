@@ -42,7 +42,10 @@ class HybridFragrance(BaseModel):
 class RecommendationJobInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 2
+    taste_features: dict[str, float] = Field(default_factory=dict)
+    profile_version: str | None = None
+    excluded_ids: list[UUID] = Field(default_factory=list)
     job_id: UUID
     execution_id: UUID = Field(default_factory=uuid4)
     job_type: Literal["recommendation_bundle"] = "recommendation_bundle"

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
     Date,
@@ -100,6 +101,15 @@ class UserPreference(TimestampMixin, Base):
     preferred_projection: Mapped[str | None] = mapped_column(String(20))
     preferred_longevity: Mapped[Decimal | None] = mapped_column(Numeric(3, 1))
     maximum_sprays: Mapped[int | None]
+    liked_notes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    disliked_notes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    liked_accords: Mapped[list[str]] = mapped_column(JSON, default=list)
+    disliked_accords: Mapped[list[str]] = mapped_column(JSON, default=list)
+    liked_families: Mapped[list[str]] = mapped_column(JSON, default=list)
+    disliked_families: Mapped[list[str]] = mapped_column(JSON, default=list)
+    excluded_fragrance_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    variety_preference: Mapped[str] = mapped_column(String(20), default="balanced")
+    calendar_ai_titles_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
     user: Mapped[User] = relationship(back_populates="preferences")
 

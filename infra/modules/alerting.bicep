@@ -462,3 +462,61 @@ output alertIds array = concat([
   serviceHealthAlert.id
   deploymentFailureAlert.id
 ], enableHybridBridge ? [hybridBridgeFailureAlert!.id] : [])
+
+
+// Inference telemetry contains only operational counts, timing and allowance.
+var inferenceSignals = [
+  {
+    name: 'fallback'
+    description: 'Inference fallback exceeds 50% over at least ten attempts.'
+    query: '| where tostring(Event.event) in (\'ai_ranking_result\',\'ai_ranking_fallback\') | summarize Attempts=count(), Value=100.0*countif(tostring(Event.event)==\'ai_ranking_fallback\' or tostring(Event.mode)==\'baseline\')/count() | where Attempts >= 10 | project Value'
+    threshold: 50
+  }
+  {
+    name: 'latency'
+    description: 'Inference p95 approaches the ten-second fallback deadline.'
+    query: '| where tostring(Event.event) in (\'ai_ranking_result\',\'ai_ranking_fallback\') | summarize Attempts=count(), Value=percentile(todouble(Event.elapsed_ms),95) | where Attempts >= 10 | project Value'
+    threshold: 9000
+  }
+  {
+    name: 'allowance'
+    description: 'Inference ledger has reached 80% of the approved allowance.'
+    query: '| where tostring(Event.event) in (\'ai_inference_reserved\',\'ai_inference_settled\') | where tostring(Event.month)==format_datetime(now(),\'yyyy-MM\') | summarize arg_max(TimeGenerated,Event), Budget=max(todouble(Event.budget_microusd)) | where Budget > 0 | project Value=100.0*todouble(Event.charged_total_microusd)/Budget'
+    threshold: 79
+  }
+  {
+    name: 'planned-repeats'
+    description: 'Planned recommendation repeats exceed 50% over at least twenty generated contexts; inspect small-collection constraints before changing diversity.'
+    query: '| where tostring(Event.event)==\'wear_recommendation_generated\' | where isnotnull(Event.planned_repeat) | summarize Recommendations=count(), Value=100.0*countif(tobool(Event.planned_repeat))/count() | where Recommendations >= 20 | project Value'
+    threshold: 50
+  }
+]
+
+resource inferenceAlerts 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = [for signal in inferenceSignals: {
+  name: 'scentiq-inference-${signal.name}-${environmentName}'
+  location: location
+  kind: 'LogAlert'
+  tags: commonTags
+  properties: {
+    actions: { actionGroups: [actionGroupId] }
+    autoMitigate: true
+    criteria: {
+      allOf: [{
+        query: 'ContainerAppConsoleLogs_CL | where ContainerAppName_s == \'${apiAppName}\' | extend Event=parse_json(Log_s) ${signal.query}'
+        timeAggregation: 'Maximum'
+        operator: 'GreaterThan'
+        threshold: signal.threshold
+        metricMeasureColumn: 'Value'
+        failingPeriods: { minFailingPeriodsToAlert: 1, numberOfEvaluationPeriods: 1 }
+      }]
+    }
+    description: '${signal.description} Runbook: docs/runbooks/azure-deployment.md#recommendation-inference-rollout'
+    displayName: 'ScentIQ inference ${signal.name} (${environmentName})'
+    enabled: true
+    evaluationFrequency: 'PT15M'
+    scopes: [workspaceScope]
+    severity: 3
+    skipQueryValidation: true
+    windowSize: 'PT1H'
+  }
+}]

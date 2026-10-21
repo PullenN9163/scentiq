@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useTransition, type FormEvent } from "react";
+import { useCallback, useRef, useState, useTransition, type FormEvent } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Plus, Sparkles, X } from "lucide-react";
+import { SurfaceOptions } from "@/features/recommendations/surface-options";
 import { CatalogImage } from "@/components/catalog-image";
 import { ExperienceBackdrop } from "@/components/shared/experience";
 import { PageHeader } from "@/components/shared/page-header";
@@ -101,6 +102,11 @@ export function LayeringLab({
   const [detail, setDetail] = useState<LayeringStackSuggestion | null>(null);
   const [deleting, setDeleting] = useState<SavedLayeringStack | null>(null);
   const requestVersion = useRef(0);
+  const selectSurprise = useCallback((choice: import("@/types/api").DiscoveryResult | LayeringStackSuggestion) => {
+    if (!("items" in choice))return;
+    requestVersion.current++;setStackIds([]);setEvaluation(null);setAnchor(choice.items[0].fragrance.id);
+    setIntelligence(previous=>({...previous,suggestions:[choice,...previous.suggestions.filter(item=>stackKey(item)!==stackKey(choice))]}));
+  },[]);
   const reducedMotion = useReducedMotion();
   const selectedAnchor = owned.find((item) => item.id === anchor);
   const currentEvaluation = evaluation && evaluation.mode === mode && (evaluation.goal ?? null) === goal && evaluation.items.map((item) => item.fragrance.id).join(":") === stackIds.join(":") ? evaluation : null;
@@ -384,18 +390,7 @@ export function LayeringLab({
                 {item}
               </Button>
             ))}
-            <Button
-              variant="secondary"
-              disabled={pending}
-              onClick={() => {
-                setStackIds([]);
-                setEvaluation(null);
-                suggest(undefined, mode, goal);
-              }}
-            >
-              <Sparkles size={16} />
-              Surprise me
-            </Button>
+            <SurfaceOptions key={`${mode}:${goal}`} surface="layering" parameters={{mode,goal}} onChoice={selectSurprise} restore={!initialA && !initialStack} enabled={owned.length >= 2}/>
             <Button
               variant="secondary"
               disabled={pending}

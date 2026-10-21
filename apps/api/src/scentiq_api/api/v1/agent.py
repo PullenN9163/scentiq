@@ -11,7 +11,7 @@ from fastapi.routing import APIRoute
 from sqlalchemy.orm import Session
 from starlette.types import Message
 
-from scentiq_api.agent.provider import AzureResponsesProvider
+from scentiq_api.agent.provider import AzureResponsesProvider, BudgetedProvider
 from scentiq_api.agent.tools import AgentTools
 from scentiq_api.auth import AuthenticatedUser, CurrentUserDependency
 from scentiq_api.config import Settings
@@ -84,9 +84,11 @@ def create_agent_router(
         session: Annotated[Session, Depends(get_session)],
         user: Annotated[AuthenticatedUser, Depends(current_user)],
     ) -> StreamingResponse:
+        provider = build_provider(settings) if settings.ai_ranking_advisor_enabled else None
+        budgeted = BudgetedProvider(provider, session.get_bind(), settings) if provider else None
         service = AgentService(
             AgentTools(session, user.user_id, refresh_context),
-            build_provider(settings),
+            budgeted,
             timeout_seconds=settings.agent_timeout_seconds,
             max_tool_calls=settings.agent_max_tool_calls,
             max_iterations=settings.agent_max_turns,

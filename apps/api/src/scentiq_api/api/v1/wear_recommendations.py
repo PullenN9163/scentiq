@@ -12,11 +12,15 @@ from scentiq_api.schemas.wear import WearLogResponse
 from scentiq_api.schemas.wear_recommendations import (
     RecommendationDecisionRequest,
     RecommendationDecisionResponse,
+    RecommendationFeedbackRequest,
+    RecommendationFeedbackResponse,
+    RecommendationNextRequest,
     RecommendationPreviewRequest,
     RecommendationWearRequest,
     WearRecommendationPlan,
     WearRecommendationResponse,
 )
+from scentiq_api.services.recommendation_choices import RecommendationChoiceService
 from scentiq_api.services.wear_recommendations import WearRecommendationService
 
 
@@ -80,6 +84,30 @@ def create_wear_recommendations_router(
         user: Annotated[AuthenticatedUser, Depends(current_user)],
     ) -> WearLogResponse:
         result = WearRecommendationService(session).wear(user.user_id, recommendation_id, payload)
+        session.commit()
+        return result
+
+    @router.post("/{recommendation_id}/next", response_model=WearRecommendationResponse)
+    def next_option(
+        recommendation_id: UUID,
+        payload: RecommendationNextRequest,
+        session: Annotated[Session, Depends(get_session)],
+        user: Annotated[AuthenticatedUser, Depends(current_user)],
+    ) -> WearRecommendationResponse:
+        result = RecommendationChoiceService(session).next(user.user_id, recommendation_id, payload)
+        session.commit()
+        return result
+
+    @router.post("/{recommendation_id}/feedback", response_model=RecommendationFeedbackResponse)
+    def feedback(
+        recommendation_id: UUID,
+        payload: RecommendationFeedbackRequest,
+        session: Annotated[Session, Depends(get_session)],
+        user: Annotated[AuthenticatedUser, Depends(current_user)],
+    ) -> RecommendationFeedbackResponse:
+        result = RecommendationChoiceService(session).feedback(
+            user.user_id, recommendation_id, payload
+        )
         session.commit()
         return result
 

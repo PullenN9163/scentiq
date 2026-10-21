@@ -27,6 +27,9 @@ from scentiq_api.services.layer_stack_scoring import (
     score_stack,
     supported_goals,
 )
+from scentiq_api.services.personalized_ranking import rerank, surface_context
+from scentiq_api.services.recommendation_scoring import pair_score
+from scentiq_api.services.taste_profile import TasteProfileService
 
 
 def _weighted_keys(item: Fragrance, relationship: str) -> dict[str, float]:
@@ -57,10 +60,14 @@ class LayeringService:
         collection = self._repository.collection_items(user_id)
         counts = self._repository.wear_counts(user_id)
         preferences = self._repository.preferences(user_id)
+        profile = TasteProfileService(self._repository._session).for_user(user_id)
         affinity = {
             item.fragrance_id: 0.5
             + ((item.user_rating or 3) - 3) * 0.1
             + min(counts.get(item.fragrance_id, 0), 10) * 0.01
+            # Stack ratings also inform exact-stack history; bound the shared
+            # contribution so one rating cannot overwhelm composition evidence.
+            + 0.05 * profile.affinity(item.fragrance)
             for item in collection
         }
         performance = {
@@ -142,6 +149,10 @@ class LayeringService:
         stack_size: Literal[2, 3] | None = None,
     ) -> list[LayeringStackSuggestion]:
         owned = self._repository.owned(user_id)
+        profile = TasteProfileService(self._repository._session).for_user(user_id)
+        owned = [item for item in owned if item.id not in profile.excluded_ids]
+        # Choose bounded anchors from personal affinity rather than alphabetic collection order.
+        owned.sort(key=lambda item: (-profile.affinity(item), str(item.id)))
         history = self._repository.stacks(user_id)
         inputs = self._inputs(user_id)
         if inputs[1] is not None and inputs[1] < 2:
@@ -204,6 +215,47 @@ class LayeringService:
                 tuple(str(item.fragrance.id) for item in value.items),
             ),
         )
+
+        def candidate_key(value: LayeringStackSuggestion) -> str:
+            return ":".join(sorted(str(item.fragrance.id) for item in value.items))
+
+        ranking = rerank(
+            self._repository._session,
+            user_id,
+            surface="layering",
+            candidates=[
+                {
+                    "candidate_id": candidate_key(row),
+                    "baseline_score": row.score,
+                    "evidence": {
+                        "reasons": row.reasons,
+                        "warnings": row.warnings,
+                        "goal": row.goal,
+                        "contexts": row.best_contexts,
+                        "components": row.score_components.model_dump(),
+                    },
+                }
+                for row in ranked
+            ],
+            context={
+                **surface_context(self._repository._session, user_id, profile),
+                "goal": goal,
+                "mode": mode,
+            },
+            version=profile.version,
+        )
+        ranked_by_id = {candidate_key(row): row for row in ranked}
+        ranked = [
+            ranked_by_id[key].model_copy(
+                update={
+                    "generation_mode": ranking.generation_mode,
+                    "profile_version": profile.version,
+                    "model_version": ranking.model_version,
+                    "ai_reasons": ranking.explanations.get(key, []),
+                }
+            )
+            for key in ranking.ordered_ids
+        ]
         return ranked[: max(1, min(limit, 50))]
 
     def intelligence_page(
@@ -419,7 +471,10 @@ class LayeringService:
             pairs = [tuple(owned)] if len(owned) == 2 else []
         else:
             pairs = list(combinations(self._repository.owned(user_id), 2))
+        profile = TasteProfileService(self._repository._session).for_user(user_id)
         for first, second in pairs:
+            if first.id in profile.excluded_ids or second.id in profile.excluded_ids:
+                continue
             first_notes = _weighted_keys(first, "note_links")
             second_notes = _weighted_keys(second, "note_links")
             shared_notes = sorted(set(first_notes) & set(second_notes))
@@ -436,12 +491,13 @@ class LayeringService:
             contrast_ratio = len(complementary) / max(
                 len(set(first_accords) | set(second_accords)), 1
             )
-            if mode == "safe":
-                score = 0.5 * shared_ratio + 0.35 * season_overlap + 0.15 * (1 - contrast_ratio)
-            elif mode == "contrast":
-                score = 0.65 * contrast_ratio + 0.25 * season_overlap + 0.1 * shared_ratio
-            else:
-                score = 0.75 * contrast_ratio + 0.25 * (1 - shared_ratio)
+            score = pair_score(
+                shared_ratio,
+                contrast_ratio,
+                season_overlap,
+                mode,
+                (profile.affinity(first) + profile.affinity(second)) / 2,
+            )
             results.append(
                 LayeringSuggestion(
                     first=to_fragrance_summary(first),

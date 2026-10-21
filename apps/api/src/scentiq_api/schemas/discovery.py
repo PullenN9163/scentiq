@@ -8,6 +8,10 @@ DiscoveryMode = Literal["balance", "taste", "explore", "seasonal"]
 
 
 class DiscoveryResult(BaseModel):
+    generation_mode: str = "baseline"
+    profile_version: str | None = None
+    model_version: str | None = None
+    ai_reasons: list[str] = Field(default_factory=list)
     fragrance: FragranceSummary
     taste_match: float = Field(ge=0, le=1)
     collection_expansion: float = Field(ge=0, le=1)

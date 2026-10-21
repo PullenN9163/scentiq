@@ -1,3 +1,4 @@
+vi.mock("@/lib/server/surface-choice-actions",()=>({surfaceChoice:vi.fn().mockResolvedValue({ok:false,error:""})}));
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -69,7 +70,7 @@ const stack: LayeringStackSuggestion = {
   total_sprays: 3,
   evidence_coverage: 0.8,
   evidence_label: "partial",
-  algorithm_version: "layering-v2",
+  generation_mode: "baseline",algorithm_version: "layering-v2",
 };
 const page = {
   supported_goals: ["fresher", "warmer"] as const,

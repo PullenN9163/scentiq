@@ -45,7 +45,7 @@ def test_dispatcher_uploads_minimal_member_input_and_enqueues_once(session: Sess
     payload_text = transport.blobs[job.input_blob]
     payload = json.loads(payload_text)
     assert "private@example.com" not in payload_text
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["job_id"] == str(job.id)
     assert "user_id" not in payload
     assert payload["collection"] == [
@@ -323,6 +323,7 @@ def test_recommendation_processor_always_returns_the_versioned_bundle_shape() ->
     )
 
     assert process_recommendation(request) == {
+        "profile_version": None,
         "discovery": [],
         "layering": {"safe": [], "contrast": [], "experimental": []},
     }
@@ -406,6 +407,7 @@ def test_recommendation_processor_scores_discovery_and_all_layering_modes() -> N
     result = process_recommendation(request)
 
     assert result["discovery"][0]["fragrance"]["name"] == "Candidate"
-    assert result["discovery"][0]["taste_match"] == 0.85
+    # Unrated ownership is weaker evidence than explicit or positively rated taste.
+    assert result["discovery"][0]["taste_match"] == 0.425
     assert set(result["layering"]) == {"safe", "contrast", "experimental"}
     assert all(len(suggestions) == 1 for suggestions in result["layering"].values())

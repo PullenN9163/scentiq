@@ -56,6 +56,10 @@ class LayeringScoreComponents(BaseModel):
 
 
 class LayeringStackSuggestion(BaseModel):
+    generation_mode: str = "baseline"
+    profile_version: str | None = None
+    model_version: str | None = None
+    ai_reasons: list[str] = Field(default_factory=list)
     items: list[LayeringStackItem]
     mode: LayeringMode
     goal: LayeringGoal | None = None

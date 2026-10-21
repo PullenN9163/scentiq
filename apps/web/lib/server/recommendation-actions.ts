@@ -29,3 +29,23 @@ export async function wearRecommendation(id: string, payload: WearRequest): Prom
     return { ok: false, error: error instanceof ApiError ? error.message : "Could not log this wear. Try again." };
   }
 }
+
+export async function nextRecommendation(id: string, idempotencyKey: string, reset = false, expectedFragranceId?: string): Promise<Result<import("@/types/wear-intelligence").WearRecommendation>> {
+  try {
+    const data = await apiClient.post<import("@/types/wear-intelligence").WearRecommendation>(`/api/v1/recommendations/${encodeURIComponent(id)}/next`, {idempotency_key:idempotencyKey,reset,expected_fragrance_id:expectedFragranceId});
+    refresh();
+    return {ok:true,data};
+  } catch (error) {
+    return {ok:false,error:error instanceof ApiError ? error.message : "Could not get another option. Try again."};
+  }
+}
+
+export async function recommendationFeedback(id: string, fragranceId: string, reason: "not_today" | "too_strong" | "dislike_scent"): Promise<Result<unknown>> {
+  try {
+    const data = await apiClient.post(`/api/v1/recommendations/${encodeURIComponent(id)}/feedback`, {fragrance_id:fragranceId,reason});
+    refresh();
+    return {ok:true,data};
+  } catch (error) {
+    return {ok:false,error:error instanceof ApiError ? error.message : "Could not save feedback. Try again."};
+  }
+}

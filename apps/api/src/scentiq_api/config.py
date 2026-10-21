@@ -120,6 +120,37 @@ class Settings(BaseSettings):
     azure_openai_api_key: SecretStr | None = Field(
         default=None, validation_alias="AZURE_OPENAI_API_KEY"
     )
+    ai_monthly_budget_usd: float = Field(
+        default=25, ge=0, le=25, validation_alias="AI_MONTHLY_BUDGET_USD"
+    )
+    ai_input_usd_per_million: float = Field(
+        default=5, ge=5, validation_alias="AI_INPUT_USD_PER_MILLION"
+    )
+    ai_output_usd_per_million: float = Field(
+        default=30, ge=30, validation_alias="AI_OUTPUT_USD_PER_MILLION"
+    )
+    ai_max_input_bytes: int = Field(
+        default=24000, ge=1024, le=48000, validation_alias="AI_MAX_INPUT_BYTES"
+    )
+    ai_max_output_tokens: int = Field(
+        default=1600, ge=256, le=2000, validation_alias="AI_MAX_OUTPUT_TOKENS"
+    )
+    ai_ranking_shadow_enabled: bool = Field(
+        default=False, validation_alias="AI_RANKING_SHADOW_ENABLED"
+    )
+    ai_ranking_today_enabled: bool = Field(
+        default=False, validation_alias="AI_RANKING_TODAY_ENABLED"
+    )
+    ai_ranking_week_enabled: bool = Field(default=False, validation_alias="AI_RANKING_WEEK_ENABLED")
+    ai_ranking_discovery_enabled: bool = Field(
+        default=False, validation_alias="AI_RANKING_DISCOVERY_ENABLED"
+    )
+    ai_ranking_layering_enabled: bool = Field(
+        default=False, validation_alias="AI_RANKING_LAYERING_ENABLED"
+    )
+    ai_ranking_advisor_enabled: bool = Field(
+        default=False, validation_alias="AI_RANKING_ADVISOR_ENABLED"
+    )
     agent_enabled: bool = Field(default=True, validation_alias="AGENT_ENABLED")
     agent_max_tool_calls: int = Field(
         default=6, ge=1, le=6, validation_alias="AGENT_MAX_TOOL_CALLS"

@@ -5,6 +5,12 @@ from typing import Any
 
 from scentiq_api.hybrid.contracts import HybridFragrance, RecommendationJobInput
 from scentiq_api.schemas import DiscoveryResult, LayeringMode, LayeringSuggestion
+from scentiq_api.services.recommendation_scoring import (
+    discovery_score,
+    feature_affinity,
+    pair_score,
+    positive_taste_overlap,
+)
 
 
 def _discovery(request: RecommendationJobInput) -> list[DiscoveryResult]:
@@ -15,17 +21,16 @@ def _discovery(request: RecommendationJobInput) -> list[DiscoveryResult]:
     owned_families = {item.family for item in request.owned if item.family}
     results: list[DiscoveryResult] = []
     for candidate in request.candidates:
-        accord_total = sum(candidate.accords.values()) or 1.0
-        accord_overlap = (
-            sum(weight for key, weight in candidate.accords.items() if key in owned_accords)
-            / accord_total
+        if candidate.fragrance.id in request.excluded_ids:
+            continue
+        taste = positive_taste_overlap(
+            candidate.accords,
+            set(candidate.notes),
+            owned_accords,
+            owned_notes,
+            request.taste_features,
         )
-        note_overlap = (
-            len(set(candidate.notes) & owned_notes) / len(candidate.notes)
-            if candidate.notes
-            else 0.0
-        )
-        taste = (accord_overlap + note_overlap) / 2
+
         expansion_parts = [key not in owned_accords for key in candidate.accords]
         if candidate.family:
             expansion_parts.append(candidate.family not in owned_families)
@@ -37,7 +42,17 @@ def _discovery(request: RecommendationJobInput) -> list[DiscoveryResult]:
                 len(set(candidate.accords) & set(owned.accords)) / len(union) if union else 0.0
             )
             risk = max(risk, overlap, candidate.similarities.get(owned.fragrance.id, 0.0))
-        score = 0.55 * taste + 0.35 * expansion - 0.25 * risk
+        score = discovery_score(
+            taste,
+            expansion,
+            risk,
+            affinity=feature_affinity(
+                request.taste_features,
+                accords=set(candidate.accords),
+                notes=set(candidate.notes),
+                family=candidate.family,
+            ),
+        )
         results.append(
             DiscoveryResult(
                 fragrance=candidate.fragrance,
@@ -58,7 +73,7 @@ def _discovery(request: RecommendationJobInput) -> list[DiscoveryResult]:
 
 
 def _layer(
-    first: HybridFragrance, second: HybridFragrance, mode: LayeringMode
+    first: HybridFragrance, second: HybridFragrance, mode: LayeringMode, features: dict[str, float]
 ) -> LayeringSuggestion:
     shared_notes = sorted(set(first.notes) & set(second.notes))
     complementary = sorted(set(first.accords) ^ set(second.accords))
@@ -68,12 +83,16 @@ def _layer(
     )
     shared_ratio = len(shared_notes) / max(len(set(first.notes) | set(second.notes)), 1)
     contrast_ratio = len(complementary) / max(len(set(first.accords) | set(second.accords)), 1)
-    if mode == "safe":
-        score = 0.5 * shared_ratio + 0.35 * season_overlap + 0.15 * (1 - contrast_ratio)
-    elif mode == "contrast":
-        score = 0.65 * contrast_ratio + 0.25 * season_overlap + 0.1 * shared_ratio
-    else:
-        score = 0.75 * contrast_ratio + 0.25 * (1 - shared_ratio)
+    affinity = (
+        sum(
+            feature_affinity(
+                features, accords=set(item.accords), notes=set(item.notes), family=item.family
+            )
+            for item in (first, second)
+        )
+        / 2
+    )
+    score = pair_score(shared_ratio, contrast_ratio, season_overlap, mode, affinity)
     return LayeringSuggestion(
         first=first.fragrance,
         second=second.fragrance,
@@ -87,7 +106,12 @@ def _layer(
 
 def _layering(request: RecommendationJobInput, mode: LayeringMode) -> list[LayeringSuggestion]:
     return sorted(
-        (_layer(first, second, mode) for first, second in combinations(request.owned, 2)),
+        (
+            _layer(first, second, mode, request.taste_features)
+            for first, second in combinations(request.owned, 2)
+            if first.fragrance.id not in request.excluded_ids
+            and second.fragrance.id not in request.excluded_ids
+        ),
         key=lambda result: (-result.score, str(result.first.id), str(result.second.id)),
     )[:12]
 
@@ -95,6 +119,7 @@ def _layering(request: RecommendationJobInput, mode: LayeringMode) -> list[Layer
 def process_recommendation(request: RecommendationJobInput) -> dict[str, Any]:
     """Return the stable bundle envelope populated by the scoring task."""
     return {
+        "profile_version": request.profile_version,
         "discovery": [item.model_dump(mode="json") for item in _discovery(request)],
         "layering": {
             mode: [item.model_dump(mode="json") for item in _layering(request, mode)]

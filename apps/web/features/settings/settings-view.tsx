@@ -89,6 +89,19 @@ export function SettingsView({
             </div>
             <form className="stack" action={preferenceAction} noValidate>
               <FormMessage state={preferenceState} />
+              {(["notes", "accords", "families"] as const).map(kind => <div key={kind} className="stack">
+                {(["liked", "disliked"] as const).map(polarity => {
+                  const name = `${polarity}_${kind}` as const;
+                  return <Field key={name} name={name} label={`${polarity === "liked" ? "Liked" : "Disliked"} ${kind}`} state={preferenceState} fallbackValue={(preferences[name] ?? []).join(", ")} hint="Separate entries with commas. Your explicit taste takes priority over learned preferences.">
+                    {props => <Input type="text" maxLength={4000} {...props} />}
+                  </Field>;
+                })}
+              </div>)}
+              <Field name="variety_preference" label="How much variety?" state={preferenceState} fallbackValue={preferences.variety_preference ?? "balanced"}>
+                {props => <select className="select" {...props}><option value="familiar">Favor familiar favorites</option><option value="balanced">Balance favorites and variety</option><option value="adventurous">Explore my collection</option></select>}
+              </Field>
+              <input type="hidden" name="excluded_fragrance_ids" value={(preferences.excluded_fragrance_ids ?? []).join(",")} />
+              <label className="field-hint"><input type="checkbox" name="calendar_ai_titles_enabled" defaultChecked={preferences.calendar_ai_titles_enabled ?? false} /> Allow AI to interpret titles from my selected calendars. Hidden events stay excluded; descriptions and attendees are never sent.</label>
               <Field
                 name="location"
                 label="Location"

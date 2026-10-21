@@ -94,6 +94,69 @@ def _save_location(session: Session, user_id: Any, provider: FakeProvider, locat
 # --- condition mapping -------------------------------------------------
 
 
+def test_hourly_weather_is_fetched_and_stored_with_daily_forecast(session: Session) -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        assert "hourly" in request.url.params
+        return httpx.Response(
+            200,
+            json={
+                "daily": {"time": ["2026-09-26"], "temperature_2m_max": [25]},
+                "hourly": {
+                    "time": ["2026-09-26T15:00"],
+                    "temperature_2m": [14],
+                    "relative_humidity_2m": [88],
+                    "weather_code": [61],
+                    "precipitation_probability": [70],
+                },
+            },
+        )
+
+    client = OpenMeteoClient(
+        forecast_base_url="https://weather.test",
+        geocoding_base_url="https://geo.test",
+        transport=httpx.MockTransport(respond),
+    )
+    forecasts = client.daily_forecast(Decimal("0"), Decimal("0"), "Europe/London")
+    assert forecasts[0].hourly[0]["at"] == "2026-09-26T14:00:00+00:00"
+    assert forecasts[0].hourly[0]["temperature_celsius"] == 14
+
+    class HourlyProvider(FakeProvider):
+        def daily_forecast(self, *args: Any, **kwargs: Any) -> list[DailyForecast]:
+            return forecasts
+
+    user = make_user(session, email="hourly@example.com")
+    provider = HourlyProvider()
+    _save_location(session, user.id, provider, "Leeds")
+    _service(session, provider).forecast(user.id)
+    snapshot = WeatherRepository(session).get_day(user.id, NOW.date())
+    assert snapshot is not None
+    assert snapshot.hourly_forecast == list(forecasts[0].hourly)
+
+
+def test_unix_hourly_times_preserve_both_dst_hours() -> None:
+    first = datetime(2026, 11, 1, 5, tzinfo=UTC)
+    second = first + timedelta(hours=1)
+    payload = {
+        "timezone": "America/New_York",
+        "daily": {"time": [int(first.replace(hour=4).timestamp())], "temperature_2m_max": [20]},
+        "hourly": {
+            "time": [int(first.timestamp()), int(second.timestamp())],
+            "temperature_2m": [10, 11],
+            "relative_humidity_2m": [80, 81],
+            "precipitation_probability": [0, 20],
+            "weather_code": [0, 61],
+        },
+    }
+    client = OpenMeteoClient(
+        forecast_base_url="https://weather.test",
+        geocoding_base_url="https://geo.test",
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload)),
+    )
+    forecasts = client.daily_forecast(Decimal("40"), Decimal("-73"), "America/New_York")
+    assert forecasts[0].day == date(2026, 11, 1)
+    assert [hour["at"] for hour in forecasts[0].hourly] == [first.isoformat(), second.isoformat()]
+
+
 @pytest.mark.parametrize(
     ("code", "condition"),
     [

@@ -110,6 +110,15 @@ export async function updateProfile(
 }
 
 const preferencesSchema = z.object({
+  liked_notes: z.array(z.string().max(80)).max(50),
+  disliked_notes: z.array(z.string().max(80)).max(50),
+  liked_accords: z.array(z.string().max(80)).max(50),
+  disliked_accords: z.array(z.string().max(80)).max(50),
+  liked_families: z.array(z.string().max(80)).max(50),
+  disliked_families: z.array(z.string().max(80)).max(50),
+  excluded_fragrance_ids: z.array(z.string().uuid()).max(500),
+  variety_preference: z.enum(["familiar", "balanced", "adventurous"]),
+  calendar_ai_titles_enabled: z.boolean(),
   location: optionalText,
   temperature_unit: z.enum(["celsius", "fahrenheit"]).nullable(),
   preferred_season: z.enum(["spring", "summer", "fall", "winter"]).nullable(),
@@ -131,6 +140,8 @@ export async function updatePreferences(
   formData: FormData,
 ): Promise<ActionState> {
   const fields = [
+    "liked_notes", "disliked_notes", "liked_accords", "disliked_accords",
+    "liked_families", "disliked_families", "excluded_fragrance_ids", "variety_preference",
     "location",
     "temperature_unit",
     "preferred_season",
@@ -142,6 +153,9 @@ export async function updatePreferences(
   const values = echo(formData, fields);
 
   const parsed = preferencesSchema.safeParse({
+    ...Object.fromEntries(["liked_notes", "disliked_notes", "liked_accords", "disliked_accords", "liked_families", "disliked_families", "excluded_fragrance_ids"].map(key => [key, textOf(formData, key).split(",").map(value => value.trim()).filter(Boolean)])),
+    variety_preference: textOf(formData, "variety_preference") || "balanced",
+    calendar_ai_titles_enabled: formData.get("calendar_ai_titles_enabled") === "on",
     location: textOf(formData, "location"),
     temperature_unit: nullableEnum(formData, "temperature_unit"),
     preferred_season: nullableEnum(formData, "preferred_season"),
@@ -467,6 +481,32 @@ function refreshCalendarScreens(): void {
 }
 
 const identifier = z.string().uuid();
+
+/** Saves member corrections independently of provider-supplied event data. */
+export async function updateCalendarEvent(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = z.object({
+    event_id: identifier,
+    occasion: z.enum(["work", "casual", "formal", "date", "party", "gym", "travel", "dinner", "other"]),
+    formality: z.enum(["formal", "smart", "casual", ""]),
+    setting: z.enum(["indoor", "outdoor", "mixed", ""]),
+  }).safeParse(echo(formData, ["event_id", "occasion", "formality", "setting"]));
+  if (!parsed.success) {
+    return { status: "error", message: "Check the event details and try again." };
+  }
+  const { event_id, occasion, formality, setting } = parsed.data;
+  try {
+    await apiClient.patch(`/api/v1/calendar/events/${event_id}`, {
+      occasion, formality: formality || null, setting: setting || null,
+    });
+  } catch (error) {
+    return failureFrom(error, {});
+  }
+  refreshCalendarScreens();
+  return { status: "success", message: "Event details saved." };
+}
 
 export async function setCalendarSelected(
   _previous: ActionState,

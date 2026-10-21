@@ -1,3 +1,4 @@
+vi.mock("@/lib/server/surface-choice-actions",()=>({surfaceChoice:vi.fn().mockResolvedValue({ok:false,error:""})}));
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

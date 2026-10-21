@@ -58,6 +58,15 @@ param azureOpenAIEndpoint string = ''
 @description('Operator-created model deployment supporting Responses and function tools.')
 param azureOpenAIDeployment string = ''
 param agentEnabled bool = true
+param aiRankingShadowEnabled bool = false
+param aiRankingTodayEnabled bool = false
+param aiRankingWeekEnabled bool = false
+param aiRankingDiscoveryEnabled bool = false
+param aiRankingLayeringEnabled bool = false
+param aiRankingAdvisorEnabled bool = false
+@minValue(0)
+@maxValue(25)
+param aiMonthlyBudgetUsd int = 25
 
 param apiImage string = 'scentiqacrdevus.azurecr.io/scentiq-api@sha256:63804207a705c4140ea2be122fc846a05a264beac35be55f29eac23f7d33ff7b'
 param webImage string = 'scentiqacrdevus.azurecr.io/scentiq-web@sha256:cd2bcadef061c1b9bf3933623a9de3aefd0b88868f1f6be09808296895ebb3d7'
@@ -523,6 +532,13 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
       { name: 'HYBRID_ALGORITHM_VERSION', value: hybridAlgorithmVersion }
       { name: 'RECOMMENDATION_MAX_AGE_SECONDS', value: string(recommendationMaxAgeSeconds) }
       { name: 'AGENT_ENABLED', value: string(agentEnabled) }
+      { name: 'AI_RANKING_SHADOW_ENABLED', value: string(aiRankingShadowEnabled) }
+      { name: 'AI_RANKING_TODAY_ENABLED', value: string(aiRankingTodayEnabled) }
+      { name: 'AI_RANKING_WEEK_ENABLED', value: string(aiRankingWeekEnabled) }
+      { name: 'AI_RANKING_DISCOVERY_ENABLED', value: string(aiRankingDiscoveryEnabled) }
+      { name: 'AI_RANKING_LAYERING_ENABLED', value: string(aiRankingLayeringEnabled) }
+      { name: 'AI_RANKING_ADVISOR_ENABLED', value: string(aiRankingAdvisorEnabled) }
+      { name: 'AI_MONTHLY_BUDGET_USD', value: string(aiMonthlyBudgetUsd) }
       { name: 'AZURE_OPENAI_ENDPOINT', value: azureOpenAIEndpoint }
       { name: 'AZURE_OPENAI_DEPLOYMENT', value: azureOpenAIDeployment }
       { name: 'AGENT_PROMPT_VERSION', value: 'scentiq-agent-v1' }
@@ -546,7 +562,7 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
   }
 }
 
-module agentAccess 'modules/agent-access.bicep' = if (agentEnabled && !empty(foundryAccountName)) {
+module agentAccess 'modules/agent-access.bicep' = if ((agentEnabled || aiRankingTodayEnabled || aiRankingWeekEnabled || aiRankingDiscoveryEnabled || aiRankingLayeringEnabled || aiRankingAdvisorEnabled) && !empty(foundryAccountName)) {
   name: 'agent-access-${environmentName}'
   scope: resourceGroup(foundryResourceGroupName)
   params: {

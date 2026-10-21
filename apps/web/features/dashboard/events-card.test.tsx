@@ -1,8 +1,14 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import { EventsCard } from "./events-card";
 import type { CalendarEvent } from "@/types/api";
+import { updateCalendarEvent } from "@/lib/server/actions";
+
+vi.mock("@/lib/server/actions", () => ({
+  updateCalendarEvent: vi.fn().mockResolvedValue({ status: "success", message: "Event details saved." }),
+}));
 
 const standup: CalendarEvent = {
   id: "e1",
@@ -19,6 +25,19 @@ const standup: CalendarEvent = {
 };
 
 describe("EventsCard", () => {
+  it("lets members correct an event occasion and setting", async () => {
+    const user = userEvent.setup();
+    render(<EventsCard calendar={{ status: "ok", events: [standup], needsReconnect: false }} timeZone="UTC" />);
+    await user.click(screen.getByText("Correct event details"));
+    await user.selectOptions(screen.getByLabelText("Occasion"), "formal");
+    await user.selectOptions(screen.getByLabelText("Setting"), "outdoor");
+    await user.click(screen.getByRole("button", { name: "Save event details" }));
+    await waitFor(() => expect(updateCalendarEvent).toHaveBeenCalled());
+    const data = vi.mocked(updateCalendarEvent).mock.calls.at(-1)?.[1];
+    expect(data?.get("event_id")).toBe("e1");
+    expect(data?.get("occasion")).toBe("formal");
+    expect(data?.get("setting")).toBe("outdoor");
+  });
   it("lists today's events in the member's timezone", () => {
     render(
       <EventsCard

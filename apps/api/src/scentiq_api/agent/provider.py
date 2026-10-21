@@ -109,3 +109,59 @@ class AzureResponsesProvider:
                     raise RuntimeError("Agent provider could not complete")
             if not completed:
                 raise RuntimeError("Agent provider stream ended early")
+
+
+class BudgetedProvider:
+    """Reserve every advisor iteration from the same global ranking ledger."""
+
+    def __init__(self, provider: AgentProvider, bind: Any, settings: Any) -> None:
+        self.provider = provider
+        self.deployment = getattr(provider, "deployment", None)
+        self.bind = bind
+        self.settings = settings
+
+    async def stream(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        safety_identifier: str,
+        *,
+        require_tool: bool,
+    ) -> AsyncIterator[dict[str, Any]]:
+        from scentiq_api.services.ai_ranking import request_cost, reserve_budget, settle_budget
+
+        # UTF-8 bytes upper-bound textual token counts, including tool output.
+        input_bytes = len(
+            json.dumps(
+                {"messages": messages, "tools": tools, "instructions": AGENT_INSTRUCTIONS},
+                ensure_ascii=False,
+            ).encode("utf-8")
+        )
+        if input_bytes > self.settings.ai_max_input_bytes:
+            raise RuntimeError("Advisor input exceeds inference limit")
+        reservation = reserve_budget(
+            self.bind,
+            self.settings,
+            request_cost(self.settings, self.settings.ai_max_input_bytes + 4096, 1200),
+        )
+        if reservation is None:
+            raise RuntimeError("Inference budget exhausted")
+        settled = False
+        async for event in self.provider.stream(
+            messages, tools, safety_identifier, require_tool=require_tool
+        ):
+            if event.get("type") == "usage" and not settled:
+                input_tokens, output_tokens = event.get("input_tokens"), event.get("output_tokens")
+                if (
+                    type(input_tokens) is int
+                    and type(output_tokens) is int
+                    and input_tokens >= 0
+                    and output_tokens >= 0
+                ):
+                    settle_budget(
+                        self.bind,
+                        reservation,
+                        request_cost(self.settings, input_tokens, output_tokens),
+                    )
+                    settled = True
+            yield event

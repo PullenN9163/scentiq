@@ -11,9 +11,10 @@ degrade the weather card, never hold a request thread.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any, Literal, Protocol
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
@@ -83,6 +84,7 @@ class DailyForecast:
     temperature_min_celsius: Decimal | None
     precipitation_probability: Decimal | None
     humidity: int | None
+    hourly: tuple[dict[str, object], ...] = ()
 
 
 class WeatherProvider(Protocol):
@@ -232,6 +234,10 @@ class OpenMeteoClient:
                 "latitude": str(latitude),
                 "longitude": str(longitude),
                 "daily": ",".join(_DAILY_VARIABLES),
+                "hourly": (
+                    "temperature_2m,relative_humidity_2m,precipitation_probability,weather_code"
+                ),
+                "timeformat": "unixtime",
                 "timezone": timezone or "auto",
                 "forecast_days": days,
                 "temperature_unit": "celsius",
@@ -247,7 +253,47 @@ class OpenMeteoClient:
 
         forecasts: list[DailyForecast] = []
         try:
+            zone = ZoneInfo(payload.get("timezone") or timezone or "UTC")
+        except ZoneInfoNotFoundError, ValueError:
+            zone = ZoneInfo("UTC")
+
+        def timestamp(value: Any) -> datetime:
+            if isinstance(value, (int, float)):
+                return datetime.fromtimestamp(value, UTC)
+            parsed = datetime.fromisoformat(str(value))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=zone)
+
+        hourly_by_day: dict[date, list[dict[str, object]]] = {}
+        hourly = payload.get("hourly")
+        if isinstance(hourly, dict) and isinstance(hourly.get("time"), list):
+            for index, raw_at in enumerate(hourly["time"]):
+                try:
+                    at = timestamp(raw_at)
+                    temperature = hourly["temperature_2m"][index]
+                    if temperature is None:
+                        continue
+                    probability = hourly.get("precipitation_probability", [])[index]
+                    humidity = hourly.get("relative_humidity_2m", [])[index]
+                    code = hourly.get("weather_code", [])[index]
+                    hourly_by_day.setdefault(at.astimezone(zone).date(), []).append(
+                        {
+                            "at": at.astimezone(UTC).isoformat(),
+                            "temperature_celsius": float(temperature),
+                            "humidity": round(humidity) if humidity is not None else None,
+                            "precipitation_probability": float(probability) / 100
+                            if probability is not None
+                            else None,
+                            "condition": condition_for_code(
+                                int(code) if code is not None else None
+                            ),
+                        }
+                    )
+                except IndexError, KeyError, TypeError, ValueError:
+                    # Daily forecasts remain usable when an hourly row is incomplete.
+                    continue
+        try:
             for index, day in enumerate(daily["time"]):
+                forecast_day = timestamp(day).astimezone(zone).date()
                 high = _decimal(column("temperature_2m_max")[index])
                 if high is None:
                     # A day without a high is not worth showing or planning around.
@@ -257,7 +303,7 @@ class OpenMeteoClient:
                 humidity = column("relative_humidity_2m_mean")[index]
                 forecasts.append(
                     DailyForecast(
-                        day=date.fromisoformat(str(day)),
+                        day=forecast_day,
                         weather_code=int(code) if code is not None else None,
                         temperature_max_celsius=high,
                         temperature_min_celsius=_decimal(column("temperature_2m_min")[index]),
@@ -267,6 +313,7 @@ class OpenMeteoClient:
                             else None
                         ),
                         humidity=round(humidity) if humidity is not None else None,
+                        hourly=tuple(hourly_by_day.get(forecast_day, [])),
                     )
                 )
         except IndexError, TypeError, ValueError:

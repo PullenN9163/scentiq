@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 
@@ -16,7 +16,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NumericSlider } from "@/components/ui/numeric-slider";
 import "./recommendation-card.css";
-import { decideRecommendation, wearRecommendation } from "@/lib/server/recommendation-actions";
+import { decideRecommendation, wearRecommendation, nextRecommendation, recommendationFeedback } from "@/lib/server/recommendation-actions";
 import type { WearCandidate, WearRecommendation } from "@/types/wear-intelligence";
 
 export function evidenceLabel(value: number): string {
@@ -32,8 +32,10 @@ export function RecommendationCard(props: {recommendation: WearRecommendation; c
   </>;
 }
 
-function RecommendationContent({recommendation, compact = false, onWearLogged}: {recommendation: WearRecommendation; compact?: boolean; onWearLogged: (id: string) => void}) {
+function RecommendationContent({recommendation: initialRecommendation, compact = false, onWearLogged}: {recommendation: WearRecommendation; compact?: boolean; onWearLogged: (id: string) => void}) {
   const router = useRouter();
+  const [recommendation, setRecommendation] = useState(initialRecommendation);
+  const retryKey = useRef<{key: string; reset: boolean} | null>(null);
   const initial = recommendation.alternatives.find(candidate => candidate.fragrance.id === recommendation.decision?.selected_fragrance_id) ?? recommendation;
   const [selected, setSelected] = useState<WearCandidate>(initial);
   const [alternatives, setAlternatives] = useState(false);
@@ -49,9 +51,27 @@ function RecommendationContent({recommendation, compact = false, onWearLogged}: 
   const [error, setError] = useState<string | null>(null);
   const context = recommendation.context;
   const fragrance = selected.fragrance;
+  function anotherOption(reset = false) {
+    if (!retryKey.current || retryKey.current.reset !== reset) retryKey.current = {key:crypto.randomUUID(),reset};
+    const key = retryKey.current.key;
+    startTransition(async () => {
+      const result = await nextRecommendation(recommendation.id, key, reset, fragrance.id);
+      if (!result.ok) {setError(result.error);toast.error(result.error);return;}
+      retryKey.current = null;
+      setRecommendation(result.data);setSelected(result.data);setSprays(result.data.recommended_sprays);
+      setAccepted(false);setDismissed(false);setError(null);setAlternatives(false);
+    });
+  }
+  function feedback(reason: "not_today" | "too_strong" | "dislike_scent") {
+    startTransition(async () => {
+      const result = await recommendationFeedback(recommendation.id, fragrance.id, reason);
+      if (!result.ok) {setError(result.error);return;}
+      setError(null);toast.success(reason === "not_today" ? "Saved for this occasion" : "Preference feedback saved");
+    });
+  }
   function choose(candidate: WearCandidate) {
     startTransition(async () => {
-      const result = await decideRecommendation(recommendation.id, candidate.fragrance.id === recommendation.fragrance.id ? "accepted" : "replaced", candidate.fragrance.id);
+      const result = await decideRecommendation(recommendation.id, candidate.fragrance.id === (recommendation.canonical_fragrance_id ?? initialRecommendation.fragrance.id) ? "accepted" : "replaced", candidate.fragrance.id);
       if (!result.ok) {setError(result.error); toast.error(result.error); return;}
       setSelected(candidate); setSprays(candidate.recommended_sprays); setDismissed(false); setAccepted(true); setError(null);
       toast.success("Recommendation updated");
@@ -59,7 +79,7 @@ function RecommendationContent({recommendation, compact = false, onWearLogged}: 
   }
   function decide(action: "accepted" | "dismissed") {
     startTransition(async () => {
-      const result = await decideRecommendation(recommendation.id, action, action === "accepted" ? fragrance.id : undefined);
+      const result = await decideRecommendation(recommendation.id, action === "accepted" && fragrance.id !== (recommendation.canonical_fragrance_id ?? initialRecommendation.fragrance.id) ? "replaced" : action, action === "accepted" ? fragrance.id : undefined);
       if (!result.ok) {setError(result.error);toast.error(result.error);return;}
       setDismissed(action === "dismissed"); setAccepted(action === "accepted");
       setError(null);
@@ -94,19 +114,23 @@ function RecommendationContent({recommendation, compact = false, onWearLogged}: 
         </div>
         <div className="recommendation-actions">
           <Button disabled={pending} onClick={()=>setConfirm(true)}>Wear This</Button>
-          <Button disabled={pending || recommendation.alternatives.length === 0} variant="secondary" onClick={()=>setAlternatives(!alternatives)}>Another Option</Button>
+          <Button disabled={pending || recommendation.options_exhausted} variant="secondary" onClick={()=>anotherOption()}>Another Option</Button>
+          <Button disabled={pending || recommendation.alternatives.length === 0} variant="ghost" onClick={()=>setAlternatives(!alternatives)}>View alternatives</Button>
           <Button variant="ghost" onClick={()=>setDetails(true)}>Why this?</Button>
           <Button asChild variant="ghost"><Link href={`/layering?a=${fragrance.id}`}>Layer It</Link></Button>
           {compact && <Button variant="ghost" disabled={pending || accepted} onClick={()=> fragrance.id === recommendation.fragrance.id ? decide("accepted") : choose(selected)}>{accepted ? "Accepted" : "Accept"}</Button>}
           <Button variant="ghost" disabled={pending} onClick={()=>decide("dismissed")}>Dismiss</Button>
         </div>
+        {recommendation.options_exhausted && <p role="status">You’ve seen all eligible options for this context. <Button variant="ghost" disabled={pending} onClick={()=>anotherOption(true)}>Start over</Button></p>}
+        <div className="cluster" aria-label="Recommendation feedback"><Button variant="ghost" disabled={pending} onClick={()=>feedback("not_today")}>Not today</Button><Button variant="ghost" disabled={pending} onClick={()=>feedback("too_strong")}>Too strong</Button><Button variant="ghost" disabled={pending} onClick={()=>feedback("dislike_scent")}>Dislike this scent</Button></div>
+        {pending && <p role="status">Updating recommendation…</p>}
         {error && <p role="alert">{error}</p>}
         {alternatives && <motion.div layout><Carousel label="Recommendation alternatives">
           {[recommendation,...recommendation.alternatives].map(candidate=><Card key={candidate.fragrance.id}><CardContent><h3>{candidate.fragrance.name}</h3><p>Match {Math.round(candidate.score)} / 100 · {candidate.recommended_sprays} sprays</p><Button disabled={pending} onClick={()=>choose(candidate)}>Choose {candidate.fragrance.name}</Button></CardContent></Card>)}
         </Carousel></motion.div>}
       </CardContent>
     </Card>
-    <Dialog open={details} onOpenChange={setDetails}><DialogContent title="Why this fragrance?"><p>Deterministic scores from your collection and context. Evidence coverage measures available inputs, not statistical confidence.</p><dl className="score-breakdown">{Object.entries(selected.score_components).map(([name,value])=><div key={name}><dt>{name.replaceAll("_"," ")}</dt><dd>{value}</dd></div>)}</dl><p>{evidenceLabel(selected.evidence_coverage)} · {recommendation.algorithm_version}</p></DialogContent></Dialog>
+    <Dialog open={details} onOpenChange={setDetails}><DialogContent title="Why this fragrance?"><p>Fit scores use your collection and context. {recommendation.generation_mode === "ai" ? "AI compares eligible options using your supplied preferences and context." : "Personalized baseline ranking is active."} Evidence coverage measures available inputs, not statistical confidence.</p><dl className="score-breakdown">{Object.entries(selected.score_components).map(([name,value])=><div key={name}><dt>{name.replaceAll("_"," ")}</dt><dd>{value}</dd></div>)}</dl><p>{evidenceLabel(selected.evidence_coverage)} · {recommendation.algorithm_version}</p></DialogContent></Dialog>
     <Dialog open={confirm} onOpenChange={setConfirm}><DialogContent title={`Wear ${fragrance.name}`}><div className="recommendation-form"><p className="muted">Adjust this starting guidance for your wear.</p>
       <label htmlFor={`sprays-${recommendation.id}`}>Sprays</label><NumericSlider id={`sprays-${recommendation.id}`} label="Sprays" min={1} max={30} value={sprays} onValueChange={value=>setSprays(Number(value))}/>
       <label htmlFor={`occasion-${recommendation.id}`}>Occasion</label><select className="select" id={`occasion-${recommendation.id}`} value={occasion} onChange={event=>setOccasion(event.target.value as typeof occasion)}><option value="">Not specified</option>{["work","casual","date","dinner","party","formal","gym","travel","other"].map(value=><option key={value}>{value}</option>)}</select>

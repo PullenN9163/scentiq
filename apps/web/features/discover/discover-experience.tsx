@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   BookmarkPlus,
@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { addToWishlist, searchCatalogPage } from "@/lib/server/actions";
+import { SurfaceOptions } from "@/features/recommendations/surface-options";
 import { DiscoverSearch } from "./discover-search";
 import type { DiscoveryResult, FragranceSummary } from "@/types/api";
 
@@ -56,6 +57,10 @@ function DiscoverContent({
   recommendationError?: string;
   wishlistError?: string;
 }) {
+  const [displayedResults,setDisplayedResults] = useState(results);
+  const selectDiscovery = useCallback((choice: DiscoveryResult | import("@/types/layering").LayeringStackSuggestion) => {
+    if ("fragrance" in choice) setDisplayedResults(previous=>[choice,...previous.filter(item=>item.fragrance.id !== choice.fragrance.id)]);
+  },[]);
   const [compact, setCompact] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(Boolean(selectedFamily || selectedSeason || selectedGender || selectedMinimumValue));
   const reducedMotion = useReducedMotion();
@@ -154,6 +159,7 @@ function DiscoverContent({
           </Button>
         </form>
       ) : null}
+      {!isSearching && !recommendationError && results.length > 0 && <SurfaceOptions surface="discovery" parameters={{mode,...(selectedFamily?{family:selectedFamily}:{}),...(selectedSeason?{season:selectedSeason}:{}),...(selectedGender?{gender:selectedGender}:{}),...(selectedMinimumValue?{minimum_value:Number(selectedMinimumValue)}:{})}} onChoice={selectDiscovery}/>}
       {isSearching ? (
         matches.length ? (
           <>
@@ -213,9 +219,9 @@ function DiscoverContent({
         )
       ) : recommendationError ? (
         <Card><CardContent className="state-block" role="alert"><h2>Recommendations are taking a moment</h2><p className="muted">{recommendationError}</p><Button asChild variant="secondary"><Link href={`/discover?${new URLSearchParams({mode, family:selectedFamily, gender:selectedGender, season:selectedSeason, minimum_value:selectedMinimumValue})}`}>Try again</Link></Button></CardContent></Card>
-      ) : results.length ? (
+      ) : displayedResults.length ? (
         <div className="discover-grid">
-          {results.map((result, index) => {
+          {displayedResults.map((result, index) => {
             const item = result.fragrance;
             return (
               <Card

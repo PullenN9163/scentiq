@@ -14,6 +14,7 @@ class LayeringRecommendationPayload(BaseModel):
 
 
 class RecommendationPayload(BaseModel):
+    profile_version: str | None = None
     discovery: list[DiscoveryResult] = Field(default_factory=list)
     layering: LayeringRecommendationPayload
 

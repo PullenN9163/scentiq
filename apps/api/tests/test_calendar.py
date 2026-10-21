@@ -619,6 +619,117 @@ def test_resync_updates_moves_and_removes_events_but_keeps_hidden_choices(
     assert [(event.title, event.is_hidden) for event in everything] == [("Team sync (moved)", True)]
 
 
+def test_event_corrections_survive_sync_and_are_member_scoped(session: Session) -> None:
+    from scentiq_api.schemas.calendar import CalendarEventUpdateRequest
+
+    user = make_user(session, email="correct@example.com")
+    other = make_user(session, email="other@example.com")
+    provider, clock = FakeGoogle(), Clock()
+    _connect(session, user.id, provider, clock)
+    service = _service(session, provider, clock)
+    event = service.events(user.id, *_window())[0]
+    payload = CalendarEventUpdateRequest(occasion="formal", formality="formal", setting="outdoor")
+    updated = service.update_event(user.id, event.id, payload)
+    assert updated.classification_corrected
+    assert updated.setting == "outdoor"
+    with pytest.raises(ApiError):
+        service.update_event(other.id, event.id, payload)
+    clock.now += timedelta(minutes=20)
+    resynced = next(item for item in service.events(user.id, *_window()) if item.id == event.id)
+    assert resynced.occasion == "formal"
+    assert resynced.formality == "formal"
+    assert resynced.setting == "outdoor"
+
+
+@pytest.mark.parametrize("consent", [False, True])
+def test_ambiguous_titles_require_consent_and_unchanged_titles_are_not_resent(
+    session: Session, monkeypatch: pytest.MonkeyPatch, consent: bool
+) -> None:
+    from unittest.mock import Mock
+
+    from scentiq_api.models import UserPreference
+    from scentiq_api.services.ai_ranking import RankingResult
+
+    user = make_user(session, email="consent@example.com")
+    session.add(UserPreference(user_id=user.id, calendar_ai_titles_enabled=consent))
+    session.flush()
+    rank = Mock(return_value=RankingResult(["formal"], {}, "ai"))
+    monkeypatch.setattr("scentiq_api.services.event_classification.rank_candidates", rank)
+    provider, clock = FakeGoogle(), Clock()
+    provider.events["primary"] = [_event("ambiguous", "An evening with the trustees")]
+    _connect(session, user.id, provider, clock)
+    service = _service(session, provider, clock)
+    event = service.events(user.id, *_window())[0]
+    assert event.occasion == ("formal" if consent else "other")
+    if consent:
+        assert rank.call_count == 1
+        assert rank.call_args.kwargs["context"]["calendar_title"] == "An evening with the trustees"
+        assert len(rank.call_args.kwargs["candidates"]) == 9
+    else:
+        rank.assert_not_called()
+    clock.now += timedelta(minutes=20)
+    resynced = service.events(user.id, *_window())[0]
+    assert resynced.occasion == event.occasion
+    assert rank.call_count == int(consent)
+    service.set_event_hidden(user.id, event.id, True)
+    provider.events["primary"] = [_event("ambiguous", "An evening with the trustees revised")]
+    clock.now += timedelta(minutes=20)
+    service.events(user.id, *_window())
+    assert rank.call_count == int(consent)
+
+
+def test_title_interpretation_rejects_unknown_results_and_skips_known_titles(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from unittest.mock import Mock
+
+    from scentiq_api.models import UserPreference
+    from scentiq_api.services.ai_ranking import RankingResult
+    from scentiq_api.services.event_classification import interpret_event_title
+
+    user = make_user(session, email="interpret@example.com")
+    preferences = UserPreference(user_id=user.id, calendar_ai_titles_enabled=True)
+    session.add(preferences)
+    session.flush()
+    rank = Mock(return_value=RankingResult(["invented"], {}, "ai"))
+    monkeypatch.setattr("scentiq_api.services.event_classification.rank_candidates", rank)
+    assert (
+        interpret_event_title(session, user.id, "An evening with trustees", NOW).occasion == "other"
+    )
+    rank.reset_mock()
+    assert interpret_event_title(session, user.id, "Wedding", NOW).occasion == "formal"
+    rank.assert_not_called()
+    preferences.calendar_ai_titles_enabled = False
+    assert (
+        interpret_event_title(session, user.id, "An evening with trustees", NOW).occasion == "other"
+    )
+    rank.assert_not_called()
+
+
+def test_many_ambiguous_events_keep_sync_inference_bounded(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from unittest.mock import Mock
+
+    from scentiq_api.models import UserPreference
+    from scentiq_api.services.ai_ranking import RankingResult
+
+    user = make_user(session, email="many-events@example.com")
+    session.add(UserPreference(user_id=user.id, calendar_ai_titles_enabled=True))
+    session.flush()
+    rank = Mock(return_value=RankingResult(["formal"], {}, "ai"))
+    monkeypatch.setattr("scentiq_api.services.event_classification.rank_candidates", rank)
+    provider, clock = FakeGoogle(), Clock()
+    provider.events["primary"] = [
+        _event(str(index), "An evening with trustees") for index in range(10)
+    ]
+    _connect(session, user.id, provider, clock)
+    assert rank.call_count == 2
+    events = _service(session, provider, clock).events(user.id, *_window())
+    assert len(events) == 10
+    assert sum(event.classification_source == "ai" for event in events) == 2
+
+
 def test_deselecting_a_calendar_drops_its_events_and_reselecting_fetches_them(
     session: Session,
 ) -> None:

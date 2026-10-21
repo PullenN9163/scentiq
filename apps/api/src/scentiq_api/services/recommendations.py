@@ -4,10 +4,12 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
+from scentiq_api.config import Settings
 from scentiq_api.schemas import RecommendationBundleResponse, RecommendationPayload
 from scentiq_api.services.discovery import DiscoveryService
 from scentiq_api.services.hybrid_jobs import HybridJobService
 from scentiq_api.services.layering import LayeringService
+from scentiq_api.services.taste_profile import TasteProfileService
 
 
 class RecommendationService:
@@ -35,12 +37,26 @@ class RecommendationService:
     def get(self, user_id: UUID) -> RecommendationBundleResponse:
         input_version = self._jobs.current_input_version(user_id)
         snapshot = self._jobs.latest_snapshot(user_id)
+        profile = TasteProfileService(self._discovery._repository._session).for_user(user_id)
         if snapshot is not None:
             try:
                 payload = RecommendationPayload.model_validate(snapshot.payload)
             except ValidationError:
                 payload = None
-            if payload is not None:
+            settings = Settings()
+            personalized_snapshot = payload is not None and (
+                payload.profile_version == profile.version
+                or (
+                    payload.profile_version is None
+                    and not profile.features
+                    and not profile.excluded_ids
+                )
+            )
+            if (
+                payload is not None
+                and personalized_snapshot
+                and not settings.ai_ranking_discovery_enabled
+            ):
                 created_at = snapshot.created_at
                 if created_at.tzinfo is None:
                     created_at = created_at.replace(tzinfo=UTC)
@@ -72,6 +88,7 @@ class RecommendationService:
             force_refresh=snapshot is not None,
         )
         payload = RecommendationPayload(
+            profile_version=profile.version,
             discovery=self._discovery.discover(user_id),
             layering={
                 mode: self._layering.suggest(user_id, mode=mode)
