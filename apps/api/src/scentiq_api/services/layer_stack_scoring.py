@@ -250,11 +250,14 @@ def score_stack(
     shared_accords = sorted(
         set.intersection(*({link.accord.slug for link in item.accord_links} for item in items))
     )
-    bridge_signals = sorted(set(profiles[0]) & set(profiles[bridge_index]))
+    anchor_bridge_signals = sorted(set(profiles[0]) & set(profiles[bridge_index]))
+    bridge_signals = anchor_bridge_signals
+    bridge_accent_signals: list[str] = []
     if len(items) == 3:
-        bridge_signals = sorted(
-            set(bridge_signals) | (set(profiles[bridge_index]) & set(profiles[3 - bridge_index]))
+        bridge_accent_signals = sorted(
+            set(profiles[bridge_index]) & set(profiles[3 - bridge_index])
         )
+    bridge_signals = sorted(set(anchor_bridge_signals) | set(bridge_accent_signals))
     complementary = sorted(
         set.union(*(set(profile) for profile in profiles[1:])) - set(profiles[0])
     )
@@ -296,10 +299,31 @@ def score_stack(
     )
     names = [item.name for item in items]
     why_they_fit = [
-        f"{names[0]} and {names[bridge_index]} connect through "
-        + (", ".join(bridge_signals[:3]) if bridge_signals else "a subtle recorded profile link")
-        + "."
+        (
+            f"{names[0]} and {names[bridge_index]} connect through "
+            + ", ".join(anchor_bridge_signals[:3])
+            + "."
+        )
+        if anchor_bridge_signals
+        else (
+            f"No shared note or accord is recorded for {names[0]} and "
+            f"{names[bridge_index]}, so this blend is less predictable."
+        )
     ]
+    if len(items) == 3:
+        accent_index = 3 - bridge_index
+        why_they_fit.append(
+            (
+                f"{names[bridge_index]} ties to {names[accent_index]} through "
+                + ", ".join(bridge_accent_signals[:3])
+                + "."
+            )
+            if bridge_accent_signals
+            else (
+                f"No shared note or accord is recorded for {names[bridge_index]} and "
+                f"{names[accent_index]}."
+            )
+        )
     what_changes = [
         f"{', '.join(names[1:])} adds "
         + (", ".join(complementary[:3]) if complementary else "more of the same scent character")

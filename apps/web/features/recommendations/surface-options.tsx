@@ -10,11 +10,12 @@ type Props = {
   surface: "discovery" | "layering";
   parameters: Record<string, unknown>;
   onChoice: (choice: DiscoveryResult | LayeringStackSuggestion) => void;
+  onRestoreChoice?: (choice: DiscoveryResult | LayeringStackSuggestion) => void;
   enabled?: boolean;
   restore?: boolean;
 };
 
-export function SurfaceOptions({ surface, parameters, onChoice, enabled = true, restore = true }: Props) {
+export function SurfaceOptions({ surface, parameters, onChoice, onRestoreChoice = onChoice, enabled = true, restore = true }: Props) {
   const key = JSON.stringify(parameters);
   const stableParameters = useMemo(() => JSON.parse(key) as Record<string, unknown>, [key]);
   const [choice, setChoice] = useState<SurfaceChoice | null>(null);
@@ -35,11 +36,11 @@ export function SurfaceOptions({ surface, parameters, onChoice, enabled = true, 
       if (result.ok) {
         setChoice(result.data);
         setError("");
-        if (result.data.selected) onChoice(result.data.selected);
+        if (result.data.selected) onRestoreChoice(result.data.selected);
       } else setError(result.error);
     });
     return () => { active = false; };
-  }, [surface, stableParameters, onChoice, enabled, restore]);
+  }, [surface, stableParameters, onRestoreChoice, enabled, restore]);
 
   function advance(reset = false) {
     if (!retry.current || Boolean(retry.current.reset) !== reset) {

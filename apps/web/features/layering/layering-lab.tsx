@@ -109,12 +109,16 @@ export function LayeringLab({
   const [detail, setDetail] = useState<LayeringStackSuggestion | null>(null);
   const [collectionQuery, setCollectionQuery] = useState("");
   const [deleting, setDeleting] = useState<SavedLayeringStack | null>(null);
+  const manualSelection = useRef(Boolean(initialStack));
   const requestVersion = useRef(0);
   const selectSurprise = useCallback((choice: import("@/types/api").DiscoveryResult | LayeringStackSuggestion) => {
     if (!("items" in choice))return;
     requestVersion.current++;setStackIds([]);setEvaluation(null);setAnchor(choice.items[0].fragrance.id);
     setIntelligence(previous=>({...previous,suggestions:[choice,...previous.suggestions.filter(item=>stackKey(item)!==stackKey(choice))]}));
   },[]);
+  const selectRestoredSurprise = useCallback((choice: import("@/types/api").DiscoveryResult | LayeringStackSuggestion) => {
+    if (!manualSelection.current) selectSurprise(choice);
+  }, [selectSurprise]);
   const reducedMotion = useReducedMotion();
   const selectedAnchor = owned.find((item) => item.id === anchor);
   const visibleOwned = owned.filter((item) =>
@@ -167,10 +171,12 @@ export function LayeringLab({
     });
   }
   function updateStack(ids: string[]) {
+    manualSelection.current = true;
     setStackIds(ids);
     evaluateSelection(ids);
   }
   function edit(stack: LayeringStackSuggestion) {
+    manualSelection.current = true;
     setStackIds(stack.items.map((item) => item.fragrance.id));
     setEvaluation(stack);
     setMode(stack.mode);
@@ -296,7 +302,7 @@ export function LayeringLab({
             <div><strong>{composition ? composition.total_sprays : "—"}</strong><span>Starting sprays</span></div>
             <div><strong>{composition ? composition.evidence_summary : "—"}</strong><span>Information confidence</span></div>
           </div>
-          <Button disabled={pending} onClick={() => { if (composition) edit(composition); else { if (!stackIds.length) { setStackIds([anchor]); setEvaluation(null); } focusBuilder(); } }}><Sparkles size={16} />{composition ? "Refine this blend" : stackIds.length ? "Continue composing" : "Compose a blend"}</Button>
+          <Button disabled={pending} onClick={() => { if (composition) edit(composition); else { if (!stackIds.length) { manualSelection.current = true; setStackIds([anchor]); setEvaluation(null); } focusBuilder(); } }}><Sparkles size={16} />{composition ? "Refine this blend" : stackIds.length ? "Continue composing" : "Compose a blend"}</Button>
           <p className="data-note">{pending ? "Comparing your fragrances…" : composition ? `Guidance, not a guarantee · ${composition.items.length}-scent composition` : "Your collection is the palette."}</p>
         </div>
         <div className={styles.compositionStage}>
@@ -346,6 +352,7 @@ export function LayeringLab({
                 aria-pressed={item.id === anchor}
                 disabled={pending}
                 onClick={() => {
+                  manualSelection.current = true;
                   setAnchor(item.id);
                   setStackIds([]);
                   setEvaluation(null);
@@ -421,7 +428,7 @@ export function LayeringLab({
                 {item}
               </Button>
             ))}
-            <SurfaceOptions key={`${mode}:${goal}`} surface="layering" parameters={{mode,goal}} onChoice={selectSurprise} restore={!initialA && !initialStack} enabled={owned.length >= 2}/>
+            <SurfaceOptions key={`${mode}:${goal}`} surface="layering" parameters={{mode,goal}} onChoice={selectSurprise} onRestoreChoice={selectRestoredSurprise} restore={!initialA && !initialStack && stackIds.length === 0} enabled={owned.length >= 2}/>
             <Button
               variant="secondary"
               disabled={pending}

@@ -264,9 +264,11 @@ class LayeringService:
             history=history,
         )
         if below_ceiling:
-            suggestion.warnings.append(
+            ceiling_warning = (
                 "This saved plan exceeds your current spray ceiling; edit it before wearing."
             )
+            suggestion.warnings.append(ceiling_warning)
+            suggestion.explanation.watch_out_for.append(ceiling_warning)
         ratings = [wear.rating for wear in stack.wears if wear.rating is not None]
         return SavedLayeringStack(
             id=stack.id,

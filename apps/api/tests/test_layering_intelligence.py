@@ -101,6 +101,7 @@ def test_v3_returns_plain_language_verdict_evidence_and_explanations(session: Se
     assert result.explanation.watch_out_for
     assert sparse.verdict == "Needs a wear test"
     assert sparse.evidence_summary == "Little information available"
+    assert any("No shared note or accord" in line for line in sparse.explanation.why_they_fit)
 
 
 def test_layering_suggestions_follow_the_displayed_score(
@@ -215,6 +216,7 @@ def test_saved_history_stays_visible_after_lowering_spray_ceiling(session: Sessi
     listing = service.saved_stacks(user.id)
     assert listing[0].wear_count == 1
     assert any("ceiling" in warning for warning in listing[0].suggestion.warnings)
+    assert any("ceiling" in warning for warning in listing[0].suggestion.explanation.watch_out_for)
 
 
 def test_requested_triples_are_filtered_before_small_result_limit(session: Session) -> None:

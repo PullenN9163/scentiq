@@ -1,4 +1,3 @@
-vi.mock("@/lib/server/surface-choice-actions",()=>({surfaceChoice:vi.fn().mockResolvedValue({ok:false,error:""})}));
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,7 +15,9 @@ const actions = vi.hoisted(() => ({
   getLayerStackHistory: vi.fn(),
   rateLayerStackWear: vi.fn(),
 }));
+const surfaceActions = vi.hoisted(() => ({ surfaceChoice: vi.fn() }));
 vi.mock("@/lib/server/layering-actions", () => actions);
+vi.mock("@/lib/server/surface-choice-actions", () => surfaceActions);
 vi.mock("@/lib/server/actions", () => ({
   getLayeringPair: vi.fn().mockResolvedValue(null),
 }));
@@ -87,6 +88,8 @@ const page = {
 };
 beforeEach(() => {
   Object.values(actions).forEach((action) => action.mockReset());
+  surfaceActions.surfaceChoice.mockReset();
+  surfaceActions.surfaceChoice.mockResolvedValue({ok:false,error:""});
   actions.getLayeringIntelligence.mockResolvedValue(page);
   actions.evaluateLayerStack.mockResolvedValue(stack);
 });
@@ -99,6 +102,21 @@ describe("LayeringLab intelligence", () => {
     expect(actions.evaluateLayerStack).toHaveBeenCalledWith([first.id, second.id], "balanced", null);
     expect(await screen.findByRole("heading", {name:"Strong fit"})).toBeVisible();
     expect(screen.getByRole("region", {name:"Stack builder"})).toBeVisible();
+  });
+  it("does not let restored surprise options replace a blend the user is editing", async () => {
+    surfaceActions.surfaceChoice
+      .mockResolvedValueOnce({ok:false,error:""})
+      .mockResolvedValueOnce({
+        ok:true,
+        data:{batch_id:"batch",selected:stack,candidate_id:"candidate",remaining_options:1,options_exhausted:false},
+      });
+    render(<LayeringLab owned={[first,second,third]} initialIntelligence={{...page,supported_goals:[...page.supported_goals]}} />);
+    await waitFor(() => expect(surfaceActions.surfaceChoice).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole("button", {name:"Refine this blend"}));
+    await userEvent.click(screen.getByRole("button", {name:"Make it fresher"}));
+    await waitFor(() => expect(actions.evaluateLayerStack).toHaveBeenCalledWith([first.id,second.id],"balanced","fresher"));
+    expect(surfaceActions.surfaceChoice).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByTestId("stack-item")).toHaveLength(2);
   });
   it("explains the score in plain language and separates evidence confidence", () => {
     render(<LayeringLab owned={[first,second]} initialIntelligence={{...page,supported_goals:[...page.supported_goals]}} />);

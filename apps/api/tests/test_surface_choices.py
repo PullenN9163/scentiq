@@ -1,8 +1,10 @@
 from uuid import uuid4
 
+import pytest
 from sqlalchemy.orm import Session
 from test_recommendation_choices import batch
 
+from scentiq_api.schemas.layering import LayeringStackSuggestion
 from scentiq_api.schemas.surface_choices import SurfaceChoiceRequest
 from scentiq_api.services.surface_choices import SurfaceChoiceService
 
@@ -27,6 +29,43 @@ def test_layering_options_are_canonical_stable_and_idempotent(session: Session) 
     )
     assert reload.batch_id == initial.batch_id
     assert reload.candidate_id == second.candidate_id
+
+
+def test_layering_algorithm_upgrade_replaces_incompatible_saved_batch(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scentiq_api.models.surface_choices import SurfaceChoiceBatch
+    from scentiq_api.services import surface_choices as surface_choices_module
+
+    user, _, _ = batch(session)
+    service = SurfaceChoiceService(session)
+    monkeypatch.setattr(
+        surface_choices_module, "LAYERING_ALGORITHM_VERSION", "layering-v2", raising=False
+    )
+    legacy = service.choose(
+        user.id, "layering", SurfaceChoiceRequest(idempotency_key=uuid4(), advance=False)
+    )
+    stored = session.get(SurfaceChoiceBatch, legacy.batch_id)
+    assert stored is not None
+    stored.candidates = [
+        {
+            key: value
+            for key, value in candidate.items()
+            if key not in {"verdict", "evidence_summary", "explanation"}
+        }
+        for candidate in stored.candidates
+    ]
+    session.flush()
+    monkeypatch.setattr(surface_choices_module, "LAYERING_ALGORITHM_VERSION", "layering-v3")
+
+    refreshed = service.choose(
+        user.id, "layering", SurfaceChoiceRequest(idempotency_key=uuid4(), advance=False)
+    )
+
+    assert refreshed.batch_id != legacy.batch_id
+    assert refreshed.selected is not None
+    assert isinstance(refreshed.selected, LayeringStackSuggestion)
+    assert refreshed.selected.algorithm_version == "layering-v3"
 
 
 def test_changed_collection_invalidates_surface_batch(session: Session) -> None:

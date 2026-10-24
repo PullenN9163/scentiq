@@ -24,6 +24,7 @@ from scentiq_api.schemas.surface_choices import (
 )
 from scentiq_api.services.ai_ranking import ranking_configuration_version
 from scentiq_api.services.discovery import DiscoveryService
+from scentiq_api.services.layer_stack_scoring import LAYERING_ALGORITHM_VERSION
 from scentiq_api.services.layering import LayeringService
 from scentiq_api.services.personalized_ranking import surface_context
 from scentiq_api.services.taste_profile import TasteProfileService
@@ -89,7 +90,11 @@ class SurfaceChoiceService:
             {
                 "parameters": parameters.model_dump(mode="json"),
                 "profile": profile.version,
-                "algorithm": "surface-v1",
+                "algorithm": (
+                    f"surface-v1:{LAYERING_ALGORITHM_VERSION}"
+                    if surface == "layering"
+                    else "surface-v1"
+                ),
                 "context": surface_context(self.session, user_id, profile),
                 "ranking_configuration": ranking_configuration_version(surface),
                 "catalog_import": latest_import,
