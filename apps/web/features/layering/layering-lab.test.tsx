@@ -32,6 +32,10 @@ const third = fragranceSummary({
   id: "33333333-3333-4333-8333-333333333333",
   name: "Warm accent",
 });
+const fourth = fragranceSummary({
+  id: "44444444-4444-4444-8444-444444444444",
+  name: "Velvet woods",
+});
 const stack: LayeringStackSuggestion = {
   items: [
     {
@@ -95,6 +99,48 @@ beforeEach(() => {
 });
 
 describe("LayeringLab intelligence", () => {
+  it("renders the touch-first layering studio landmarks", () => {
+    render(
+      <LayeringLab
+        owned={[first, second, third]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+      />,
+    );
+
+    expect(screen.getByRole("region", { name: "Layering studio" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Interactive blend canvas" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "ScentIQ read" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Your fragrance shelf" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Session blends" })).toBeVisible();
+  });
+
+  it("asks which fragrance to replace when the canvas is full", async () => {
+    const triple = {
+      ...stack,
+      items: [
+        ...stack.items,
+        {
+          fragrance: third,
+          role: "bridge" as const,
+          application_order: 3,
+          suggested_sprays: 1,
+        },
+      ],
+    };
+    render(
+      <LayeringLab
+        owned={[first, second, third, fourth]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+        initialStack={triple}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Add Velvet woods" }));
+
+    expect(screen.getByRole("region", { name: "Replace a fragrance" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Replace Fresh bridge" })).toBeVisible();
+  });
+
   it("retains evaluated blends in the session when starting another", async () => {
     render(
       <LayeringLab
@@ -177,11 +223,11 @@ describe("LayeringLab intelligence", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Make it fresher" }));
     fireEvent.click(screen.getByRole("button", { name: "Make it warmer" }));
-    resolveNew({ ...stack, goal: "warmer", verdict: "Newest direction", score: 0.92 });
-    resolveOld({ ...stack, goal: "fresher", verdict: "Stale direction", score: 0.2 });
+    resolveNew({ ...stack, goal: "warmer", verdict: "Bold experiment", score: 0.92 });
+    resolveOld({ ...stack, goal: "fresher", verdict: "Tricky balance", score: 0.2 });
 
-    expect(await screen.findByRole("heading", { name: "Newest direction" })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Stale direction" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Bold experiment" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Tricky balance" })).not.toBeInTheDocument();
   });
 
   it("shows a suggestion as a preview until the user adopts it", () => {
@@ -237,8 +283,8 @@ describe("LayeringLab intelligence", () => {
   it("filters a large collection by fragrance or house", async () => {
     render(<LayeringLab owned={[first,second,third]} initialIntelligence={{...page,supported_goals:[...page.supported_goals]}} />);
     await userEvent.type(screen.getByRole("searchbox", {name:"Search your collection"}), "Warm");
-    expect(screen.getByRole("button", {name:"Choose anchor Warm accent"})).toBeVisible();
-    expect(screen.queryByRole("button", {name:`Choose anchor ${first.name}`})).not.toBeInTheDocument();
+    expect(screen.getByRole("button", {name:"Add Warm accent"})).toBeVisible();
+    expect(screen.queryByRole("button", {name:`Add ${first.name}`})).not.toBeInTheDocument();
   });
   it("keeps the edited ingredients without restoring a stale score after evaluation fails", async () => {
     actions.evaluateLayerStack.mockRejectedValueOnce(new Error("offline"));
@@ -270,10 +316,9 @@ describe("LayeringLab intelligence", () => {
         }}
       />,
     );
-    expect(
-      screen.getByRole("button", { name: `Choose anchor ${first.name}` }),
-    ).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("Build around this scent")).toBeVisible();
+    expect(screen.getByRole("button", { name: `Add ${first.name}` })).toBeVisible();
+    expect(screen.getByText("Build a scent with a point of view.")).toBeVisible();
+    expect(screen.getAllByTestId("canvas-bottle")).toHaveLength(2);
     expect(screen.getByText(/3 sprays/)).toBeVisible();
     expect(screen.getAllByText("Some information missing")[0]).toBeVisible();
   });

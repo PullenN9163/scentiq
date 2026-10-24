@@ -35,6 +35,7 @@ import type {
   StackMode,
 } from "@/types/layering";
 import styles from "./layering-lab.module.css";
+import { LayeringStudioCanvas } from "./layering-studio-canvas";
 
 const modes: StackMode[] = ["safe", "balanced", "contrast", "experimental"];
 const goals: Record<LayeringGoal, string> = {
@@ -118,6 +119,7 @@ export function LayeringLab({
   const [detail, setDetail] = useState<LayeringStackSuggestion | null>(null);
   const [collectionQuery, setCollectionQuery] = useState("");
   const [deleting, setDeleting] = useState<SavedLayeringStack | null>(null);
+  const [replacementCandidate, setReplacementCandidate] = useState<string | null>(null);
   const draftSequence = useRef(initialStack ? 1 : 0);
   const [drafts, setDrafts] = useState<StudioDraft[]>(() =>
     initialStack
@@ -345,22 +347,24 @@ export function LayeringLab({
     );
 
   return (
-    <section className={`page experience-page ${styles.experience}`}>
+    <section
+      className={`page experience-page ${styles.experience}`}
+      aria-label="Layering studio"
+    >
       <ExperienceBackdrop tone="blend" />
-      <PageHeader
-        eyebrow="Layer with intention"
-        title="Layering Lab"
-        description="Choose an anchor. Explore what complements it, then make the combination your own."
-      />
-      <p className="data-note">
-        Olfactory guidance from recorded notes and your history. Spray plans are
-        starting points; combined performance is not guaranteed.
-      </p>
+      <header className={styles.studioHeader}>
+        <div className={styles.studioBrand}>
+          <span className={styles.brandMark}>S</span>
+          <div><p>ScentIQ</p><h1>Layering Studio</h1></div>
+        </div>
+        <p className={styles.sessionMeta}>LIVE SESSION · {drafts.length} {drafts.length === 1 ? "BLEND" : "BLENDS"}</p>
+        <Button variant="secondary" onClick={() => document.getElementById("saved-blends")?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" })}>My blends</Button>
+      </header>
       {error ? <p role="alert">{error}</p> : null}
       {message ? <p role="status">{message}</p> : null}
       <section className={styles.composition} aria-label="Fragrance composition" aria-busy={pending}>
-        <div className={styles.compositionCopy}>
-          <p className="eyebrow">The art of combining</p>
+        <div className={styles.compositionCopy} role="region" aria-label="ScentIQ read">
+          <p className="eyebrow">ScentIQ read</p>
           <h2>{composition ? composition.verdict : <>A scent that is<br />uniquely yours.</>}</h2>
           <p>{composition ? composition.explanation.why_they_fit[0] ?? "Explore the recorded notes behind this combination." : stackIds.length ? "Your composition is ready to explore. Adjust the ingredients in the stack builder to evaluate the recorded evidence." : "Choose your anchor and discover a new dimension in the fragrances you already own."}</p>
           <div className={styles.compositionStats}>
@@ -371,19 +375,12 @@ export function LayeringLab({
           <Button disabled={pending} onClick={() => { if (composition) edit(composition); else { if (!stackIds.length) { manualSelection.current = true; setStackIds([anchor]); setEvaluation(null); } focusBuilder(); } }}><Sparkles size={16} />{composition ? "Refine this blend" : stackIds.length ? "Continue composing" : "Compose a blend"}</Button>
           <p className="data-note">{pending ? "Comparing your fragrances…" : composition ? `Guidance, not a guarantee · ${composition.items.length}-scent composition` : "Your collection is the palette."}</p>
         </div>
-        <div className={styles.compositionStage}>
-          <div className={styles.stageGlow} aria-hidden="true" />
-          <svg className={styles.trails} viewBox="0 0 600 440" preserveAspectRatio="none" aria-hidden="true"><path d="M0 300 C140 40 360 440 600 100" /><path d="M0 200 C160 400 360 0 600 260" /><path d="M0 250 C190 0 390 480 600 180" /></svg>
-          <div className={styles.stageBottles}>
-            {compositionItems.map((item, index) => <motion.div key={item.fragrance.id} className={styles.stageBottle} initial={false} animate={reducedMotion ? undefined : { y: index % 2 ? -12 : 12 }} transition={{ type: "spring", stiffness: 120, damping: 22 }}>
-                  <Badge>{roleLabel(item.role)}</Badge>
-              <div className={styles.bottleFloat}><CatalogImage id={item.fragrance.id} name={item.fragrance.name} brand={item.fragrance.brand.name} imageUrl={item.fragrance.image_url ?? null} className={styles.stageImage} /></div>
-              <strong>{item.fragrance.name}</strong><span>{item.fragrance.brand.name}</span>
-              {item.suggested_sprays != null && <small>{item.suggested_sprays} {item.suggested_sprays === 1 ? "spray" : "sprays"}</small>}
-            </motion.div>)}
-          </div>
-          <span className={styles.stageCaption}>ANCHOR · COMPLEMENT · EXPLORE</span>
-        </div>
+        <LayeringStudioCanvas
+          items={compositionItems}
+          composition={composition}
+          pending={pending}
+          reducedMotion={reducedMotion}
+        />
       </section>
       {composition ? (
         <section
@@ -396,9 +393,13 @@ export function LayeringLab({
           <div><h2>Watch out for</h2>{composition.explanation.watch_out_for.map((line) => <p key={line}>{line}</p>)}</div>
         </section>
       ) : null}
-      <Card>
+      <Card className={styles.directionPanel}>
         <CardContent>
-          <h2 className="serif">Build around this scent</h2>
+          <p className="eyebrow">Blend direction</p>
+          <h2 className="serif">Build a scent with a point of view.</h2>
+          <p>Choose the feeling, set your appetite for contrast, then compose from your shelf.</p>
+          <section aria-label="Your fragrance shelf" className={styles.shelfSection}>
+          <div className={styles.shelfHeading}><h3>Your fragrance shelf</h3><span>Tap to add · swipe to explore</span></div>
           <label className={styles.searchLabel}>
             Search your collection
             <input
@@ -408,21 +409,25 @@ export function LayeringLab({
               onChange={(event) => setCollectionQuery(event.target.value)}
             />
           </label>
-          <div className={styles.picker} aria-label="Choose your anchor">
+          <div className={styles.picker} aria-label="Choose fragrances">
             {visibleOwned.map((item) => (
               <button
                 type="button"
                 key={item.id}
                 className={styles.scentChoice}
-                aria-label={`Choose anchor ${item.name}`}
-                aria-pressed={item.id === anchor}
+                aria-label={stackIds.includes(item.id) ? `${item.name} is in this blend` : `Add ${item.name}`}
+                aria-pressed={stackIds.includes(item.id)}
                 disabled={pending}
                 onClick={() => {
                   manualSelection.current = true;
-                  setAnchor(item.id);
-                  setStackIds([]);
-                  setEvaluation(null);
-                  suggest(item.id, mode, goal);
+                  if (stackIds.includes(item.id)) return;
+                  if (stackIds.length >= 3) {
+                    setReplacementCandidate(item.id);
+                    return;
+                  }
+                  const next = stackIds.length ? [...stackIds, item.id] : [item.id];
+                  setAnchor(next[0]);
+                  updateStack(next);
                 }}
               >
                 <CatalogImage
@@ -437,6 +442,23 @@ export function LayeringLab({
               </button>
             ))}
           </div>
+          {replacementCandidate ? (
+            <section className={styles.replaceTray} aria-label="Replace a fragrance">
+              <div><strong>Canvas full</strong><span>Choose what {owned.find((item) => item.id === replacementCandidate)?.name} should replace.</span></div>
+              {stackIds.map((id) => {
+                const item = owned.find((fragrance) => fragrance.id === id);
+                return item ? (
+                  <Button key={id} variant="secondary" aria-label={`Replace ${item.name}`} onClick={() => {
+                    const next = stackIds.map((value) => value === id ? replacementCandidate : value);
+                    setReplacementCandidate(null);
+                    updateStack(next);
+                  }}>{item.name}</Button>
+                ) : null;
+              })}
+              <Button variant="ghost" onClick={() => setReplacementCandidate(null)}>Cancel</Button>
+            </section>
+          ) : null}
+          </section>
           {selectedAnchor ? (
             <div className={styles.anchorSummary}>
               <Badge>Anchor</Badge>
@@ -751,7 +773,7 @@ export function LayeringLab({
           )}
         </section>
       ) : null}
-      <section aria-label="Saved combinations">
+      <section id="saved-blends" aria-label="Saved combinations">
         <h2 className="serif">Saved combinations</h2>
         <div className={styles.suggestions}>
           {saved.map((stack) => (
