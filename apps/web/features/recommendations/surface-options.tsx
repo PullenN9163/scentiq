@@ -13,15 +13,21 @@ type Props = {
   onRestoreChoice?: (choice: DiscoveryResult | LayeringStackSuggestion) => void;
   enabled?: boolean;
   restore?: boolean;
+  choiceVersion?: number;
 };
 
-export function SurfaceOptions({ surface, parameters, onChoice, onRestoreChoice = onChoice, enabled = true, restore = true }: Props) {
+export function SurfaceOptions({ surface, parameters, onChoice, onRestoreChoice = onChoice, enabled = true, restore = true, choiceVersion = 0 }: Props) {
   const key = JSON.stringify(parameters);
   const stableParameters = useMemo(() => JSON.parse(key) as Record<string, unknown>, [key]);
   const [choice, setChoice] = useState<SurfaceChoice | null>(null);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const retry = useRef<SurfaceChoiceInput | null>(null);
+  const latestChoiceVersion = useRef(choiceVersion);
+  const mounted = useRef(true);
+
+  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => { latestChoiceVersion.current = choiceVersion; }, [choiceVersion]);
 
   useEffect(() => {
     if (!enabled || !restore) return;
@@ -54,8 +60,13 @@ export function SurfaceOptions({ surface, parameters, onChoice, onRestoreChoice 
       };
     }
     const request = retry.current;
+    const versionAtStart = choiceVersion;
     startTransition(async () => {
       const result = await surfaceChoice(surface, request);
+      if (!mounted.current || latestChoiceVersion.current !== versionAtStart) {
+        retry.current = null;
+        return;
+      }
       if (!result.ok) {
         setError(result.error);
         if (result.code === "batch_changed") {

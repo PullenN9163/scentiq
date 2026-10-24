@@ -120,6 +120,12 @@ describe("LayeringLab intelligence", () => {
         composition={stack}
         pending={false}
         reducedMotion
+        focusedId={null}
+        onFocus={() => undefined}
+        onMove={() => undefined}
+        onRemove={() => undefined}
+        onReplace={() => undefined}
+        onAdd={() => undefined}
       />,
     );
 
@@ -164,6 +170,90 @@ describe("LayeringLab intelligence", () => {
 
     expect(draft).toHaveFocus();
     expect(draft).toHaveAttribute("aria-current", "true");
+  });
+
+  it("preserves the active draft when a different suggestion is adopted", async () => {
+    const alternative: LayeringStackSuggestion = {
+      ...stack,
+      items: [
+        {...stack.items[0], fragrance: second},
+        {...stack.items[1], fragrance: third},
+      ],
+      verdict: "Bold experiment",
+      score: 0.81,
+    };
+    actions.evaluateLayerStack.mockResolvedValue(alternative);
+    render(
+      <LayeringLab
+        owned={[first, second, third]}
+        initialIntelligence={{...page, suggestions:[alternative], supported_goals:[...page.supported_goals]}}
+        initialStack={stack}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", {name:"Try / edit stack"}));
+    await userEvent.click(screen.getByRole("button", {name:"Make it warmer"}));
+
+    const sessions = screen.getByRole("region", {name:"Session blends"});
+    expect(await within(sessions).findByRole("button", {name:/Bold experiment.*81/})).toBeVisible();
+    expect(within(sessions).getByRole("button", {name:/Promising blend.*70/})).toBeVisible();
+  });
+
+  it("ignores a late surprise response after explicit work begins", async () => {
+    let finishSurprise: (value: unknown) => void = () => undefined;
+    surfaceActions.surfaceChoice
+      .mockResolvedValueOnce({ok:false,error:""})
+      .mockImplementationOnce(() => new Promise((resolve) => { finishSurprise = resolve; }));
+    const surprise = {...stack, verdict:"Late surprise", score:0.91};
+    render(
+      <LayeringLab
+        owned={[first, second, third]}
+        initialIntelligence={{...page,supported_goals:[...page.supported_goals]}}
+      />,
+    );
+    await waitFor(() => expect(surfaceActions.surfaceChoice).toHaveBeenCalledTimes(1));
+    await userEvent.click(await screen.findByRole("button", {name:"Surprise me"}));
+    await userEvent.click(screen.getByRole("button", {name:"Refine this blend"}));
+    finishSurprise({ok:true,data:{batch_id:"b",candidate_id:"c",selected:surprise,remaining_options:1,options_exhausted:false}});
+
+    await waitFor(() => expect(surfaceActions.surfaceChoice).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("region", {name:"Stack builder"})).toHaveTextContent(first.name);
+    expect(screen.queryByRole("heading", {name:"Late surprise"})).not.toBeInTheDocument();
+  });
+
+  it("offers touch-safe bottle actions directly on the canvas", async () => {
+    render(
+      <LayeringLab
+        owned={[first, second, third]}
+        initialIntelligence={{...page,supported_goals:[...page.supported_goals]}}
+        initialStack={stack}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", {name:`Select ${second.name} on canvas`}));
+    const tray = screen.getByRole("region", {name:`Actions for ${second.name}`});
+    expect(within(tray).getByRole("button", {name:`Move ${second.name} earlier`})).toBeVisible();
+    expect(within(tray).getByRole("button", {name:`Replace ${second.name}`})).toBeVisible();
+    expect(within(tray).getByRole("button", {name:`Remove ${second.name}`})).toBeVisible();
+    expect(screen.getByRole("button", {name:"Add fragrance to position 3"})).toBeVisible();
+  });
+
+  it("clears an unfinished replacement when the composition changes", async () => {
+    const triple = {
+      ...stack,
+      items:[...stack.items,{fragrance:third,role:"bridge" as const,application_order:3,suggested_sprays:1}],
+    };
+    render(
+      <LayeringLab
+        owned={[first, second, third, fourth]}
+        initialIntelligence={{...page,supported_goals:[...page.supported_goals]}}
+        initialStack={triple}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", {name:"Add Velvet woods"}));
+    expect(screen.getByRole("region", {name:"Replace a fragrance"})).toBeVisible();
+    await userEvent.click(screen.getByRole("button", {name:"New blend"}));
+    expect(screen.queryByRole("region", {name:"Replace a fragrance"})).not.toBeInTheDocument();
   });
 
   it("renders the touch-first layering studio landmarks", () => {

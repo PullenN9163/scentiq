@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { CatalogImage } from "@/components/catalog-image";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { LayeringStackSuggestion } from "@/types/layering";
 import styles from "./layering-lab.module.css";
 
@@ -24,12 +25,26 @@ export function LayeringStudioCanvas({
   composition,
   pending,
   reducedMotion,
+  focusedId,
+  onFocus,
+  onMove,
+  onRemove,
+  onReplace,
+  onAdd,
 }: {
   items: CanvasItem[];
   composition: LayeringStackSuggestion | null | undefined;
   pending: boolean;
   reducedMotion: boolean | null;
+  focusedId: string | null;
+  onFocus: (id: string) => void;
+  onMove: (id: string, direction: -1 | 1) => void;
+  onRemove: (id: string) => void;
+  onReplace: (id: string) => void;
+  onAdd: () => void;
 }) {
+  const focusedIndex = items.findIndex((item) => item.fragrance.id === focusedId);
+  const focusedItem = focusedIndex >= 0 ? items[focusedIndex] : null;
   return (
     <section
       className={styles.canvas}
@@ -70,10 +85,14 @@ export function LayeringStudioCanvas({
       <div className={styles.canvasBottles}>
         <AnimatePresence initial={false} mode="popLayout">
           {items.map((item, index) => (
-            <motion.article
+            <motion.button
+              type="button"
               layout={!reducedMotion}
               key={item.fragrance.id}
-              className={`${styles.canvasBottle} ${styles[`canvasBottle${index + 1}`]}`}
+              className={`${styles.canvasBottle} ${styles[`canvasBottle${index + 1}`]} ${focusedId === item.fragrance.id ? styles.canvasBottleFocused : ""}`}
+              aria-label={`Select ${item.fragrance.name} on canvas`}
+              aria-pressed={focusedId === item.fragrance.id}
+              onClick={() => onFocus(item.fragrance.id)}
               initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.84, y: 28 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.84, y: -20 }}
@@ -90,10 +109,33 @@ export function LayeringStudioCanvas({
               />
               <strong>{item.fragrance.name}</strong>
               <small>{item.fragrance.brand.name}</small>
-            </motion.article>
+            </motion.button>
           ))}
         </AnimatePresence>
       </div>
+      {items.length < 3 ? (
+        <Button className={styles.emptySlot} variant="secondary" onClick={onAdd} disabled={pending}>
+          Add fragrance to position {items.length + 1}
+        </Button>
+      ) : null}
+      <AnimatePresence initial={false}>
+        {focusedItem ? (
+          <motion.section
+            className={styles.canvasActions}
+            aria-label={`Actions for ${focusedItem.fragrance.name}`}
+            initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reducedMotion ? undefined : { opacity: 0, y: 8 }}
+            transition={{ duration: reducedMotion ? 0 : 0.22 }}
+          >
+            <strong>{focusedItem.fragrance.name}</strong>
+            <Button variant="ghost" aria-label={`Move ${focusedItem.fragrance.name} earlier`} disabled={pending || focusedIndex === 0} onClick={() => onMove(focusedItem.fragrance.id, -1)}>Earlier</Button>
+            <Button variant="ghost" aria-label={`Move ${focusedItem.fragrance.name} later`} disabled={pending || focusedIndex === items.length - 1} onClick={() => onMove(focusedItem.fragrance.id, 1)}>Later</Button>
+            <Button variant="secondary" aria-label={`Replace ${focusedItem.fragrance.name}`} disabled={pending} onClick={() => onReplace(focusedItem.fragrance.id)}>Replace</Button>
+            <Button variant="ghost" aria-label={`Remove ${focusedItem.fragrance.name}`} disabled={pending} onClick={() => onRemove(focusedItem.fragrance.id)}>Remove</Button>
+          </motion.section>
+        ) : null}
+      </AnimatePresence>
       <ol className={styles.srComposition}>
         {items.map((item, index) => (
           <li key={item.fragrance.id}>
