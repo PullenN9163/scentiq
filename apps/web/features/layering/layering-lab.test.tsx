@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fragranceSummary } from "@/test/catalog-fixtures";
@@ -95,6 +95,112 @@ beforeEach(() => {
 });
 
 describe("LayeringLab intelligence", () => {
+  it("retains evaluated blends in the session when starting another", async () => {
+    render(
+      <LayeringLab
+        owned={[first, second, third]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+        initialStack={stack}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "New blend" }));
+
+    expect(
+      within(screen.getByRole("region", { name: "Session blends" })).getByRole(
+        "button",
+        { name: /Promising blend.*70/ },
+      ),
+    ).toBeVisible();
+  });
+
+  it("restores an unsaved session blend", async () => {
+    render(
+      <LayeringLab
+        owned={[first, second, third]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+        initialStack={stack}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "New blend" }));
+
+    await userEvent.click(
+      within(screen.getByRole("region", { name: "Session blends" })).getByRole(
+        "button",
+        { name: /Promising blend.*70/ },
+      ),
+    );
+
+    expect(screen.getAllByTestId("stack-item")).toHaveLength(2);
+    expect(screen.getByRole("region", { name: "Stack builder" })).toHaveTextContent(
+      "Fresh bridge",
+    );
+  });
+
+  it("preserves explicit stack ids when direction changes", async () => {
+    actions.evaluateLayerStack.mockResolvedValue({ ...stack, goal: "warmer" });
+    render(
+      <LayeringLab
+        owned={[first, second, third]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+        initialStack={stack}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Make it warmer" }));
+
+    expect(actions.evaluateLayerStack).toHaveBeenCalledWith(
+      [first.id, second.id],
+      "balanced",
+      "warmer",
+    );
+    expect(screen.getAllByTestId("stack-item")).toHaveLength(2);
+  });
+
+  it("ignores stale evaluations after a newer composition", async () => {
+    let resolveOld: (value: LayeringStackSuggestion) => void = () => undefined;
+    let resolveNew: (value: LayeringStackSuggestion) => void = () => undefined;
+    actions.evaluateLayerStack
+      .mockImplementationOnce(
+        () => new Promise<LayeringStackSuggestion>((resolve) => { resolveOld = resolve; }),
+      )
+      .mockImplementationOnce(
+        () => new Promise<LayeringStackSuggestion>((resolve) => { resolveNew = resolve; }),
+      );
+    render(
+      <LayeringLab
+        owned={[first, second, third]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+        initialStack={stack}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Make it fresher" }));
+    fireEvent.click(screen.getByRole("button", { name: "Make it warmer" }));
+    resolveNew({ ...stack, goal: "warmer", verdict: "Newest direction", score: 0.92 });
+    resolveOld({ ...stack, goal: "fresher", verdict: "Stale direction", score: 0.2 });
+
+    expect(await screen.findByRole("heading", { name: "Newest direction" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Stale direction" })).not.toBeInTheDocument();
+  });
+
+  it("shows a suggestion as a preview until the user adopts it", () => {
+    render(
+      <LayeringLab
+        owned={[first, second, third]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Promising blend" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Stack builder" })).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "Session blends" })).queryByRole("button", {
+        name: /Promising blend/,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps a custom blend together and reevaluates it when the goal changes", async () => {
     actions.evaluateLayerStack.mockResolvedValue({...stack, goal:null, score:0.76, verdict:"Strong fit"});
     render(<LayeringLab owned={[first,second]} initialIntelligence={{...page,supported_goals:[...page.supported_goals]}} initialStack={{...stack,goal:"fresher"}} />);

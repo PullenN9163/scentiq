@@ -64,6 +64,15 @@ const roleLabel = (role: "anchor" | "bridge" | "accent") =>
 const stackKey = (stack: LayeringStackSuggestion) =>
   stack.items.map((item) => item.fragrance.id).join(":");
 
+type StudioDraft = {
+  id: string;
+  stackIds: string[];
+  mode: StackMode;
+  goal: LayeringGoal | null;
+  evaluation: LayeringStackSuggestion;
+  source: "custom" | "saved";
+};
+
 export function LayeringLab({
   owned,
   initialIntelligence,
@@ -109,6 +118,22 @@ export function LayeringLab({
   const [detail, setDetail] = useState<LayeringStackSuggestion | null>(null);
   const [collectionQuery, setCollectionQuery] = useState("");
   const [deleting, setDeleting] = useState<SavedLayeringStack | null>(null);
+  const draftSequence = useRef(initialStack ? 1 : 0);
+  const [drafts, setDrafts] = useState<StudioDraft[]>(() =>
+    initialStack
+      ? [{
+          id: "draft-1",
+          stackIds: initialStack.items.map((item) => item.fragrance.id),
+          mode: initialStack.mode,
+          goal: initialStack.goal ?? null,
+          evaluation: initialStack,
+          source: "custom",
+        }]
+      : [],
+  );
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(
+    initialStack ? "draft-1" : null,
+  );
   const manualSelection = useRef(Boolean(initialStack));
   const requestVersion = useRef(0);
   const selectSurprise = useCallback((choice: import("@/types/api").DiscoveryResult | LayeringStackSuggestion) => {
@@ -167,8 +192,49 @@ export function LayeringLab({
     if (ids.length < 2) return;
     run(async () => {
       const result = await evaluateLayerStack(ids, nextMode, nextGoal);
-      if (version === requestVersion.current) setEvaluation(result);
+      if (version === requestVersion.current) {
+        setEvaluation(result);
+        retainEvaluatedDraft(ids, nextMode, nextGoal, result);
+      }
     });
+  }
+  function retainEvaluatedDraft(
+    ids: string[],
+    nextMode: StackMode,
+    nextGoal: LayeringGoal | null,
+    result: LayeringStackSuggestion,
+  ) {
+    const draftId = activeDraftId ?? `draft-${++draftSequence.current}`;
+    if (!activeDraftId) setActiveDraftId(draftId);
+    const nextDraft: StudioDraft = {
+      id: draftId,
+      stackIds: ids,
+      mode: nextMode,
+      goal: nextGoal,
+      evaluation: result,
+      source: "custom",
+    };
+    setDrafts((items) => [
+      ...items.filter((item) => item.id !== draftId),
+      nextDraft,
+    ]);
+  }
+  function startNewBlend() {
+    requestVersion.current++;
+    manualSelection.current = true;
+    setActiveDraftId(null);
+    setStackIds([]);
+    setEvaluation(null);
+  }
+  function openDraft(draft: StudioDraft) {
+    requestVersion.current++;
+    manualSelection.current = true;
+    setActiveDraftId(draft.id);
+    setStackIds(draft.stackIds);
+    setMode(draft.mode);
+    setGoal(draft.goal);
+    setEvaluation(draft.evaluation);
+    setAnchor(draft.stackIds[0] ?? anchor);
   }
   function updateStack(ids: string[]) {
     manualSelection.current = true;
@@ -388,7 +454,6 @@ export function LayeringLab({
           <div className={styles.controls} aria-label="Layer toward a goal">
             <Button
               variant={goal === null ? "primary" : "secondary"}
-              disabled={pending}
               onClick={() => {
                 setGoal(null);
                 if (stackIds.length >= 2) evaluateSelection(stackIds, mode, null);
@@ -400,7 +465,6 @@ export function LayeringLab({
             {intelligence.supported_goals.map((item) => (
               <Button
                 key={item}
-                disabled={pending}
                 variant={goal === item ? "primary" : "secondary"}
                 onClick={() => {
                   setGoal(item);
@@ -446,6 +510,22 @@ export function LayeringLab({
       <div aria-live="polite">
         {pending ? <p>Comparing your owned fragrances…</p> : null}
       </div>
+      <section aria-label="Session blends">
+        <h2 className="serif">Session blends</h2>
+        <div className={styles.controls}>
+          <Button variant="secondary" onClick={startNewBlend}>New blend</Button>
+          {drafts.map((draft) => (
+            <Button
+              key={draft.id}
+              variant={draft.id === activeDraftId ? "primary" : "ghost"}
+              aria-label={`${draft.evaluation.verdict} · ${Math.round(draft.evaluation.score * 100)}`}
+              onClick={() => openDraft(draft)}
+            >
+              {draft.evaluation.verdict} · {Math.round(draft.evaluation.score * 100)}
+            </Button>
+          ))}
+        </div>
+      </section>
       <section aria-label="Ranked layering suggestions">
         <h2 className="serif">Supporting scents, ranked for you</h2>
         <div className={styles.suggestions}>
