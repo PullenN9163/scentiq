@@ -35,6 +35,7 @@ export function LayeringStudioCanvas({
       className={styles.canvas}
       aria-label="Interactive blend canvas"
       aria-busy={pending}
+      data-motion={reducedMotion ? "reduced" : "full"}
     >
       <div className={styles.aurora} aria-hidden="true" />
       <div className={styles.orbit} aria-hidden="true" />
@@ -47,10 +48,24 @@ export function LayeringStudioCanvas({
       <motion.div
         className={styles.scoreOrb}
         layout={!reducedMotion}
-        transition={{ type: "spring", stiffness: 160, damping: 24 }}
+        animate={pending && !reducedMotion ? { scale: [1, 1.035, 1] } : { scale: 1 }}
+        transition={pending && !reducedMotion
+          ? { duration: 1.4, repeat: Infinity, ease: "easeInOut" }
+          : { type: "spring", stiffness: 160, damping: 24 }}
       >
-        <strong>{composition ? Math.round(composition.score * 100) : "—"}</strong>
-        <span>{pending ? "Reading blend…" : composition?.verdict ?? "Build your blend"}</span>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.strong
+            key={composition ? Math.round(composition.score * 100) : "empty"}
+            className={styles.scoreValue}
+            initial={reducedMotion ? false : { opacity: 0, y: 8, filter: "blur(5px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={reducedMotion ? undefined : { opacity: 0, y: -8, filter: "blur(5px)" }}
+            transition={{ duration: reducedMotion ? 0 : 0.28, ease: "easeOut" }}
+          >
+            {composition ? Math.round(composition.score * 100) : "—"}
+          </motion.strong>
+        </AnimatePresence>
+        <span className={styles.scoreVerdict}>{pending ? "Reading blend…" : composition?.verdict ?? "Build your blend"}</span>
       </motion.div>
       <div className={styles.canvasBottles}>
         <AnimatePresence initial={false} mode="popLayout">
@@ -86,6 +101,19 @@ export function LayeringStudioCanvas({
           </li>
         ))}
       </ol>
+      <p
+        className={styles.scoreAnnouncement}
+        role="status"
+        aria-label="ScentIQ score update"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {pending
+          ? "ScentIQ is analyzing this blend"
+          : composition
+            ? `ScentIQ score ${Math.round(composition.score * 100)}. ${composition.verdict}`
+            : "Add another fragrance to receive a ScentIQ score"}
+      </p>
     </section>
   );
 }

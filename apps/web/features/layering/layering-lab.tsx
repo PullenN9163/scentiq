@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useRef, useState, useTransition, type FormEvent } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Plus, Sparkles, X } from "lucide-react";
 import { SurfaceOptions } from "@/features/recommendations/surface-options";
@@ -382,17 +382,36 @@ export function LayeringLab({
           reducedMotion={reducedMotion}
         />
       </section>
+      <AnimatePresence mode="wait" initial={false}>
       {composition ? (
-        <section
+        <motion.section
           key={`${stackKey(composition)}:${composition.mode}:${composition.goal ?? "balanced"}`}
           className={styles.resultStory}
           aria-label="Blend explanation"
+          initial={reducedMotion ? false : "hidden"}
+          animate="visible"
+          exit={reducedMotion ? undefined : "hidden"}
+          variants={{
+            hidden: { opacity: 0 },
+            visible: { opacity: 1, transition: reducedMotion ? { duration: 0 } : { staggerChildren: 0.07 } },
+          }}
         >
-          <div><h2>Why they fit</h2>{composition.explanation.why_they_fit.map((line) => <p key={line}>{line}</p>)}</div>
-          <div><h2>What changes</h2>{composition.explanation.what_changes.map((line) => <p key={line}>{line}</p>)}</div>
-          <div><h2>Watch out for</h2>{composition.explanation.watch_out_for.map((line) => <p key={line}>{line}</p>)}</div>
-        </section>
+          {[
+            ["Why they fit", composition.explanation.why_they_fit],
+            ["What changes", composition.explanation.what_changes],
+            ["Watch out for", composition.explanation.watch_out_for],
+          ].map(([heading, lines]) => (
+            <motion.div
+              key={heading as string}
+              variants={reducedMotion ? undefined : { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: motionTokens.panel } }}
+            >
+              <h2>{heading}</h2>
+              {(lines as string[]).map((line) => <p key={line}>{line}</p>)}
+            </motion.div>
+          ))}
+        </motion.section>
       ) : null}
+      </AnimatePresence>
       <Card className={styles.directionPanel}>
         <CardContent>
           <p className="eyebrow">Blend direction</p>
@@ -534,18 +553,30 @@ export function LayeringLab({
       </div>
       <section aria-label="Session blends">
         <h2 className="serif">Session blends</h2>
-        <div className={styles.controls}>
+        <div className={`${styles.controls} ${styles.sessionList}`}>
           <Button variant="secondary" onClick={startNewBlend}>New blend</Button>
+          <AnimatePresence initial={false}>
           {drafts.map((draft) => (
-            <Button
+            <motion.div
               key={draft.id}
-              variant={draft.id === activeDraftId ? "primary" : "ghost"}
-              aria-label={`${draft.evaluation.verdict} · ${Math.round(draft.evaluation.score * 100)}`}
-              onClick={() => openDraft(draft)}
+              layout={!reducedMotion}
+              className={styles.sessionEcho}
+              initial={reducedMotion ? false : { opacity: 0, scale: 0.88, x: -10 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={reducedMotion ? undefined : { opacity: 0, scale: 0.92 }}
+              transition={reducedMotion ? { duration: 0 } : motionTokens.panel}
             >
-              {draft.evaluation.verdict} · {Math.round(draft.evaluation.score * 100)}
-            </Button>
+              <Button
+                variant={draft.id === activeDraftId ? "primary" : "ghost"}
+                aria-label={`${draft.evaluation.verdict} · ${Math.round(draft.evaluation.score * 100)}`}
+                aria-current={draft.id === activeDraftId ? "true" : undefined}
+                onClick={() => openDraft(draft)}
+              >
+                {draft.evaluation.verdict} · {Math.round(draft.evaluation.score * 100)}
+              </Button>
+            </motion.div>
           ))}
+          </AnimatePresence>
         </div>
       </section>
       <section aria-label="Ranked layering suggestions">

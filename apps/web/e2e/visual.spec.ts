@@ -135,3 +135,34 @@ test("redesigned workspaces contain long names and missing images at 200% reflow
     }
   }
 });
+
+test("layering studio stays immersive and usable across iPad orientations", async ({page}) => {
+  for (const viewport of [
+    {name:"iPad portrait",width:820,height:1180},
+    {name:"iPad landscape",width:1180,height:820},
+    {name:"desktop keyboard",width:1440,height:1000},
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.emulateMedia({reducedMotion:"no-preference"});
+    await page.goto("/?view=layering&theme=dark");
+    await expect(page.getByRole("region",{name:"Layering studio"})).toBeVisible();
+    await expect(page.getByRole("region",{name:"Interactive blend canvas"})).toHaveAttribute("data-motion","full");
+    await expect(page.getByRole("region",{name:"ScentIQ read"})).toContainText("Strong fit");
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth+1),viewport.name).toBe(true);
+    const shelfTarget=page.getByRole("button",{name:"Add Another 13"});
+    const box=await shelfTarget.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    const refine=page.getByRole("button",{name:"Refine this blend"});
+    await refine.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("region",{name:"Stack builder"})).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth+1),`${viewport.name} after refine`).toBe(true);
+  }
+
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await page.goto("/?view=layering&theme=dark");
+  await expect(page.getByRole("region",{name:"Interactive blend canvas"})).toHaveAttribute("data-motion","reduced");
+  const animationNames=await page.getByRole("region",{name:"Interactive blend canvas"}).locator("*").evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).animationName));
+  expect(animationNames.every(name=>name==="none")).toBe(true);
+  await expect(page.getByRole("button",{name:"Refine this blend"})).toBeEnabled();
+});

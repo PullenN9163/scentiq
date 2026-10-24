@@ -25,6 +25,9 @@
 .scoreOrb { position:relative; z-index:3; width:158px; aspect-ratio:1; display:grid; place-items:center; align-content:center; padding:18px; border:1px solid color-mix(in srgb,var(--border) 70%,var(--studio-violet)); border-radius:50%; background:color-mix(in srgb,var(--surface) 88%,transparent); box-shadow:0 0 74px color-mix(in srgb,var(--studio-violet) 18%,transparent),inset 0 0 30px color-mix(in srgb,var(--foreground) 4%,transparent); text-align:center; }
 .scoreOrb strong { font:500 52px/1 Georgia,serif; letter-spacing:-.07em; font-variant-numeric:tabular-nums; }
 .scoreOrb span { margin-top:7px; color:var(--studio-mint); font-size:11px; line-height:1.2; }
+.scoreValue { display:block; }
+.scoreVerdict { display:block; }
+.scoreAnnouncement { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 .canvasBottles { position:absolute; inset:0; }
 .canvasBottle { position:absolute; z-index:4; width:132px; display:flex; flex-direction:column; align-items:center; gap:7px; text-align:center; }
 .canvasBottle1 { left:7%; top:39%; } .canvasBottle2 { right:7%; top:19%; } .canvasBottle3 { right:12%; bottom:6%; }
@@ -49,6 +52,9 @@
 .replaceTray > div { flex:1 0 100%; display:grid; gap:3px; } .replaceTray span { color:var(--muted-foreground); font-size:10px; }
 .anchorSummary { display:flex; flex-wrap:wrap; align-items:center; gap:7px 10px; font-size:10px; color:var(--muted-foreground); } .anchorSummary strong { color:var(--foreground); }
 .controls { display:flex; flex-wrap:wrap; gap:7px; margin:4px 0; } .controls button { min-height:44px; }
+.sessionList { align-items:center; }
+.sessionEcho { display:flex; }
+.sessionEcho button { width:100%; }
 .resultStory { grid-column:1/-1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
 .resultStory > div { min-width:0; padding:18px; border:1px solid var(--border); border-radius:20px; background:color-mix(in srgb,var(--surface-elevated) 86%,transparent); } .resultStory h2 { margin:0 0 6px; font-size:14px; } .resultStory p { margin:5px 0 0; color:var(--muted-foreground); font-size:12px; }
 .experience > section:not(.composition):not(.resultStory):not(.directionPanel) { grid-column:1/-1; }
@@ -63,4 +69,5 @@
 @media (max-width:1180px) { .experience { grid-template-columns:minmax(210px,.7fr) minmax(0,2fr); } .composition { grid-template-columns:1fr; } .compositionCopy { order:2; border-top:1px solid var(--border); border-right:0; } .canvas { min-height:540px; } .compositionStats { grid-template-columns:repeat(3,minmax(0,1fr)); } .compositionStats > div { display:grid; } .compositionStats span { text-align:left; } }
 @media (max-width:860px) { .experience { display:flex; flex-direction:column; } .studioHeader { order:0; } .composition { order:1; } .directionPanel { order:2; } .resultStory { order:3; } .experience > section:not(.composition):not(.resultStory):not(.directionPanel) { order:4; } .composition { display:flex; flex-direction:column; } .canvas { order:1; min-height:560px; } .compositionCopy { order:2; } .directionPanel :global(.card__content) { padding:20px; } .picker { grid-auto-columns:154px; } }
 @media (max-width:600px) { .studioHeader { align-items:flex-start; } .sessionMeta { display:none; } .studioHeader > button { padding-inline:12px; } .composition { border-radius:22px; } .canvas { min-height:480px; } .compositionCopy { padding:22px; } .compositionStats { grid-template-columns:1fr; } .scoreOrb { width:124px; } .scoreOrb strong { font-size:42px; } .canvasBottle { width:102px; } .canvasImage { width:76px; height:112px; } .canvasBottle1 { left:0; } .canvasBottle2 { right:0; } .canvasBottle3 { right:9%; bottom:4%; } .resultStory { grid-template-columns:1fr; } .picker { grid-auto-columns:132px; } .builder { padding:15px; } }
-@media (prefers-reduced-motion:reduce) { .aurora,.orbit,.scentTrails { animation:none; } .scentChoice { transition:none; } .scentChoice:hover { transform:none; } * { scroll-behavior:auto !important; } }
+@media (prefers-reduced-motion:reduce) { .aurora,.orbit,.scentTrails { animation:none; } .scentChoice { transition:none; } .scentChoice:hover { transform:none; } }
+.canvas[data-motion="reduced"] .aurora,.canvas[data-motion="reduced"] .orbit,.canvas[data-motion="reduced"] .scentTrails { animation:none; }

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fragranceSummary } from "@/test/catalog-fixtures";
 import type { LayeringStackSuggestion } from "@/types/layering";
 import { LayeringLab } from "./layering-lab";
+import { LayeringStudioCanvas } from "./layering-studio-canvas";
 
 const actions = vi.hoisted(() => ({
   getLayeringIntelligence: vi.fn(),
@@ -99,6 +100,72 @@ beforeEach(() => {
 });
 
 describe("LayeringLab intelligence", () => {
+  it("announces the completed ScentIQ score after analysis", () => {
+    render(
+      <LayeringLab
+        owned={[first, second]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+      />,
+    );
+
+    expect(screen.getByRole("status", { name: "ScentIQ score update" })).toHaveTextContent(
+      "ScentIQ score 70. Promising blend",
+    );
+  });
+
+  it("marks reduced-motion canvases while keeping the composition available", () => {
+    render(
+      <LayeringStudioCanvas
+        items={stack.items}
+        composition={stack}
+        pending={false}
+        reducedMotion
+      />,
+    );
+
+    const canvas = screen.getByRole("region", { name: "Interactive blend canvas" });
+    expect(canvas).toHaveAttribute("data-motion", "reduced");
+    expect(screen.getAllByTestId("canvas-bottle")).toHaveLength(2);
+  });
+
+  it("keeps the canvas and bottles present while a blend is being analyzed", async () => {
+    let finish: (value: LayeringStackSuggestion) => void = () => undefined;
+    actions.evaluateLayerStack.mockImplementationOnce(
+      () => new Promise<LayeringStackSuggestion>((resolve) => { finish = resolve; }),
+    );
+    render(
+      <LayeringLab
+        owned={[first, second]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+        initialStack={stack}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Make it fresher" }));
+    const canvas = screen.getByRole("region", { name: "Interactive blend canvas" });
+    expect(canvas).toHaveAttribute("aria-busy", "true");
+    expect(within(canvas).getAllByTestId("canvas-bottle")).toHaveLength(2);
+
+    finish({ ...stack, goal: "fresher" });
+    await waitFor(() => expect(canvas).toHaveAttribute("aria-busy", "false"));
+  });
+
+  it("keeps keyboard focus on the selected session blend", async () => {
+    render(
+      <LayeringLab
+        owned={[first, second]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+        initialStack={stack}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "New blend" }));
+    const draft = screen.getByRole("button", { name: /Promising blend.*70/ });
+    await userEvent.click(draft);
+
+    expect(draft).toHaveFocus();
+    expect(draft).toHaveAttribute("aria-current", "true");
+  });
+
   it("renders the touch-first layering studio landmarks", () => {
     render(
       <LayeringLab
