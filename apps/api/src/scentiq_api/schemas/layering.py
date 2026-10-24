@@ -55,6 +55,12 @@ class LayeringScoreComponents(BaseModel):
     overload_penalty: float
 
 
+class LayeringExplanation(BaseModel):
+    why_they_fit: list[str]
+    what_changes: list[str]
+    watch_out_for: list[str]
+
+
 class LayeringStackSuggestion(BaseModel):
     generation_mode: str = "baseline"
     profile_version: str | None = None
@@ -74,8 +80,21 @@ class LayeringStackSuggestion(BaseModel):
     warnings: list[str]
     total_sprays: int
     evidence_coverage: float = Field(ge=0, le=1)
-    algorithm_version: str = "layering-v2"
+    algorithm_version: str = "layering-v3"
     evidence_label: Literal["limited", "partial", "strong"]
+    verdict: Literal[
+        "Strong fit",
+        "Promising blend",
+        "Bold experiment",
+        "Tricky balance",
+        "Needs a wear test",
+    ]
+    evidence_summary: Literal[
+        "Lots of information",
+        "Some information missing",
+        "Little information available",
+    ]
+    explanation: LayeringExplanation
 
 
 class LayeringStackRequest(BaseModel):

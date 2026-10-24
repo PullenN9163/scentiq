@@ -70,7 +70,15 @@ const stack: LayeringStackSuggestion = {
   total_sprays: 3,
   evidence_coverage: 0.8,
   evidence_label: "partial",
-  generation_mode: "baseline",algorithm_version: "layering-v2",
+  generation_mode: "baseline",
+  algorithm_version: "layering-v3",
+  verdict: "Promising blend",
+  evidence_summary: "Some information missing",
+  explanation: {
+    why_they_fit: ["The scents share a soft woody thread."],
+    what_changes: ["Fresh bridge adds a brighter citrus edge."],
+    watch_out_for: ["Start light and adjust after it settles."],
+  },
 };
 const page = {
   supported_goals: ["fresher", "warmer"] as const,
@@ -84,13 +92,29 @@ beforeEach(() => {
 });
 
 describe("LayeringLab intelligence", () => {
-  it("does not present an old blend score after the selected goal changes", async () => {
-    actions.getLayeringIntelligence.mockResolvedValue({...page, suggestions: []});
+  it("keeps a custom blend together and reevaluates it when the goal changes", async () => {
+    actions.evaluateLayerStack.mockResolvedValue({...stack, goal:null, score:0.76, verdict:"Strong fit"});
     render(<LayeringLab owned={[first,second]} initialIntelligence={{...page,supported_goals:[...page.supported_goals]}} initialStack={{...stack,goal:"fresher"}} />);
     await userEvent.click(screen.getByRole("button", {name:"Keep it balanced"}));
+    expect(actions.evaluateLayerStack).toHaveBeenCalledWith([first.id, second.id], "balanced", null);
+    expect(await screen.findByRole("heading", {name:"Strong fit"})).toBeVisible();
+    expect(screen.getByRole("region", {name:"Stack builder"})).toBeVisible();
+  });
+  it("explains the score in plain language and separates evidence confidence", () => {
+    render(<LayeringLab owned={[first,second]} initialIntelligence={{...page,supported_goals:[...page.supported_goals]}} />);
     const stage = screen.getByRole("region", {name:"Fragrance composition"});
-    await waitFor(() => expect(within(stage).queryByText("70%")).not.toBeInTheDocument());
-    expect(screen.queryByRole("region", {name:"Stack builder"})).not.toBeInTheDocument();
+    expect(within(stage).getByRole("heading", {name:"Promising blend"})).toBeVisible();
+    expect(within(stage).getByText("70 out of 100")).toBeVisible();
+    expect(within(stage).getByText("Some information missing")).toBeVisible();
+    const explanation = screen.getByRole("region", {name:"Blend explanation"});
+    expect(within(explanation).getByRole("heading", {name:"Why they fit"})).toBeVisible();
+    expect(within(explanation).getByText("The scents share a soft woody thread.")).toBeVisible();
+  });
+  it("filters a large collection by fragrance or house", async () => {
+    render(<LayeringLab owned={[first,second,third]} initialIntelligence={{...page,supported_goals:[...page.supported_goals]}} />);
+    await userEvent.type(screen.getByRole("searchbox", {name:"Search your collection"}), "Warm");
+    expect(screen.getByRole("button", {name:"Choose anchor Warm accent"})).toBeVisible();
+    expect(screen.queryByRole("button", {name:`Choose anchor ${first.name}`})).not.toBeInTheDocument();
   });
   it("keeps the edited ingredients without restoring a stale score after evaluation fails", async () => {
     actions.evaluateLayerStack.mockRejectedValueOnce(new Error("offline"));
@@ -127,14 +151,18 @@ describe("LayeringLab intelligence", () => {
     ).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Build around this scent")).toBeVisible();
     expect(screen.getByText(/3 sprays/)).toBeVisible();
-    expect(screen.getByText(/80% recorded evidence/)).toBeVisible();
+    expect(screen.getAllByText("Some information missing")[0]).toBeVisible();
   });
   it("updates suggestions when the supported goal changes", async () => {
     const user = userEvent.setup();
     actions.getLayeringIntelligence.mockResolvedValue({
       ...page,
       suggestions: [
-        { ...stack, goal: "fresher", reasons: ["Fresh citrus support"] },
+        {
+          ...stack,
+          goal: "fresher",
+          explanation: {...stack.explanation, why_they_fit:["Fresh citrus support"]},
+        },
       ],
     });
     render(
@@ -179,7 +207,7 @@ describe("LayeringLab intelligence", () => {
     await user.click(
       within(builder).getByRole("button", { name: "Add Warm accent" }),
     );
-    expect(await within(builder).findByText("bridge")).toBeVisible();
+    expect(await within(builder).findByText("Ties them together")).toBeVisible();
     expect(
       within(builder).queryByRole("button", { name: `Add ${first.name}` }),
     ).not.toBeInTheDocument();

@@ -52,6 +52,76 @@ def test_anchor_suggestions_and_goals_rank_useful_owned_support(session: Session
     assert any(len(stack.items) == 3 for stack in fresh)
 
 
+def test_v3_rewards_a_useful_bridge_and_only_penalizes_near_duplicates(session: Session) -> None:
+    user, items = scents(session)
+    service = LayeringService(LayeringRepository(session))
+
+    useful = service.evaluate_stack(user.id, [items[0].id, items[1].id])
+
+    brand = items[0].brand
+    duplicate = make_fragrance(session, brand=brand, name="Woody duplicate", seasons=("summer",))
+    make_collection_item(session, user=user, fragrance=duplicate)
+    woody = next(link.accord for link in items[0].accord_links if link.accord.slug == "woody")
+    session.add(
+        FragranceAccord(
+            fragrance_id=duplicate.id,
+            accord_id=woody.id,
+            weight=Decimal("0.8"),
+        )
+    )
+    duplicate.projection_level = "moderate"
+    duplicate.longevity_score = Decimal("6")
+    session.flush()
+    session.expire_all()
+
+    repeated = service.evaluate_stack(user.id, [items[0].id, duplicate.id])
+
+    assert useful.algorithm_version == "layering-v3"
+    assert useful.score_components.bridge == 1
+    assert useful.score_components.redundancy_penalty == 0
+    assert repeated.score_components.redundancy_penalty == 1
+    assert useful.score > repeated.score
+
+
+def test_v3_returns_plain_language_verdict_evidence_and_explanations(session: Session) -> None:
+    user, items = scents(session)
+    service = LayeringService(LayeringRepository(session))
+
+    result = service.evaluate_stack(user.id, [items[0].id, items[1].id])
+    sparse = service.evaluate_stack(user.id, [items[0].id, items[3].id])
+
+    assert result.verdict in {"Strong fit", "Promising blend", "Bold experiment", "Tricky balance"}
+    assert result.evidence_summary in {
+        "Lots of information",
+        "Some information missing",
+        "Little information available",
+    }
+    assert result.explanation.why_they_fit
+    assert result.explanation.what_changes
+    assert result.explanation.watch_out_for
+    assert sparse.verdict == "Needs a wear test"
+    assert sparse.evidence_summary == "Little information available"
+
+
+def test_layering_suggestions_follow_the_displayed_score(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scentiq_api.services import layering as layering_module
+
+    user, _ = scents(session)
+
+    def unexpected_rerank(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("Layering suggestions must not be AI-reordered")
+
+    monkeypatch.setattr(layering_module, "rerank", unexpected_rerank, raising=False)
+    results = LayeringService(LayeringRepository(session)).stack_suggestions(user.id)
+
+    assert results
+    assert [item.score for item in results] == sorted(
+        (item.score for item in results), reverse=True
+    )
+
+
 def test_stack_whole_structure_sprays_weak_evidence_and_duplicates(session: Session) -> None:
     user, items = scents(session)
     service = LayeringService(LayeringRepository(session))
@@ -129,7 +199,7 @@ def test_saved_stack_keeps_original_scoring_version_and_snapshot(session: Sessio
     saved = service.save_stack(user.id, [items[0].id, items[1].id], name="Snapshot")
     stored = session.get(LayerStack, saved.id)
     assert stored is not None
-    assert stored.algorithm_version == "layering-v2"
+    assert stored.algorithm_version == "layering-v3"
     assert float(stored.score_snapshot) == saved.suggestion.score
     assert stored.score_components["overload_penalty"] == 0
     assert float(stored.evidence_coverage) == saved.suggestion.evidence_coverage

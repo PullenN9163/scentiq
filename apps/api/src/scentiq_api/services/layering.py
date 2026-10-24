@@ -27,7 +27,6 @@ from scentiq_api.services.layer_stack_scoring import (
     score_stack,
     supported_goals,
 )
-from scentiq_api.services.personalized_ranking import rerank, surface_context
 from scentiq_api.services.recommendation_scoring import pair_score
 from scentiq_api.services.taste_profile import TasteProfileService
 
@@ -216,47 +215,10 @@ class LayeringService:
             ),
         )
 
-        def candidate_key(value: LayeringStackSuggestion) -> str:
-            return ":".join(sorted(str(item.fragrance.id) for item in value.items))
-
-        ranking = rerank(
-            self._repository._session,
-            user_id,
-            surface="layering",
-            candidates=[
-                {
-                    "candidate_id": candidate_key(row),
-                    "baseline_score": row.score,
-                    "evidence": {
-                        "reasons": row.reasons,
-                        "warnings": row.warnings,
-                        "goal": row.goal,
-                        "contexts": row.best_contexts,
-                        "components": row.score_components.model_dump(),
-                    },
-                }
-                for row in ranked
-            ],
-            context={
-                **surface_context(self._repository._session, user_id, profile),
-                "goal": goal,
-                "mode": mode,
-            },
-            version=profile.version,
-        )
-        ranked_by_id = {candidate_key(row): row for row in ranked}
-        ranked = [
-            ranked_by_id[key].model_copy(
-                update={
-                    "generation_mode": ranking.generation_mode,
-                    "profile_version": profile.version,
-                    "model_version": ranking.model_version,
-                    "ai_reasons": ranking.explanations.get(key, []),
-                }
-            )
-            for key in ranking.ordered_ids
+        return [
+            row.model_copy(update={"profile_version": profile.version})
+            for row in ranked[: max(1, min(limit, 50))]
         ]
-        return ranked[: max(1, min(limit, 50))]
 
     def intelligence_page(
         self,

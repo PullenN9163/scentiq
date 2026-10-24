@@ -123,7 +123,7 @@ def test_saved_triple_api_history_isolation_and_account_cascade() -> None:
             )
         with Session(engine) as session:
             stored = session.scalar(select(LayerStack))
-            assert stored is not None and stored.algorithm_version == "layering-v2"
+            assert stored is not None and stored.algorithm_version == "layering-v3"
             session.execute(delete(User).where(User.id == user_id))
             session.commit()
             assert session.scalar(select(func.count()).select_from(LayerStack)) == 0

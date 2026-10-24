@@ -1,6 +1,6 @@
 # Layering intelligence
 
-Layering Lab and the fragrance advisor use `LayeringService` to recommend and evaluate combinations of two or three owned fragrances. The production stack algorithm is `layering-v2`, implemented in `services/layer_stack_scoring.py`. Ranking is deterministic; the language model does not score combinations.
+Layering Lab and the fragrance advisor use `LayeringService` to recommend and evaluate combinations of two or three owned fragrances. The production stack algorithm is `layering-v3`, implemented in `services/layer_stack_scoring.py`. Ranking is deterministic and follows the displayed score; the language model does not score or reorder combinations.
 
 Catalog notes, accords, season suitability and performance records support olfactory comparisons. Roles, application order and spray allocations are rule-based starting guidance. Scores do not represent chemical compatibility, skin safety, exact combined longevity or guaranteed performance.
 
@@ -18,14 +18,14 @@ The sums cover the union of keys; an empty denominator yields zero. Stack compon
 
 | Component | Production calculation |
 | --- | --- |
-| Bridge | Pair: weighted overlap. Triple: choose the supporting scent that maximizes the smaller of its anchor overlap and its overlap with the other supporting scent; ties keep the earlier supporting scent. The smaller edge is the bridge component. |
+| Bridge | Pair: weighted overlap normalized against `0.35` and capped at one. Triple: choose the supporting scent that maximizes the smaller of its anchor overlap and its overlap with the other supporting scent; ties keep the earlier supporting scent, then normalize the smaller edge. |
 | Novelty | Mean, across supporting scents, of the weighted profile fraction whose keys are absent from the anchor. Empty profiles contribute zero. |
 | Complement | `novelty * min(1, 2 * bridge + 0.25)`. Useful contrast receives more credit when a recorded bridge connects it. |
 | Season/context | Maximum, across seasons recorded for every selected fragrance, of their minimum season weight. With no common recorded season, the neutral fallback is `0.5`; missing season evidence is reported separately. |
 | Projection balance | `max(0, 1 - abs(mean(known_projection) - target))`, or `0.5` without known projection. Targets are `0.75` for more projection, `0.3` for softer/intimate, and `0.5` otherwise. |
 | Longevity balance | `1 - (maximum - minimum)` over known longevity scores divided by ten. Fewer than two known scores yield `0.5`. |
 | User affinity | Mean fragrance affinity plus bounded feedback from ratings of the same set of fragrance IDs, clamped to `0..1`. |
-| Redundancy penalty | Maximum weighted overlap between any two selected profiles. |
+| Redundancy penalty | Zero through `0.70` weighted overlap, then linearly increases to one at complete overlap. Similarity is penalized only when a pair is close to duplicating the same profile. |
 | Overload penalty | `min(1, max(0, strong_count - 1) * 0.5)`. For softer/intimate goals, take the larger of this value and `strong_count / stack_size`. |
 
 Projection values are intimate `0.25`, moderate `0.55`, strong `0.9`. A member's custom projection takes precedence, followed by the catalog projection label, then community sillage average divided by four. Values at least `0.8` count as strong. Custom longevity takes precedence over catalog longevity. Unknown performance stays unknown and reduces evidence coverage.
@@ -45,7 +45,7 @@ goal_base = 0.70 * base + 0.30 * goal_fit    # when a goal is selected
 score = clamp(goal_base_or_base - 0.18 * redundancy - 0.22 * overload, 0, 1)
 ```
 
-Scoring uses full precision, then exposes scores and components rounded to four decimal places. A triple is evaluated as a connected stack; its result is not an average of pair compatibility scores.
+Scoring uses full precision, then exposes scores and components rounded to four decimal places. A triple is evaluated as a connected stack; its result is not an average of pair compatibility scores. Results also include a plain-language verdict, evidence summary, and structured explanations generated from the same recorded signals used by the scorer. Limited evidence always yields `Needs a wear test`; otherwise verdict thresholds are 75, 60, and 40 on the displayed 100-point scale.
 
 ## Goals and personalization
 

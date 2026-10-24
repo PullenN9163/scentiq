@@ -54,6 +54,13 @@ const goals: Record<LayeringGoal, string> = {
   winter: "Winter",
 };
 const percent = (value: number) => `${Math.round(value * 100)}%`;
+const scoreOutOf100 = (value: number) => `${Math.round(value * 100)} out of 100`;
+const roleLabel = (role: "anchor" | "bridge" | "accent") =>
+  role === "anchor"
+    ? "Your main scent"
+    : role === "bridge"
+      ? "Ties them together"
+      : "Adds a twist";
 const stackKey = (stack: LayeringStackSuggestion) =>
   stack.items.map((item) => item.fragrance.id).join(":");
 
@@ -100,6 +107,7 @@ export function LayeringLab({
     wears: LayeringStackWear[];
   } | null>(null);
   const [detail, setDetail] = useState<LayeringStackSuggestion | null>(null);
+  const [collectionQuery, setCollectionQuery] = useState("");
   const [deleting, setDeleting] = useState<SavedLayeringStack | null>(null);
   const requestVersion = useRef(0);
   const selectSurprise = useCallback((choice: import("@/types/api").DiscoveryResult | LayeringStackSuggestion) => {
@@ -109,6 +117,9 @@ export function LayeringLab({
   },[]);
   const reducedMotion = useReducedMotion();
   const selectedAnchor = owned.find((item) => item.id === anchor);
+  const visibleOwned = owned.filter((item) =>
+    `${item.name} ${item.brand.name}`.toLowerCase().includes(collectionQuery.trim().toLowerCase()),
+  );
   const currentEvaluation = evaluation && evaluation.mode === mode && (evaluation.goal ?? null) === goal && evaluation.items.map((item) => item.fragrance.id).join(":") === stackIds.join(":") ? evaluation : null;
   const composition = !pending ? stackIds.length ? currentEvaluation : intelligence.suggestions.find((stack) => stack.items[0]?.fragrance.id === anchor && stack.mode === mode && (stack.goal ?? null) === goal) : undefined;
   const compositionItems = composition?.items ?? (stackIds.length ? stackIds : [anchor]).flatMap((id, index) => {
@@ -142,18 +153,22 @@ export function LayeringLab({
       if (version === requestVersion.current) setIntelligence(next);
     });
   }
-  function updateStack(ids: string[]) {
-    setStackIds(ids);
+  function evaluateSelection(
+    ids: string[],
+    nextMode: StackMode = mode,
+    nextGoal: LayeringGoal | null = goal,
+  ) {
     setEvaluation(null);
     const version = ++requestVersion.current;
-    if (ids.length < 2) {
-      setEvaluation(null);
-      return;
-    }
+    if (ids.length < 2) return;
     run(async () => {
-      const result = await evaluateLayerStack(ids, mode, goal);
+      const result = await evaluateLayerStack(ids, nextMode, nextGoal);
       if (version === requestVersion.current) setEvaluation(result);
     });
+  }
+  function updateStack(ids: string[]) {
+    setStackIds(ids);
+    evaluateSelection(ids);
   }
   function edit(stack: LayeringStackSuggestion) {
     setStackIds(stack.items.map((item) => item.fragrance.id));
@@ -274,22 +289,22 @@ export function LayeringLab({
       <section className={styles.composition} aria-label="Fragrance composition" aria-busy={pending}>
         <div className={styles.compositionCopy}>
           <p className="eyebrow">The art of combining</p>
-          <h2>A scent that is<br />uniquely yours.</h2>
-          <p>{composition ? composition.reasons[0] ?? "Explore the recorded notes behind this combination." : stackIds.length ? "Your composition is ready to explore. Adjust the ingredients in the stack builder to evaluate the recorded evidence." : "Choose your anchor and discover a new dimension in the fragrances you already own."}</p>
+          <h2>{composition ? composition.verdict : <>A scent that is<br />uniquely yours.</>}</h2>
+          <p>{composition ? composition.explanation.why_they_fit[0] ?? "Explore the recorded notes behind this combination." : stackIds.length ? "Your composition is ready to explore. Adjust the ingredients in the stack builder to evaluate the recorded evidence." : "Choose your anchor and discover a new dimension in the fragrances you already own."}</p>
           <div className={styles.compositionStats}>
-            <div><strong>{composition ? percent(composition.score) : "—"}</strong><span>Stack score</span></div>
+            <div><strong>{composition ? scoreOutOf100(composition.score) : "—"}</strong><span>Blend guidance</span></div>
             <div><strong>{composition ? composition.total_sprays : "—"}</strong><span>Starting sprays</span></div>
-            <div><strong>{composition ? percent(composition.evidence_coverage) : "—"}</strong><span>Recorded evidence</span></div>
+            <div><strong>{composition ? composition.evidence_summary : "—"}</strong><span>Information confidence</span></div>
           </div>
           <Button disabled={pending} onClick={() => { if (composition) edit(composition); else { if (!stackIds.length) { setStackIds([anchor]); setEvaluation(null); } focusBuilder(); } }}><Sparkles size={16} />{composition ? "Refine this blend" : stackIds.length ? "Continue composing" : "Compose a blend"}</Button>
-          <p className="data-note">{pending ? "Comparing your fragrances…" : composition ? `${composition.evidence_label} · ${composition.items.length}-scent composition` : "Your collection is the palette."}</p>
+          <p className="data-note">{pending ? "Comparing your fragrances…" : composition ? `Guidance, not a guarantee · ${composition.items.length}-scent composition` : "Your collection is the palette."}</p>
         </div>
         <div className={styles.compositionStage}>
           <div className={styles.stageGlow} aria-hidden="true" />
           <svg className={styles.trails} viewBox="0 0 600 440" preserveAspectRatio="none" aria-hidden="true"><path d="M0 300 C140 40 360 440 600 100" /><path d="M0 200 C160 400 360 0 600 260" /><path d="M0 250 C190 0 390 480 600 180" /></svg>
           <div className={styles.stageBottles}>
             {compositionItems.map((item, index) => <motion.div key={item.fragrance.id} className={styles.stageBottle} initial={false} animate={reducedMotion ? undefined : { y: index % 2 ? -12 : 12 }} transition={{ type: "spring", stiffness: 120, damping: 22 }}>
-              <Badge>{item.role}</Badge>
+                  <Badge>{roleLabel(item.role)}</Badge>
               <div className={styles.bottleFloat}><CatalogImage id={item.fragrance.id} name={item.fragrance.name} brand={item.fragrance.brand.name} imageUrl={item.fragrance.image_url ?? null} className={styles.stageImage} /></div>
               <strong>{item.fragrance.name}</strong><span>{item.fragrance.brand.name}</span>
               {item.suggested_sprays != null && <small>{item.suggested_sprays} {item.suggested_sprays === 1 ? "spray" : "sprays"}</small>}
@@ -298,11 +313,31 @@ export function LayeringLab({
           <span className={styles.stageCaption}>ANCHOR · COMPLEMENT · EXPLORE</span>
         </div>
       </section>
+      {composition ? (
+        <section
+          key={`${stackKey(composition)}:${composition.mode}:${composition.goal ?? "balanced"}`}
+          className={styles.resultStory}
+          aria-label="Blend explanation"
+        >
+          <div><h2>Why they fit</h2>{composition.explanation.why_they_fit.map((line) => <p key={line}>{line}</p>)}</div>
+          <div><h2>What changes</h2>{composition.explanation.what_changes.map((line) => <p key={line}>{line}</p>)}</div>
+          <div><h2>Watch out for</h2>{composition.explanation.watch_out_for.map((line) => <p key={line}>{line}</p>)}</div>
+        </section>
+      ) : null}
       <Card>
         <CardContent>
           <h2 className="serif">Build around this scent</h2>
+          <label className={styles.searchLabel}>
+            Search your collection
+            <input
+              className="input"
+              type="search"
+              value={collectionQuery}
+              onChange={(event) => setCollectionQuery(event.target.value)}
+            />
+          </label>
           <div className={styles.picker} aria-label="Choose your anchor">
-            {owned.map((item) => (
+            {visibleOwned.map((item) => (
               <button
                 type="button"
                 key={item.id}
@@ -349,9 +384,8 @@ export function LayeringLab({
               disabled={pending}
               onClick={() => {
                 setGoal(null);
-                setStackIds([]);
-                setEvaluation(null);
-                suggest(anchor, mode, null);
+                if (stackIds.length >= 2) evaluateSelection(stackIds, mode, null);
+                else suggest(anchor, mode, null);
               }}
             >
               Keep it balanced
@@ -363,18 +397,16 @@ export function LayeringLab({
                 variant={goal === item ? "primary" : "secondary"}
                 onClick={() => {
                   setGoal(item);
-                  suggest(anchor, mode, item);
-                  if (stackIds.length >= 2) {
-                    setEvaluation(null);
-                    setStackIds([]);
-                  }
+                  if (stackIds.length >= 2) evaluateSelection(stackIds, mode, item);
+                  else suggest(anchor, mode, item);
                 }}
               >
                 {goals[item]}
               </Button>
             ))}
           </div>
-          <div className={styles.controls} aria-label="Layering style">
+          <h3>How adventurous?</h3>
+          <div className={styles.controls} aria-label="How adventurous">
             {modes.map((item) => (
               <Button
                 key={item}
@@ -382,9 +414,8 @@ export function LayeringLab({
                 disabled={pending}
                 onClick={() => {
                   setMode(item);
-                  setStackIds([]);
-                  setEvaluation(null);
-                  suggest(anchor, item, goal);
+                  if (stackIds.length >= 2) evaluateSelection(stackIds, item, goal);
+                  else suggest(anchor, item, goal);
                 }}
               >
                 {item}
@@ -424,16 +455,16 @@ export function LayeringLab({
                         imageUrl={item.fragrance.image_url ?? null}
                         className={styles.smallImage}
                       />
-                      <Badge>{item.role}</Badge>
+                      <Badge>{roleLabel(item.role)}</Badge>
                       <strong>{item.fragrance.name}</strong>
                     </div>
                   ))}
                 </div>
                 <p>
-                  <strong>{percent(stack.score)}</strong> stack score ·{" "}
+                  <strong>{stack.verdict}</strong> · {scoreOutOf100(stack.score)} ·{" "}
                   {stack.items.length === 3 ? "Three-scent stack" : "Pair"}
                 </p>
-                <p>{stack.reasons[0]}</p>
+                <p>{stack.explanation.why_they_fit[0]}</p>
                 <p>
                   {stack.total_sprays} sprays ·{" "}
                   {stack.items
@@ -444,8 +475,7 @@ export function LayeringLab({
                     .join(" + ")}
                 </p>
                 <p className="data-note">
-                  {percent(stack.evidence_coverage)} recorded evidence ·{" "}
-                  {stack.evidence_label}
+                  {stack.evidence_summary}
                 </p>
                 <div className={styles.controls}>
                   <Button variant="secondary" disabled={pending} onClick={() => edit(stack)}>
@@ -496,7 +526,7 @@ export function LayeringLab({
                     className={styles.smallImage}
                   />
                   <Badge>
-                    {index === 0 ? "anchor" : (scored?.role ?? "accent")}
+                    {roleLabel(index === 0 ? "anchor" : (scored?.role ?? "accent"))}
                   </Badge>
                   <strong>{item.name}</strong>
                   <div className={styles.controls}>
@@ -566,18 +596,16 @@ export function LayeringLab({
           {evaluation && stackIds.length >= 2 ? (
             <Card>
               <CardContent>
-                <h3>{percent(evaluation.score)} whole-stack score</h3>
+                <h3>{evaluation.verdict}</h3>
+                <p>{scoreOutOf100(evaluation.score)}</p>
                 <Progress
                   value={Math.round(evaluation.score * 100)}
                   label="Whole-stack score"
                 />
-                <h3>Why it works</h3>
-                <p>{evaluation.reasons[0]}</p>
-                <h3>What this adds</h3>
-                <p>
-                  {evaluation.complementary_signals.join(", ") ||
-                    "Closely related recorded profiles"}
-                </p>
+                <h3>Why they fit</h3>
+                {evaluation.explanation.why_they_fit.map((line) => <p key={line}>{line}</p>)}
+                <h3>What changes</h3>
+                {evaluation.explanation.what_changes.map((line) => <p key={line}>{line}</p>)}
                 <h3>How to apply it</h3>
                 <ol>
                   {[...evaluation.items]
@@ -587,7 +615,7 @@ export function LayeringLab({
                         <strong>{item.fragrance.name}</strong> ·{" "}
                         {item.suggested_sprays}{" "}
                         {item.suggested_sprays === 1 ? "spray" : "sprays"} ·{" "}
-                        {item.role}
+                        {roleLabel(item.role)}
                       </li>
                     ))}
                 </ol>
@@ -600,14 +628,8 @@ export function LayeringLab({
                   {evaluation.best_contexts.join(" · ") ||
                     "Not enough season/context evidence yet"}
                 </p>
-                <h3>Watch for</h3>
-                {evaluation.warnings.length ? (
-                  evaluation.warnings.map((warning) => (
-                    <p key={warning}>{warning}</p>
-                  ))
-                ) : (
-                  <p>No metadata-based overload warning.</p>
-                )}
+                <h3>Watch out for</h3>
+                {evaluation.explanation.watch_out_for.map((line) => <p key={line}>{line}</p>)}
                 <div className={styles.controls}>
                   <Button
                     variant="secondary"

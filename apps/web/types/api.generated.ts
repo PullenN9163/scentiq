@@ -1483,6 +1483,15 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** LayeringExplanation */
+        LayeringExplanation: {
+            /** Watch Out For */
+            watch_out_for: string[];
+            /** What Changes */
+            what_changes: string[];
+            /** Why They Fit */
+            why_they_fit: string[];
+        };
         /** LayeringIntelligencePage */
         LayeringIntelligencePage: {
             /** Saved */
@@ -1587,7 +1596,7 @@ export interface components {
             ai_reasons?: string[];
             /**
              * Algorithm Version
-             * @default layering-v2
+             * @default layering-v3
              */
             algorithm_version: string;
             /** Best Contexts */
@@ -1603,6 +1612,12 @@ export interface components {
              * @enum {string}
              */
             evidence_label: "limited" | "partial" | "strong";
+            /**
+             * Evidence Summary
+             * @enum {string}
+             */
+            evidence_summary: "Lots of information" | "Some information missing" | "Little information available";
+            explanation: components["schemas"]["LayeringExplanation"];
             /**
              * Generation Mode
              * @default baseline
@@ -1632,6 +1647,11 @@ export interface components {
             shared_notes: string[];
             /** Total Sprays */
             total_sprays: number;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "Strong fit" | "Promising blend" | "Bold experiment" | "Tricky balance" | "Needs a wear test";
             /** Warnings */
             warnings: string[];
         };

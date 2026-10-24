@@ -8,6 +8,7 @@ from uuid import UUID
 
 from scentiq_api.models.catalog import Fragrance
 from scentiq_api.schemas.layering import (
+    LayeringExplanation,
     LayeringGoal,
     LayeringMode,
     LayeringRole,
@@ -17,7 +18,7 @@ from scentiq_api.schemas.layering import (
 )
 from scentiq_api.services.fragrances import to_fragrance_summary
 
-LAYERING_ALGORITHM_VERSION = "layering-v2"
+LAYERING_ALGORITHM_VERSION = "layering-v3"
 PAIR_BASE_LIMIT = 8
 THIRD_CANDIDATE_LIMIT = 16
 AUTO_COLLECTION_LIMIT = 200
@@ -107,6 +108,8 @@ def score_stack(
     else:
         bridge = edges[0, 1]
     redundancy = max(edges.values())
+    bridge_score = min(1, bridge / 0.35)
+    redundancy_penalty = max(0, (redundancy - 0.70) / 0.30)
     contribution = mean(
         sum(weight for key, weight in profile.items() if key not in profiles[0])
         / (sum(profile.values()) or 1)
@@ -148,14 +151,14 @@ def score_stack(
     user_affinity = mean((affinity or {}).get(item.id, 0.5) for item in items)
     user_affinity = max(0, min(1, user_affinity + (history_affinity - 0.5) * 0.5))
     components = LayeringScoreComponents(
-        bridge=round(bridge, 4),
+        bridge=round(bridge_score, 4),
         complement=round(complement, 4),
         season_context=round(season_fit, 4),
         projection_balance=round(projection_balance, 4),
         longevity_balance=round(longevity_balance, 4),
         novelty=round(contribution, 4),
         user_affinity=round(user_affinity, 4),
-        redundancy_penalty=round(redundancy, 4),
+        redundancy_penalty=round(redundancy_penalty, 4),
         overload_penalty=round(overload, 4),
     )
     base = sum(
@@ -163,7 +166,7 @@ def score_stack(
         for weight, value in zip(
             MODE_WEIGHTS[mode],
             (
-                bridge,
+                bridge_score,
                 complement,
                 season_fit,
                 projection_balance,
@@ -199,7 +202,7 @@ def score_stack(
         goal_fit = projection_balance
     if goal_fit is not None:
         base = 0.70 * base + 0.30 * goal_fit
-    score = max(0, min(1, base - 0.18 * redundancy - 0.22 * overload))
+    score = max(0, min(1, base - 0.18 * redundancy_penalty - 0.22 * overload))
     coverage = mean(
         mean(
             (
@@ -215,7 +218,7 @@ def score_stack(
     warnings = []
     if coverage < 0.65:
         warnings.append("Limited evidence: some notes, seasons or performance signals are missing.")
-    if redundancy > 0.7:
+    if redundancy_penalty > 0:
         warnings.append(
             "High overlap may repeat the same profile instead of adding a distinct role."
         )
@@ -271,6 +274,38 @@ def score_stack(
         reasons.append(
             f"Goal {goal.replace('_', ' ')} uses supported profile and performance signals."
         )
+    evidence_label = "strong" if coverage >= 0.85 else "partial" if coverage >= 0.65 else "limited"
+    evidence_summary = (
+        "Lots of information"
+        if evidence_label == "strong"
+        else "Some information missing"
+        if evidence_label == "partial"
+        else "Little information available"
+    )
+    score_value = round(score, 4)
+    verdict = (
+        "Needs a wear test"
+        if evidence_label == "limited"
+        else "Strong fit"
+        if score_value >= 0.75
+        else "Promising blend"
+        if score_value >= 0.60
+        else "Bold experiment"
+        if score_value >= 0.40
+        else "Tricky balance"
+    )
+    names = [item.name for item in items]
+    why_they_fit = [
+        f"{names[0]} and {names[bridge_index]} connect through "
+        + (", ".join(bridge_signals[:3]) if bridge_signals else "a subtle recorded profile link")
+        + "."
+    ]
+    what_changes = [
+        f"{', '.join(names[1:])} adds "
+        + (", ".join(complementary[:3]) if complementary else "more of the same scent character")
+        + "."
+    ]
+    watch_out_for = warnings or ["No clear balance problems appear in the recorded information."]
     return LayeringStackSuggestion(
         items=[
             LayeringStackItem(
@@ -283,7 +318,7 @@ def score_stack(
         ],
         mode=mode,
         goal=goal,
-        score=round(score, 4),
+        score=score_value,
         score_components=components,
         shared_notes=shared_notes,
         shared_accords=shared_accords,
@@ -294,9 +329,12 @@ def score_stack(
         warnings=warnings,
         total_sprays=total,
         evidence_coverage=round(coverage, 4),
-        evidence_label="strong"
-        if coverage >= 0.85
-        else "partial"
-        if coverage >= 0.65
-        else "limited",
+        evidence_label=evidence_label,
+        verdict=verdict,
+        evidence_summary=evidence_summary,
+        explanation=LayeringExplanation(
+            why_they_fit=why_they_fit,
+            what_changes=what_changes,
+            watch_out_for=watch_out_for,
+        ),
     )

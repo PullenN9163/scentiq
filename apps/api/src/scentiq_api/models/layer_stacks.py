@@ -28,7 +28,7 @@ class LayerStack(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text)
     score_snapshot: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
     evidence_coverage: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0"))
-    algorithm_version: Mapped[str] = mapped_column(String(40), default="layering-v2")
+    algorithm_version: Mapped[str] = mapped_column(String(40), default="layering-v3")
     score_components: Mapped[dict[str, float]] = mapped_column(JSON, default=dict)
     items: Mapped[list[LayerStackItem]] = relationship(
         cascade="all, delete-orphan", order_by="LayerStackItem.position"

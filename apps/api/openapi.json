@@ -2084,6 +2084,38 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "LayeringExplanation": {
+        "properties": {
+          "watch_out_for": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Watch Out For",
+            "type": "array"
+          },
+          "what_changes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "What Changes",
+            "type": "array"
+          },
+          "why_they_fit": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Why They Fit",
+            "type": "array"
+          }
+        },
+        "required": [
+          "why_they_fit",
+          "what_changes",
+          "watch_out_for"
+        ],
+        "title": "LayeringExplanation",
+        "type": "object"
+      },
       "LayeringIntelligencePage": {
         "properties": {
           "saved": {
@@ -2445,7 +2477,7 @@
             "type": "array"
           },
           "algorithm_version": {
-            "default": "layering-v2",
+            "default": "layering-v3",
             "title": "Algorithm Version",
             "type": "string"
           },
@@ -2484,6 +2516,18 @@
             ],
             "title": "Evidence Label",
             "type": "string"
+          },
+          "evidence_summary": {
+            "enum": [
+              "Lots of information",
+              "Some information missing",
+              "Little information available"
+            ],
+            "title": "Evidence Summary",
+            "type": "string"
+          },
+          "explanation": {
+            "$ref": "#/components/schemas/LayeringExplanation"
           },
           "generation_mode": {
             "default": "baseline",
@@ -2590,6 +2634,17 @@
             "title": "Total Sprays",
             "type": "integer"
           },
+          "verdict": {
+            "enum": [
+              "Strong fit",
+              "Promising blend",
+              "Bold experiment",
+              "Tricky balance",
+              "Needs a wear test"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          },
           "warnings": {
             "items": {
               "type": "string"
@@ -2612,7 +2667,10 @@
           "warnings",
           "total_sprays",
           "evidence_coverage",
-          "evidence_label"
+          "evidence_label",
+          "verdict",
+          "evidence_summary",
+          "explanation"
         ],
         "title": "LayeringStackSuggestion",
         "type": "object"
