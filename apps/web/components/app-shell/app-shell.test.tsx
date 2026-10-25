@@ -20,6 +20,55 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 
 describe("AppShell", () => {
+  it("shares every destination across desktop tablet and phone navigation", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppShell>
+        <p>Page content</p>
+      </AppShell>,
+    );
+
+    const destinations = ["Today", "My Week", "Collection", "Layering Lab", "Discover", "Insights", "Agent", "Settings"];
+    const desktop = screen.getByRole("navigation", { name: "Primary navigation" });
+    const tablet = screen.getByRole("navigation", { name: "Tablet navigation" });
+    const phone = screen.getByRole("navigation", { name: "Mobile navigation" });
+
+    for (const destination of destinations) {
+      expect(within(desktop).getByRole("link", { name: destination })).toBeVisible();
+      expect(within(tablet).getByRole("link", { name: destination })).toBeVisible();
+    }
+
+    expect(within(phone).getByRole("link", { name: "Collection" })).toHaveAttribute("aria-current", "page");
+    expect(within(tablet).getByRole("link", { name: "Collection" })).toHaveAttribute("aria-current", "page");
+    expect(within(desktop).getByRole("link", { name: "Collection" })).toHaveAttribute("aria-current", "page");
+
+    await user.click(within(phone).getByRole("button", { name: "More destinations" }));
+    const phonePanel = screen.getByRole("dialog", { name: "More destinations" });
+    for (const destination of ["Layering Lab", "Insights", "Agent", "Settings"]) {
+      expect(within(phonePanel).getByRole("link", { name: destination })).toBeVisible();
+    }
+  });
+
+  it("opens and closes the tablet destination panel accessibly", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppShell>
+        <p>Page content</p>
+      </AppShell>,
+    );
+
+    const tablet = screen.getByRole("navigation", { name: "Tablet navigation" });
+    const menu = within(tablet).getByRole("button", { name: "Open navigation menu" });
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(menu);
+    expect(menu).toHaveAttribute("aria-expanded", "true");
+    const panel = screen.getByRole("navigation", { name: "Tablet destinations" });
+    await user.click(within(panel).getByRole("link", { name: "Settings" }));
+    expect(screen.queryByRole("navigation", { name: "Tablet destinations" })).not.toBeInTheDocument();
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("marks the active destination and exposes mobile secondary navigation", async () => {
     const user = userEvent.setup();
     render(
