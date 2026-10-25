@@ -8,7 +8,9 @@ const hasClerkTestIdentity = Boolean(
 
 const browserProject = {
   name: "chromium",
-  testIgnore: /(?:global\.setup\.ts|visual\.spec\.ts)/,
+  testIgnore: process.env.E2E_BASE_URL
+    ? /(?:global\.setup\.ts|visual\.spec\.ts|responsive\.spec\.ts)/
+    : /(?:global\.setup\.ts|visual\.spec\.ts)/,
   use: {
     ...devices["Desktop Chrome"],
     ...(hasClerkTestIdentity
@@ -23,7 +25,7 @@ export default defineConfig({
   fullyParallel: !process.env.E2E_BASE_URL,
   workers: process.env.E2E_BASE_URL ? 1 : undefined,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI && !process.env.E2E_BASE_URL ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: process.env.E2E_BASE_URL || "http://127.0.0.1:3000",
