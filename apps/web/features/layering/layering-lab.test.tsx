@@ -411,8 +411,9 @@ describe("LayeringLab intelligence", () => {
     render(<LayeringLab owned={[first,second]} initialIntelligence={{...page,supported_goals:[...page.supported_goals]}} initialStack={{...stack,goal:"fresher"}} />);
     await userEvent.click(screen.getByRole("button", {name:"Keep it balanced"}));
     expect(actions.evaluateLayerStack).toHaveBeenCalledWith([first.id, second.id], "balanced", null);
-    expect(await screen.findByRole("heading", {name:"Strong fit"})).toBeVisible();
-    expect(screen.getByRole("region", {name:"Stack builder"})).toBeVisible();
+    const stackBuilder = screen.getByRole("region", {name:"Stack builder"});
+    expect(await within(stackBuilder).findByRole("heading", {name:"Strong fit"})).toBeVisible();
+    expect(stackBuilder).toBeVisible();
   });
   it("does not let restored surprise options replace a blend the user is editing", async () => {
     surfaceActions.surfaceChoice
