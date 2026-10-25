@@ -39,7 +39,7 @@
   .recommendation-actions { gap: .4rem; }
   .recommendation-actions .button { flex: 1 1 auto; font-size: .8rem; padding-inline: .75rem; }
 }
-@media (max-width: 360px) {
+@media (max-width: 520px) {
   .recommendation-main, .recommendation-card:not(.recommendation-hero) .recommendation-main { grid-template-columns: 1fr; }
-  .recommendation-bottle, .recommendation-card:not(.recommendation-hero) .recommendation-bottle { height: 190px; }
+  .recommendation-bottle, .recommendation-card:not(.recommendation-hero) .recommendation-bottle { height: min(190px, 32dvh); }
 }

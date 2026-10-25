@@ -46,3 +46,57 @@ test.describe("adaptive shell", () => {
     });
   }
 });
+
+const primaryViewports = [
+  { name: "small phone", width: 320, height: 568 },
+  { name: "modern phone", width: 393, height: 852 },
+  { name: "tablet portrait", width: 834, height: 1194 },
+  { name: "tablet landscape", width: 1194, height: 834 },
+  { name: "200 percent reflow", width: 720, height: 900 },
+] as const;
+
+test.describe("primary screens", () => {
+  for (const viewport of primaryViewports) {
+    test(`primary screens reflow at ${viewport.name}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+
+      await page.goto("/?view=today&theme=light&long=1");
+      await expectNoDocumentOverflow(page);
+      const recommendation = page.locator(".recommendation-main");
+      const recommendationLayout = await recommendation.evaluate((element) => {
+        const children = Array.from(element.children) as HTMLElement[];
+        const columns = getComputedStyle(element).gridTemplateColumns.split(" ").filter(Boolean).length;
+        return { columns, total: element.clientWidth, copy: children[1]?.clientWidth ?? 0 };
+      });
+      if (viewport.width <= 430) expect(recommendationLayout.columns).toBe(1);
+      else expect(recommendationLayout.columns === 1 || recommendationLayout.copy >= recommendationLayout.total * .55).toBe(true);
+
+      await page.goto("/?view=week&theme=light&long=1");
+      await expectNoDocumentOverflow(page);
+      const firstDay = page.getByTestId("week-day").first();
+      const dayHeading = await firstDay.getByRole("heading").first().boundingBox();
+      const dayRecommendation = await firstDay.getByTestId("recommendation-card").boundingBox();
+      expect(dayHeading && dayRecommendation && dayRecommendation.y >= dayHeading.y + dayHeading.height).toBe(true);
+      const stickyTop = await page.locator(".week-day-nav").evaluate((element) => Number.parseFloat(getComputedStyle(element).top));
+      if (viewport.width > 700) expect(stickyTop).toBe(16);
+      else expect(stickyTop).toBeGreaterThan(64);
+
+      await page.goto("/?view=collection&theme=light&long=1");
+      await expectNoDocumentOverflow(page);
+      await expect(page.getByRole("button", { name: "Filters and sort" })).toBeVisible();
+      if (viewport.width <= 430) {
+        const tools = await page.locator(".collection-tools").boundingBox();
+        const search = await page.getByRole("searchbox", { name: "Search collection" }).locator("..").boundingBox();
+        expect(tools && search && search.width >= tools.width - 2).toBe(true);
+      }
+
+      await page.goto("/?view=detail&theme=light&long=1");
+      await expectNoDocumentOverflow(page);
+      if (viewport.width <= 430) {
+        const art = await page.locator(".detail-art").boundingBox();
+        expect(art?.height).toBeLessThanOrEqual(viewport.height * .55);
+      }
+      await expect(page.getByRole("link", { name: "Layer it" })).toBeVisible();
+    });
+  }
+});
