@@ -127,6 +127,13 @@ test.describe("Layering Studio responsive canvas", () => {
         const labelBox = await bottle.locator(":scope > strong").boundingBox();
         const actions = canvas.getByRole("region", { name: /^Actions for/ });
         await expect(actions).toBeVisible();
+        await expect.poll(async () => {
+          const settledCanvas = await canvas.boundingBox();
+          const settledActions = await actions.boundingBox();
+          return Boolean(settledCanvas && settledActions
+            && settledActions.y >= settledCanvas.y
+            && settledActions.y + settledActions.height <= settledCanvas.y + settledCanvas.height);
+        }).toBe(true);
         const actionsBox = await actions.boundingBox();
         expect(
           canvasBox && actionsBox && actionsBox.x >= canvasBox.x && actionsBox.x + actionsBox.width <= canvasBox.x + canvasBox.width,
@@ -217,4 +224,58 @@ test.describe("secondary screens", () => {
       expect(textareaBox?.height).toBeGreaterThanOrEqual(44);
     });
   }
+});
+
+const completeMatrix = [
+  { name: "compact iPhone", width: 320, height: 568 },
+  { name: "classic iPhone", width: 375, height: 667 },
+  { name: "large iPhone", width: 430, height: 932 },
+  { name: "iPad mini portrait", width: 768, height: 1024 },
+  { name: "iPad portrait", width: 820, height: 1180 },
+  { name: "iPad landscape", width: 1024, height: 768 },
+  { name: "desktop boundary", width: 1280, height: 800 },
+  { name: "200 percent reflow", width: 720, height: 900 },
+] as const;
+
+const authenticatedRoutes = ["today", "week", "collection", "detail", "discover", "insights", "layering", "agent", "settings"] as const;
+
+test.describe("complete Apple device matrix", () => {
+  for (const [index, viewport] of completeMatrix.entries()) {
+    test(`every route remains usable at ${viewport.name}`, async ({ page }) => {
+      test.setTimeout(60_000);
+      await page.setViewportSize(viewport);
+      const theme = index % 2 ? "light" : "dark";
+      for (const view of authenticatedRoutes) {
+        await page.goto(`/?view=${view}&theme=${theme}&long=1`);
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expectNoDocumentOverflow(page);
+      }
+    });
+  }
+
+  test("tablet panel and phone More sheet work from the keyboard", async ({ page }) => {
+    await page.setViewportSize({ width: 834, height: 1194 });
+    await page.goto("/?view=today&theme=dark");
+    const tabletMenu = page.getByRole("button", { name: "Open navigation menu" });
+    await tabletMenu.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("navigation", { name: "Tablet destinations" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("navigation", { name: "Tablet destinations" })).toBeHidden();
+
+    await page.setViewportSize({ width: 393, height: 852 });
+    const more = page.getByRole("button", { name: "More destinations" });
+    await more.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog", { name: "More destinations" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "More destinations" })).toBeHidden();
+  });
+
+  test("Layering Studio honors reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto("/?view=layering&theme=dark&long=1");
+    await expect(page.getByRole("region", { name: "Interactive blend canvas" })).toHaveAttribute("data-motion", "reduced");
+  });
 });

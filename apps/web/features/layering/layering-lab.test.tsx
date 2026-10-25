@@ -232,9 +232,11 @@ describe("LayeringLab intelligence", () => {
 
     await userEvent.click(screen.getByRole("button", {name:`Select ${second.name} on canvas`}));
     const tray = screen.getByRole("region", {name:`Actions for ${second.name}`});
-    expect(within(tray).getByRole("button", {name:`Move ${second.name} earlier`})).toBeVisible();
-    expect(within(tray).getByRole("button", {name:`Replace ${second.name}`})).toBeVisible();
-    expect(within(tray).getByRole("button", {name:`Remove ${second.name}`})).toBeVisible();
+    await waitFor(() => {
+      expect(within(tray).getByRole("button", {name:`Move ${second.name} earlier`})).toBeVisible();
+      expect(within(tray).getByRole("button", {name:`Replace ${second.name}`})).toBeVisible();
+      expect(within(tray).getByRole("button", {name:`Remove ${second.name}`})).toBeVisible();
+    });
     expect(screen.getByRole("button", {name:"Add fragrance to position 3"})).toBeVisible();
   });
 
