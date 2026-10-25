@@ -303,14 +303,15 @@ def test_wear_tool_shortlist_preserves_saved_alternative_and_seven_daily_context
     for index in range(6):
         scent = make_fragrance(session, brand=brand, name=f"Decision scent {index}")
         make_collection_item(session, user=user, fragrance=scent)
-    now = datetime.now(UTC)
+    event_day = datetime.now(UTC) + timedelta(days=1)
     for hour, occasion in ((10, "work"), (18, "dinner"), (20, "party")):
+        starts_at = event_day.replace(hour=hour, minute=0, second=0, microsecond=0)
         session.add(
             CalendarEvent(
                 user_id=user.id,
                 title="Private title",
-                starts_at=now.replace(hour=hour),
-                ends_at=now.replace(hour=hour) + timedelta(hours=1),
+                starts_at=starts_at,
+                ends_at=starts_at + timedelta(hours=1),
                 event_type=occasion,
                 is_hidden=False,
                 setting="indoor",
