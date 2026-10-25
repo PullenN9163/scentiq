@@ -164,3 +164,57 @@ test.describe("Layering Studio responsive canvas", () => {
     }
   });
 });
+
+const secondaryViewports = [
+  { name: "iPhone", width: 393, height: 852 },
+  { name: "iPad portrait", width: 834, height: 1194 },
+  { name: "iPad landscape", width: 1194, height: 834 },
+  { name: "200 percent reflow", width: 720, height: 900 },
+] as const;
+
+async function expectWithinViewportWidth(page: Page, locator: ReturnType<Page["locator"]>) {
+  const box = await locator.boundingBox();
+  expect(box && box.x >= -1 && box.x + box.width <= page.viewportSize()!.width + 1).toBe(true);
+}
+
+test.describe("secondary screens", () => {
+  for (const viewport of secondaryViewports) {
+    test(`secondary screens adapt at ${viewport.name}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+
+      await page.goto("/?view=discover&theme=dark&long=1");
+      await expectNoDocumentOverflow(page);
+      await expectWithinViewportWidth(page, page.locator(".discovery-toolbar"));
+      await expectWithinViewportWidth(page, page.locator(".discovery-featured"));
+      const directionColumns = await page.locator(".discovery-directions").evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").filter(Boolean).length);
+      expect(directionColumns).toBe(viewport.width <= 430 ? 1 : 2);
+
+      await page.goto("/?view=insights&theme=dark&long=1");
+      await expectNoDocumentOverflow(page);
+      await expect(page.locator(".fingerprint__visual")).toBeVisible();
+      await expect(page.locator(".fingerprint__legend")).toBeVisible();
+      await expectWithinViewportWidth(page, page.locator(".fingerprint__visual"));
+      await expectWithinViewportWidth(page, page.locator(".fingerprint__legend"));
+      await expect(page.locator(".note-bars > div").first()).toBeVisible();
+
+      await page.goto("/?view=settings&theme=dark&long=1");
+      await expectNoDocumentOverflow(page);
+      const settingsColumns = await page.locator(".settings-grid").evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").filter(Boolean).length);
+      expect(settingsColumns).toBe(viewport.width <= 430 ? 1 : 2);
+
+      await page.goto("/?view=agent&theme=dark&long=1");
+      await page.setViewportSize({ width: viewport.width, height: 500 });
+      await expectNoDocumentOverflow(page);
+      const composer = page.locator(".agent-composer");
+      await expect(composer).toBeVisible();
+      const composerBox = await composer.boundingBox();
+      const mobileNavigationBox = viewport.width <= 700
+        ? await page.getByRole("navigation", { name: "Mobile navigation" }).boundingBox()
+        : null;
+      const visibleBottom = mobileNavigationBox?.y ?? 500;
+      expect(composerBox && composerBox.y >= 0 && composerBox.y + composerBox.height <= visibleBottom + 1).toBe(true);
+      const textareaBox = await composer.getByRole("textbox", { name: "Ask your fragrance advisor" }).boundingBox();
+      expect(textareaBox?.height).toBeGreaterThanOrEqual(44);
+    });
+  }
+});

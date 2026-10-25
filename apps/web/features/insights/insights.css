@@ -1,4 +1,4 @@
-.insight-metrics { gap: 12px; }
+.insight-metrics { grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr)); gap: 12px; }
 .insight-metrics .card { background: color-mix(in srgb, var(--surface) 85%, transparent); border-radius: 20px; }
 .insight-metrics .card__content { padding: 24px 20px; }
 .insight-metrics strong { letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
@@ -36,10 +36,12 @@
 .insights-experience .note-bars > div { padding: 14px 0; border-bottom: 1px solid var(--border); }
 .insights-experience .note-bars > div:last-child { border: 0; }
 .insights-experience .insight-coverage { background: linear-gradient(130deg, var(--surface), color-mix(in srgb, var(--surface) 90%, #98b3ed)); }
+.insight-coverage .coverage-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr)); }
 .insight-coverage .coverage-grid > div { border-radius: 18px; padding: 22px; background: var(--surface-elevated); border: 1px solid var(--border); }
 .insights-experience .insight-notes .card__content { height: 100%; }
 @keyframes fingerprint-breathe { from { transform: scale(.9); opacity: .7; } to { transform: scale(1.25); opacity: 1; } }
-@media (max-width: 1200px) { .insights-experience .insight-stage { grid-template-columns: 1fr; } }
-@media (max-width: 560px) { .fingerprint { grid-template-columns: 1fr; } .fingerprint__visual { width: min(100%, 330px); margin: auto; } .fingerprint__legend { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fingerprint__legend .data-note { grid-column: 1 / -1; } .fingerprint__choice { gap: 6px; padding: 10px; } }
+@media (max-width: 1023px) { .insights-experience .insight-stage { grid-template-columns: 1fr; } }
+@media (max-width: 860px) { .fingerprint { grid-template-columns: 1fr; } .fingerprint__visual { width: min(100%, 330px); margin: auto; } .fingerprint__legend { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fingerprint__legend .data-note { grid-column: 1 / -1; } .fingerprint__choice { gap: 6px; padding: 10px; } }
+@media (max-width: 430px) { .fingerprint__legend { grid-template-columns:1fr; } .fingerprint__legend .data-note { grid-column:auto; } .insights-experience .note-bars > div { grid-template-columns:minmax(4.5rem,.8fr) minmax(0,1fr) 1.5rem; } }
 
 .fingerprint__rings circle { transition: opacity .3s ease, stroke-width .3s ease; }

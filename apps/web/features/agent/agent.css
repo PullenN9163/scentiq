@@ -1,5 +1,8 @@
-.agent-page { max-width: 1040px; margin-inline: auto; }
-.agent-page .conversation { background: var(--surface); overflow-wrap: anywhere; }
+.agent-page { display:flex; height:var(--usable-viewport-height); min-height:0; max-width: 1040px; flex-direction:column; margin-inline: auto; }
+.agent-page > .page-header { flex:0 0 auto; }
+.agent-page > .muted { flex:0 0 auto; }
+.agent-page .agent-shell { display:grid; min-height:0; flex:1 1 auto; grid-template-rows:minmax(0,1fr) auto auto; }
+.agent-page .conversation { min-height:0; max-height:none; background: var(--surface); overflow-wrap: anywhere; }
 .agent-user-message { max-width: 85%; width: fit-content; margin: 0 0 1.5rem auto; padding: .85rem 1.1rem; border-radius: 1rem; background: var(--background); border: 1px solid var(--border); white-space: pre-wrap; }
 .agent-page .agent-bubble { max-width: 100%; margin-bottom: 1.5rem; }
 .agent-answer-text { white-space: pre-wrap; }
@@ -20,4 +23,5 @@
 .agent-metrics dd { margin: 0; font-size: 1.2rem; }
 .agent-result a { display: inline-flex; min-height: 44px; align-items: center; }
 .agent-result ul { padding-left: 1.2rem; }
-@media (max-width: 600px) { .agent-page .conversation { min-height: 18rem; max-height: 55dvh; } .agent-user-message { max-width: 95%; } }
+@media (max-width: 700px) { .agent-page { padding-bottom:max(.75rem,env(safe-area-inset-bottom)); } .agent-page .conversation { min-height:0; max-height:none; } .agent-user-message { max-width: 95%; } .agent-composer textarea { min-height:3rem; } }
+@media (max-height: 620px) { .agent-page { padding-top:.75rem; padding-bottom:.75rem; } .agent-page .page-header { margin-bottom:.5rem; } .agent-page .page-header .eyebrow,.agent-page .page-header p:not(.eyebrow),.agent-page > .muted { display:none; } .agent-page .page-header h1 { margin:0; font-size:clamp(1.5rem,5vw,2rem); } .agent-page .quick-prompts { flex-wrap:nowrap; padding:.5rem; overflow-x:auto; } .agent-composer { padding:.625rem; padding-bottom:max(.625rem,env(safe-area-inset-bottom)); } .agent-composer small { display:none; } .agent-composer textarea { min-height:2.75rem; height:2.75rem; } }

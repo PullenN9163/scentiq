@@ -81,7 +81,7 @@ export function SettingsView({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="settings-preferences">
           <CardContent>
             <div className="settings-title">
               <SlidersHorizontal size={19} />
