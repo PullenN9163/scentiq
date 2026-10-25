@@ -5,7 +5,7 @@ import { Menu, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { CommandMenu } from "./command-menu";
 
@@ -31,6 +31,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { user } = useUser();
   const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const phoneShell = window.matchMedia("(max-width: 700px), (max-width: 932px) and (max-height: 599px)");
+    const closeWhenLeavingPhone = (event: MediaQueryListEvent) => {
+      if (!event.matches) setMoreOpen(false);
+    };
+    phoneShell.addEventListener("change", closeWhenLeavingPhone);
+    return () => phoneShell.removeEventListener("change", closeWhenLeavingPhone);
+  }, []);
   // Clerk is the source of truth for who is signed in.
   const displayName = user?.fullName ?? user?.username ?? "Your account";
   return (

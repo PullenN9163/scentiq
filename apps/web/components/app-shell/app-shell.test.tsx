@@ -63,10 +63,12 @@ describe("AppShell", () => {
 
     await user.click(menu);
     expect(menu).toHaveAttribute("aria-expanded", "true");
+    expect(menu).toHaveAccessibleName("Close navigation menu");
     const panel = screen.getByRole("navigation", { name: "Tablet destinations" });
     await user.click(within(panel).getByRole("link", { name: "Settings" }));
     expect(screen.queryByRole("navigation", { name: "Tablet destinations" })).not.toBeInTheDocument();
     expect(menu).toHaveAttribute("aria-expanded", "false");
+    expect(menu).toHaveAccessibleName("Open navigation menu");
   });
 
   it("marks the active destination and exposes mobile secondary navigation", async () => {

@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const shellCases = [
   { name: "phone", width: 393, height: 852, visible: "Mobile navigation" },
+  { name: "phone landscape", width: 852, height: 393, visible: "Mobile navigation" },
   { name: "tablet portrait", width: 834, height: 1194, visible: "Tablet navigation" },
   { name: "tablet landscape", width: 1194, height: 834, visible: "Tablet navigation" },
   { name: "desktop", width: 1440, height: 1000, visible: "Primary navigation" },
@@ -45,6 +46,28 @@ test.describe("adaptive shell", () => {
       expect(footerBox && footerBox.y + footerBox.height <= visibleBottom + 1).toBe(true);
     });
   }
+
+  test("rotation closes the phone More sheet before the tablet shell takes over", async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto("/?view=today&theme=dark");
+    await page.getByRole("button", { name: "More destinations" }).click();
+    await expect(page.getByRole("dialog", { name: "More destinations" })).toBeVisible();
+
+    await page.setViewportSize({ width: 834, height: 1194 });
+    await expect(page.getByRole("dialog", { name: "More destinations" })).toBeHidden();
+    const menu = page.getByRole("button", { name: "Open navigation menu" });
+    await menu.click();
+    await expect(page.getByRole("navigation", { name: "Tablet destinations" })).toBeVisible();
+  });
+
+  test("short tablet rail keeps its final controls reachable", async ({ page }) => {
+    await page.setViewportSize({ width: 1194, height: 500 });
+    await page.goto("/?view=today&theme=dark");
+    const account = page.getByRole("navigation", { name: "Tablet navigation" }).locator("[aria-label$='account']");
+    await account.scrollIntoViewIfNeeded();
+    const box = await account.boundingBox();
+    expect(box && box.y >= 0 && box.y + box.height <= 500).toBe(true);
+  });
 });
 
 const primaryViewports = [

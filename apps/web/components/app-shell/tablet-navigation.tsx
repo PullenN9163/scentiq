@@ -42,7 +42,7 @@ export function TabletNavigation({ pathname, displayName, email }: TabletNavigat
         <button
           type="button"
           className="tablet-nav__button"
-          aria-label="Open navigation menu"
+          aria-label={open ? "Close navigation menu" : "Open navigation menu"}
           aria-expanded={open}
           aria-controls="tablet-destinations"
           onClick={() => setOpen((value) => !value)}
