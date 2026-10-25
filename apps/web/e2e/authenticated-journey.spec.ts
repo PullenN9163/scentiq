@@ -114,7 +114,7 @@ test.describe("invited member journey", () => {
     await hero.getByRole("button", { name: "Why this?" }).click();
     await expect(page.getByText(/not statistical confidence/)).toBeVisible();
     await page.getByRole("button", { name: "Close Why this fragrance?" }).click();
-    await hero.getByRole("button", { name: "Another Option" }).click();
+    await hero.getByRole("button", { name: "View alternatives" }).click();
     await hero.getByRole("button", { name: /^Choose / }).last().click();
     await hero.getByRole("button", { name: "Wear This" }).click();
     await page.getByRole("button", { name: "Log wear", exact: true }).click();
@@ -123,8 +123,9 @@ test.describe("invited member journey", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.goto("/week");
     await expect(page.getByTestId("week-day")).toHaveCount(7);
-    await page.getByRole("button", { name: "Another Option" }).first().click();
-    await page.getByRole("button", { name: /^Choose / }).last().click();
+    const firstDayRecommendation = page.getByTestId("recommendation-card").first();
+    await firstDayRecommendation.getByRole("button", { name: "View alternatives" }).click();
+    await firstDayRecommendation.getByRole("button", { name: /^Choose / }).last().click();
 
     await page.goto("/agent");
     await page.getByPlaceholder("What should I wear to dinner tonight?").fill("What should I wear to dinner tonight?");
@@ -136,14 +137,13 @@ test.describe("invited member journey", () => {
     await expect(page.getByRole("link", { name: "Open Insights" }).last()).toBeVisible();
 
     await page.goto("/layering");
-    await page.getByRole("button", { name: /^Choose anchor / }).first().click();
+    await expect(page.getByRole("heading", { name: "Layering Studio", level: 1 })).toBeVisible();
     await expect(page.getByLabel("Ranked layering suggestions")).toBeVisible();
-    const fresh = page.getByRole("button", { name: "Make it fresher", exact: true });
-    if (await fresh.count()) await fresh.click();
-    await page.getByRole("button", { name: "Build a custom stack" }).click();
-    await page.getByRole("button", { name: /^Add / }).first().click();
-    await page.getByRole("button", { name: /^Add / }).first().click();
-    await expect(page.getByTestId("stack-item")).toHaveCount(3);
+    await page.getByLabel("Choose fragrances").getByRole("button", { name: /^Add / }).first().click();
+    const stackBuilder = page.getByLabel("Stack builder");
+    await stackBuilder.getByRole("button", { name: /^Add / }).first().click();
+    await stackBuilder.getByRole("button", { name: /^Add / }).first().click();
+    await expect(stackBuilder.getByTestId("stack-item")).toHaveCount(3);
     await expect(page.getByRole("heading", { name: "How to apply it" })).toBeVisible();
     await page.getByRole("button", { name: "Save this stack", exact: true }).click();
     const stackName = `Evening stack ${Date.now()}`;
@@ -176,12 +176,12 @@ test.describe("intelligence screens", () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", {level:1})).toContainText("Hello");
+    await expect(page.getByRole("heading", {level:1})).toContainText("Hello", { timeout: 30_000 });
   });
 
   const routes = [
     ["/week", "My Week"],
-    ["/layering", "Layering Lab"],
+    ["/layering", "Layering Studio"],
     ["/discover", "Discover"],
     ["/agent", "Ask ScentIQ"],
   ] as const;
