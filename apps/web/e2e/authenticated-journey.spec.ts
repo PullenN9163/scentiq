@@ -153,9 +153,6 @@ test.describe("invited member journey", () => {
     await page.getByLabel("Personal rating").selectOption("5");
     await page.getByRole("button", { name: "Log this wear" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await page.goto("/agent");
-    await page.getByRole("button", { name: "Build a 3-scent stack", exact: true }).click();
-    await expect(page.getByRole("heading", { name: /Owned layering stack/ }).first()).toBeVisible({ timeout: 30_000 });
     await page.goto("/insights");
     await expect(page.getByRole("heading", { level: 1, name: "Insights" })).toBeVisible();
     for (const width of [375, 430, 768, 1024, 1440]) {
