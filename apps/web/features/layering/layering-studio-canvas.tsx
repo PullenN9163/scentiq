@@ -62,6 +62,7 @@ export function LayeringStudioCanvas({
       </svg>
       <motion.div
         className={styles.scoreOrb}
+        data-testid="score-orb"
         layout={!reducedMotion}
         animate={pending && !reducedMotion ? { scale: [1, 1.035, 1] } : { scale: 1 }}
         transition={pending && !reducedMotion

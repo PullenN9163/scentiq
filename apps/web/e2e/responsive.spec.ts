@@ -100,3 +100,67 @@ test.describe("primary screens", () => {
     });
   }
 });
+
+const layeringViewports = [
+  { name: "iPhone", width: 393, height: 852 },
+  { name: "iPad portrait", width: 834, height: 1194 },
+  { name: "iPad landscape", width: 1194, height: 834 },
+] as const;
+
+function boxesIntersect(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+test.describe("Layering Studio responsive canvas", () => {
+  for (const viewport of layeringViewports) {
+    test(`Layering Studio controls stay untangled on ${viewport.name}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.goto("/?view=layering&theme=dark&long=1");
+      await expectNoDocumentOverflow(page);
+
+      const canvas = page.getByRole("region", { name: "Interactive blend canvas" });
+      const canvasBox = await canvas.boundingBox();
+      const scoreBox = await page.getByTestId("score-orb").boundingBox();
+      const bottles = canvas.getByTestId("canvas-bottle");
+      for (const bottle of await bottles.all()) {
+        await bottle.click();
+        const labelBox = await bottle.locator(":scope > strong").boundingBox();
+        const actions = canvas.getByRole("region", { name: /^Actions for/ });
+        await expect(actions).toBeVisible();
+        const actionsBox = await actions.boundingBox();
+        expect(
+          canvasBox && actionsBox && actionsBox.x >= canvasBox.x && actionsBox.x + actionsBox.width <= canvasBox.x + canvasBox.width,
+          JSON.stringify({ canvasBox, actionsBox }),
+        ).toBe(true);
+        expect(canvasBox && actionsBox && actionsBox.y >= canvasBox.y && actionsBox.y + actionsBox.height <= canvasBox.y + canvasBox.height).toBe(true);
+        expect(labelBox && scoreBox && boxesIntersect(labelBox, scoreBox)).toBe(false);
+        expect(labelBox && actionsBox && boxesIntersect(labelBox, actionsBox)).toBe(false);
+        for (const action of await actions.getByRole("button").all()) {
+          const actionBox = await action.boundingBox();
+          expect(actionBox?.height).toBeGreaterThanOrEqual(44);
+        }
+      }
+    });
+  }
+
+  test("Layering Studio keeps its active composition across responsive tiers", async ({ page }) => {
+    await page.setViewportSize({ width: 834, height: 1194 });
+    await page.goto("/?view=layering&theme=dark&long=1");
+    const canvas = page.getByRole("region", { name: "Interactive blend canvas" });
+    const firstBottle = canvas.getByTestId("canvas-bottle").first();
+    await firstBottle.click();
+    const names = await canvas.getByTestId("canvas-bottle").allTextContents();
+    const score = await page.getByRole("region", { name: "ScentIQ read" }).textContent();
+    const sessions = await page.getByRole("region", { name: "Session blends" }).getByRole("button").count();
+
+    for (const viewport of [{ width: 1194, height: 834 }, { width: 393, height: 852 }]) {
+      await page.setViewportSize(viewport);
+      await expect(canvas.getByTestId("canvas-bottle")).toHaveCount(names.length);
+      expect(await canvas.getByTestId("canvas-bottle").allTextContents()).toEqual(names);
+      await expect(firstBottle).toHaveAttribute("aria-pressed", "true");
+      expect(await page.getByRole("region", { name: "ScentIQ read" }).textContent()).toBe(score);
+      await expect(page.getByRole("region", { name: "Session blends" }).getByRole("button")).toHaveCount(sessions);
+      await expectNoDocumentOverflow(page);
+    }
+  });
+});
