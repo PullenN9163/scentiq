@@ -20,6 +20,11 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 
 describe("AppShell", () => {
+  it("exposes the premium styling rollback state on the shell", () => {
+    const { container } = render(<AppShell premiumUI={false}><p>Page content</p></AppShell>);
+    expect(container.querySelector(".app-frame")).toHaveAttribute("data-premium-ui", "false");
+  });
+
   it("shares every destination across desktop tablet and phone navigation", async () => {
     const user = userEvent.setup();
     render(

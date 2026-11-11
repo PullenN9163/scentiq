@@ -27,7 +27,7 @@ function NavLink({ href, label, icon: Icon, pathname, compact = false, onNavigat
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, premiumUI = true }: { children: ReactNode; premiumUI?: boolean }) {
   const pathname = usePathname();
   const { user } = useUser();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -44,7 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const displayName = user?.fullName ?? user?.username ?? "Your account";
   return (
     <Dialog open={moreOpen} onOpenChange={setMoreOpen}>
-    <div className="app-frame">
+    <div className="app-frame" data-premium-ui={premiumUI ? "true" : "false"}>
       <a className="skip-link" href="#main-content">Skip to content</a>
       <aside className="sidebar">
         <Link href="/" className="brand"><span className="brand__mark">S</span><span>ScentIQ</span></Link>

@@ -121,7 +121,7 @@ class Settings(BaseSettings):
         default=None, validation_alias="AZURE_OPENAI_API_KEY"
     )
     ai_monthly_budget_usd: float = Field(
-        default=25, ge=0, le=25, validation_alias="AI_MONTHLY_BUDGET_USD"
+        default=5, ge=0, le=5, validation_alias="AI_MONTHLY_BUDGET_USD"
     )
     ai_input_usd_per_million: float = Field(
         default=5, ge=5, validation_alias="AI_INPUT_USD_PER_MILLION"

@@ -233,12 +233,14 @@ def test_snapshot_version_and_age_mismatch_trigger_refresh(session: Session) -> 
         catalog_version="catalog-a",
     )
     assert snapshot is not None
-    snapshot.created_at = now - timedelta(hours=7)
+    snapshot.created_at = now - timedelta(hours=24)
 
     response = _recommendations(session, clock=lambda: now).get(user.id)
 
     assert response.is_stale is True
     assert response.refresh_status == "pending"
+    assert response.generated_at == snapshot.created_at
+    # An offline worker leaves the refresh queued while reads serve the saved snapshot.
     assert job.status == "pending"
 
 

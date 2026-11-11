@@ -19,6 +19,14 @@ def test_budget_atomic_cap_and_settlement(session: Session) -> None:
     assert reserve_budget(session.get_bind(), settings, 15000) is not None
 
 
+def test_monthly_budget_defaults_to_five_and_rejects_higher_ceiling() -> None:
+    from pydantic import ValidationError
+
+    assert Settings().ai_monthly_budget_usd == 5
+    with pytest.raises(ValidationError):
+        Settings(AI_MONTHLY_BUDGET_USD=5.01)
+
+
 def test_ranking_rejects_invented_ids_and_evidence() -> None:
     from scentiq_api.services.ai_ranking import validate_ranking
 

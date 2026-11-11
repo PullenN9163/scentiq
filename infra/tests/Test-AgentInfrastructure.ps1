@@ -30,10 +30,13 @@ foreach ($surface in @('TODAY', 'WEEK', 'DISCOVERY', 'LAYERING', 'ADVISOR', 'SHA
     Require (@($apiEnvironment | Where-Object name -eq "AI_RANKING_${surface}_ENABLED").Count -eq 1) "API must receive the $surface inference flag."
 }
 Require (@($apiEnvironment | Where-Object name -eq 'AI_MONTHLY_BUDGET_USD').Count -eq 1) 'API must receive the shared inference allowance.'
-Require ($template.parameters.aiMonthlyBudgetUsd.maxValue -eq 25) 'Monthly inference allowance must not exceed the approved $25 ceiling.'
+Require ($template.parameters.aiMonthlyBudgetUsd.maxValue -eq 5 -and $template.parameters.aiMonthlyBudgetUsd.defaultValue -eq 5) 'Monthly inference allowance must default to and remain below the $5 ceiling.'
 
 $webConfiguration = $web.properties.parameters | ConvertTo-Json -Depth 100
 Require ($webConfiguration -notmatch 'AZURE_OPENAI|AGENT_|AI_RANKING|AI_MONTHLY|foundry') 'Provider configuration must stay out of the web workload.'
+$webEnvironment = @($web.properties.parameters.environmentVariables.value)
+Require (@($webEnvironment | Where-Object name -eq 'SCENTIQ_FAST_DISCOVERY_ENABLED').Count -eq 1) 'Web workload must receive the server-side discovery rollback flag.'
+Require (@($webEnvironment | Where-Object name -eq 'SCENTIQ_PREMIUM_UI_ENABLED').Count -eq 1) 'Web workload must receive the server-side premium UI rollback flag.'
 Require (($template | ConvertTo-Json -Depth 100) -notmatch 'AZURE_OPENAI_API_KEY') 'Azure inference must use managed identity, without an API key secret.'
 $inferenceAlerts = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/scheduledQueryRules' -and $_.name -match 'scentiq-inference' })
 Require ($inferenceAlerts.Count -eq 1 -and $inferenceAlerts[0].copy.count -match 'inferenceSignals') 'Inference must monitor fallback, latency, allowance, and planned repeats.'

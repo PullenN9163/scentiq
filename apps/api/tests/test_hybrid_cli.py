@@ -17,6 +17,7 @@ def test_hybrid_cli_exposes_operational_commands() -> None:
     worker = parser.parse_args(["worker", "--once", "--algorithm-version", "1"])
     assert worker.command == "worker"
     assert worker.once is True
+    assert worker.max_poll_seconds == 60
 
 
 def test_worker_starts_without_api_database_or_cors_settings(monkeypatch: MonkeyPatch) -> None:

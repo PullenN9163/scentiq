@@ -80,6 +80,7 @@ class HybridDispatcher:
                 .where(AsyncJob.status == "pending")
                 .order_by(AsyncJob.created_at, AsyncJob.id)
                 .limit(limit)
+                .with_for_update(skip_locked=True)
             )
         )
         dispatched = 0

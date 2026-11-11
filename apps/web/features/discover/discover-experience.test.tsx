@@ -229,12 +229,16 @@ describe("DiscoverExperience", () => {
   });
 
   it("offers sign-in recovery for expired feed and wishlist requests",async()=>{
-    const fetchMock=vi.fn(async(_input:RequestInfo|URL)=>new Response(JSON.stringify({message:"Sign in again"}),{status:401}));
+    const requested:string[]=[];
+    const fetchMock=vi.fn(async(input:RequestInfo|URL)=>{
+      requested.push(String(input));
+      return new Response(JSON.stringify({message:"Sign in again"}),{status:401});
+    });
     vi.stubGlobal("fetch",fetchMock);
     render(<DiscoverExperience results={[]} liveMode/>);
     expect(await screen.findByRole("link",{name:"Sign in again"})).toHaveAttribute("href","/sign-in");
-    expect(fetchMock.mock.calls.some(call=>String(call[0]).startsWith("/api/discover/feed"))).toBe(true);
-    expect(fetchMock.mock.calls.some(call=>String(call[0]).startsWith("/api/discover/wishlist"))).toBe(true);
+    expect(requested.some(url=>url.startsWith("/api/discover/feed"))).toBe(true);
+    expect(requested.some(url=>url.startsWith("/api/discover/wishlist"))).toBe(true);
   });
 
   it("offers sign-in recovery when pagination receives an expired-session response",async()=>{

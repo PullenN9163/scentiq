@@ -120,7 +120,7 @@ resource availabilityAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pr
 AppAvailabilityResults
 | where _ResourceId == '__applicationInsightsResourceId__'
 | where Success == false
-| summarize FailureCount = count() by bin(TimeGenerated, 5m)
+| summarize FailureCount = count() by bin(TimeGenerated, 15m)
 | project TimeGenerated, FailureCount
 ''', '__applicationInsightsResourceId__', applicationInsightsResourceId)
           timeAggregation: 'Maximum'
@@ -141,7 +141,7 @@ AppAvailabilityResults
     scopes: [workspaceScope]
     severity: 1
     skipQueryValidation: true
-    windowSize: 'PT5M'
+    windowSize: 'PT15M'
   }
 }
 

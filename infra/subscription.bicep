@@ -83,8 +83,8 @@ param aiRankingDiscoveryEnabled bool = false
 param aiRankingLayeringEnabled bool = false
 param aiRankingAdvisorEnabled bool = false
 @minValue(0)
-@maxValue(25)
-param aiMonthlyBudgetUsd int = 25
+@maxValue(5)
+param aiMonthlyBudgetUsd int = 5
 
 param apiImage string
 param webImage string

@@ -3,6 +3,11 @@ param workspaceName string
 param applicationInsightsName string
 param workspaceExistingTags object
 param commonTags object
+@allowed(['0.1', '0.5'])
+param logDailyQuotaGb string = '0.1'
+@minValue(31)
+@maxValue(31)
+param logRetentionDays int = 31
 
 // Read-only inventory (2026-08-30) established the only writable properties
 // below. The explicit tag contract prevents this adopted parent PUT from
@@ -15,12 +20,12 @@ resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
     sku: {
       name: 'PerGB2018'
     }
-    retentionInDays: 31
+    retentionInDays: logRetentionDays
     features: {
       enableLogAccessUsingOnlyResourcePermissions: true
     }
     workspaceCapping: {
-      dailyQuotaGb: json('0.5')
+      dailyQuotaGb: json(logDailyQuotaGb)
     }
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
@@ -36,7 +41,7 @@ resource insights 'Microsoft.Insights/components@2020-02-02' = {
     Application_Type: 'web'
     WorkspaceResourceId: workspace.id
     IngestionMode: 'LogAnalytics'
-    RetentionInDays: 90
+    RetentionInDays: logRetentionDays
     DisableIpMasking: false
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'

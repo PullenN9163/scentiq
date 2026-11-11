@@ -283,18 +283,18 @@ if ($Mode -eq 'dev') {
     # Task 6: observability is checked by exact resource identity and scope. Counts
     # alone would allow a mismapped alert or diagnostic setting to false-pass.
     $managedWorkspace = @($resources | Where-Object { $_.type -eq 'Microsoft.OperationalInsights/workspaces' -and -not $_.existing -and $_.name -eq "[parameters('workspaceName')]" }) | Select-Object -First 1
-    Assert-True ($null -ne $managedWorkspace -and $managedWorkspace.location -eq "[parameters('location')]" -and $managedWorkspace.properties.sku.name -eq 'PerGB2018' -and $managedWorkspace.properties.retentionInDays -eq 31) 'the adopted Log Analytics workspace must preserve PerGB2018 and the observed 31-day retention'
-    Assert-True ($null -ne $managedWorkspace -and $managedWorkspace.properties.features.enableLogAccessUsingOnlyResourcePermissions -eq $true -and $managedWorkspace.properties.workspaceCapping.dailyQuotaGb -eq "[json('0.5')]" -and $managedWorkspace.properties.publicNetworkAccessForIngestion -eq 'Enabled' -and $managedWorkspace.properties.publicNetworkAccessForQuery -eq 'Enabled') 'the adopted development workspace must enforce resource permissions, a positive 0.5 GiB cap, and public dev ingestion/query'
+    Assert-True ($null -ne $managedWorkspace -and $managedWorkspace.location -eq "[parameters('location')]" -and $managedWorkspace.properties.sku.name -eq 'PerGB2018' -and $managedWorkspace.properties.retentionInDays -eq "[parameters('logRetentionDays')]") 'the adopted Log Analytics workspace must preserve PerGB2018 and parameterized 31-day retention'
+    Assert-True ($null -ne $managedWorkspace -and $managedWorkspace.properties.features.enableLogAccessUsingOnlyResourcePermissions -eq $true -and $managedWorkspace.properties.workspaceCapping.dailyQuotaGb -eq "[json(parameters('logDailyQuotaGb'))]" -and $managedWorkspace.properties.publicNetworkAccessForIngestion -eq 'Enabled' -and $managedWorkspace.properties.publicNetworkAccessForQuery -eq 'Enabled') 'the adopted development workspace must enforce resource permissions, a positive parameterized daily cap, and public dev ingestion/query'
     Assert-True ($null -ne $managedWorkspace -and $managedWorkspace.tags -match "union\(parameters\('workspaceExistingTags'\), parameters\('commonTags'\)\)") 'the adopted workspace parent PUT must merge the redacted live-tag contract before applying common tags'
 
     $managedInsights = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/components' -and $_.name -eq "[parameters('applicationInsightsName')]" -and -not $_.existing }) | Select-Object -First 1
-    Assert-True ($null -ne $managedInsights -and $managedInsights.kind -eq 'web' -and $managedInsights.properties.Application_Type -eq 'web' -and $managedInsights.properties.WorkspaceResourceId -eq "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]" -and $managedInsights.properties.IngestionMode -eq 'LogAnalytics' -and $managedInsights.properties.RetentionInDays -eq 90) 'Application Insights must remain one workspace-based web component linked to the adopted workspace with its observed retention'
+    Assert-True ($null -ne $managedInsights -and $managedInsights.kind -eq 'web' -and $managedInsights.properties.Application_Type -eq 'web' -and $managedInsights.properties.WorkspaceResourceId -eq "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]" -and $managedInsights.properties.IngestionMode -eq 'LogAnalytics' -and $managedInsights.properties.RetentionInDays -eq "[parameters('logRetentionDays')]") 'Application Insights must remain one workspace-based web component linked to the adopted workspace with the shared 31-day retention'
     Assert-True ($null -ne $managedInsights -and $managedInsights.properties.DisableIpMasking -eq $false -and $managedInsights.properties.publicNetworkAccessForIngestion -eq 'Enabled' -and $managedInsights.properties.publicNetworkAccessForQuery -eq 'Enabled') 'Application Insights must retain IP masking and public development ingestion/query access'
 
     $availabilityDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'availability-tests-' }) | Select-Object -First 1
     $availabilityVariables = $availabilityDeployment.properties.template.variables
     Assert-True ($null -ne $availabilityDeployment -and $availabilityVariables.rootTestName -eq "[format('scentiq-web-root-{0}', parameters('environmentName'))]" -and $availabilityVariables.apiStatusTestName -eq "[format('scentiq-web-api-status-{0}', parameters('environmentName'))]") 'availability tests must use deterministic environment-specific names'
-    Assert-True ($null -ne $availabilityDeployment -and @($availabilityVariables.testLocations).Count -eq 3 -and @($availabilityVariables.testLocations | ForEach-Object { $_.Id } | Sort-Object) -join ',' -eq 'us-ca-sjc-azr,us-il-ch1-azr,us-tx-sn1-azr') 'availability tests must retain the approved supported Azure locations'
+    Assert-True ($null -ne $availabilityDeployment -and @($availabilityVariables.testLocations).Count -eq 1 -and $availabilityVariables.testLocations[0].Id -eq "[parameters('locationId')]") 'availability tests must run from the validated supported single Azure location'
     $webTests = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/webtests' })
     Assert-True ($webTests.Count -eq 2) 'exactly the root and API-status standard availability tests must be declared'
     $expectedWebTests = @{
@@ -303,9 +303,9 @@ if ($Mode -eq 'dev') {
     }
     foreach ($webTestName in $expectedWebTests.Keys) {
         $webTest = @($webTests | Where-Object { $_.name -eq "[variables('$webTestName')]" }) | Select-Object -First 1
-        Assert-True ($null -ne $webTest -and $webTest.kind -eq 'standard' -and $webTest.properties.Kind -eq 'standard' -and $webTest.properties.Enabled -eq $true -and $webTest.properties.Frequency -eq 300 -and $webTest.properties.Timeout -eq 30 -and $webTest.properties.RetryEnabled -eq $true) "$webTestName must be an enabled five-minute standard availability test"
+        Assert-True ($null -ne $webTest -and $webTest.kind -eq 'standard' -and $webTest.properties.Kind -eq 'standard' -and $webTest.properties.Enabled -eq $true -and $webTest.properties.Frequency -eq "[parameters('frequencySeconds')]" -and $webTest.properties.Timeout -eq 30 -and $webTest.properties.RetryEnabled -eq $true) "$webTestName must be an enabled parameterized 15-minute standard availability test"
         Assert-True ($null -ne $webTest -and $webTest.properties.Request.HttpVerb -eq 'GET' -and $webTest.properties.Request.RequestUrl -eq $expectedWebTests[$webTestName] -and $webTest.properties.Request.ParseDependentRequests -eq $false -and $webTest.properties.ValidationRules.ExpectedHttpStatusCode -eq 200 -and $webTest.properties.ValidationRules.SSLCheck -eq $true -and $webTest.properties.ValidationRules.SSLCertRemainingLifetimeCheck -eq 7) "$webTestName must use the exact HTTPS endpoint, HTTP 200 expectation, and TLS validation"
-        Assert-True ($null -ne $webTest -and $webTest.properties.Locations -eq "[variables('testLocations')]") "$webTestName must run from the approved three supported Azure locations"
+        Assert-True ($null -ne $webTest -and $webTest.properties.Locations -eq "[variables('testLocations')]") "$webTestName must run from the validated supported Azure location"
         Assert-True ($null -ne $webTest -and $webTest.tags -match "hidden-link:.+applicationInsightsResourceId") "$webTestName must link to the managed Application Insights component"
     }
 
@@ -337,7 +337,7 @@ if ($Mode -eq 'dev') {
     Assert-True ($alertingDeployment.properties.parameters.enableHybridBridge.value -eq "[parameters('deployApplications')]") 'hybrid bridge diagnostics and alerts must be gated with the bridge deployment'
     Assert-True ($null -ne $alertingDeployment -and $alertingDeployment.properties.template.variables.runbookPath -eq 'docs/runbooks/azure-deployment.md#monitoring-alerts') 'every observability alert must use the matching checked-in runbook path'
     $expectedScheduledAlerts = @{
-        'scentiq-availability' = @{ severity = 1; window = 'PT5M'; frequency = 'PT5M'; threshold = 0; minimumPeriods = 2; evaluationPeriods = 2; scope = "[parameters('workspaceResourceId')]" }
+        'scentiq-availability' = @{ severity = 1; window = 'PT15M'; frequency = 'PT5M'; threshold = 0; minimumPeriods = 2; evaluationPeriods = 2; scope = "[parameters('workspaceResourceId')]" }
         'scentiq-http-failure-rate' = @{ severity = 2; window = 'PT15M'; frequency = 'PT5M'; threshold = 5; minimumPeriods = 3; evaluationPeriods = 3; scope = "[parameters('workspaceResourceId')]" }
         'scentiq-http-p95-latency' = @{ severity = 2; window = 'PT15M'; frequency = 'PT5M'; threshold = 2000; minimumPeriods = 3; evaluationPeriods = 3; scope = "[parameters('workspaceResourceId')]" }
         'scentiq-migration-failure' = @{ severity = 1; window = 'PT5M'; frequency = 'PT5M'; threshold = 0; minimumPeriods = 1; evaluationPeriods = 1; scope = "[parameters('workspaceResourceId')]" }
@@ -352,7 +352,8 @@ if ($Mode -eq 'dev') {
         Assert-True ($null -ne $alert -and $alert.properties.description -match 'runbookPath') "$alertName must link to an operational runbook path"
         Assert-True ($null -ne $alert -and $alert.properties.autoMitigate -eq $true -and $null -eq $alert.properties.PSObject.Properties['muteActionsDuration']) "$alertName must remain stateful without provider-incompatible action suppression"
         if ($expected.evaluationPeriods -gt 1) {
-            Assert-True ($null -ne $criterion -and $criterion.query -match 'bin\(TimeGenerated,\s*5m\)' -and $criterion.query -match 'project\s+TimeGenerated') "$alertName must project a five-minute TimeGenerated bin when evaluating multiple periods"
+            $expectedAvailabilityBin = if ($alertName -eq 'scentiq-availability') { '15m' } else { '5m' }
+            Assert-True ($null -ne $criterion -and $criterion.query -match "bin\(TimeGenerated,\s*$expectedAvailabilityBin\)" -and $criterion.query -match 'project\s+TimeGenerated') "$alertName must project the expected TimeGenerated bin when evaluating multiple periods"
         }
     }
     $httpFailureAlert = @($scheduledAlerts | Where-Object { $_.name -eq "[format('scentiq-http-failure-rate-{0}', parameters('environmentName'))]" }) | Select-Object -First 1
