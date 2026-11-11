@@ -164,7 +164,7 @@ class HybridDispatcher:
                     item,
                     similarities=similarities,
                     owned_ids=owned_ids,
-                    include_seasons=False,
+                    include_seasons=True,
                 )
                 for item in candidates
             ],

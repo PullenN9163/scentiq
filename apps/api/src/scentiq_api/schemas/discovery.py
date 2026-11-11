@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -21,3 +22,12 @@ class DiscoveryResult(BaseModel):
     season_fit: float | None = None
     evidence_coverage: float = Field(default=0, ge=0, le=1)
     reasons: list[str] = Field(default_factory=list)
+
+
+class DiscoveryFeedResponse(BaseModel):
+    items: list[DiscoveryResult]
+    mode: DiscoveryMode
+    limit: int
+    offset: int
+    generated_at: datetime | None = None
+    refresh_status: Literal["fresh", "pending", "fallback"]

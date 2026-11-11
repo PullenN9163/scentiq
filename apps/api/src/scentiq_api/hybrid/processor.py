@@ -12,8 +12,12 @@ from scentiq_api.services.recommendation_scoring import (
     positive_taste_overlap,
 )
 
+DISCOVERY_SNAPSHOT_LIMIT = 200
 
-def _discovery(request: RecommendationJobInput) -> list[DiscoveryResult]:
+
+def _discovery(
+    request: RecommendationJobInput, mode: str = "balance", season: str | None = None
+) -> list[DiscoveryResult]:
     owned_accords = (
         set().union(*(item.accords for item in request.owned)) if request.owned else set()
     )
@@ -22,6 +26,8 @@ def _discovery(request: RecommendationJobInput) -> list[DiscoveryResult]:
     results: list[DiscoveryResult] = []
     for candidate in request.candidates:
         if candidate.fragrance.id in request.excluded_ids:
+            continue
+        if mode == "seasonal" and season is not None and season not in candidate.seasons:
             continue
         taste = positive_taste_overlap(
             candidate.accords,
@@ -42,17 +48,54 @@ def _discovery(request: RecommendationJobInput) -> list[DiscoveryResult]:
                 len(set(candidate.accords) & set(owned.accords)) / len(union) if union else 0.0
             )
             risk = max(risk, overlap, candidate.similarities.get(owned.fragrance.id, 0.0))
+        season_fit = max(
+            (
+                candidate.seasons.get(season_name, 0.0)
+                for season_name in ([season] if season else candidate.seasons)
+            ),
+            default=0.0,
+        )
+        affinity = feature_affinity(
+            request.taste_features,
+            accords=set(candidate.accords),
+            notes=set(candidate.notes),
+            family=candidate.family,
+        )
         score = discovery_score(
             taste,
             expansion,
             risk,
-            affinity=feature_affinity(
-                request.taste_features,
-                accords=set(candidate.accords),
-                notes=set(candidate.notes),
-                family=candidate.family,
-            ),
+            mode=mode,
+            season_fit=season_fit if mode == "seasonal" else None,
+            affinity=affinity,
         )
+        evidence = (
+            sum(
+                (
+                    bool(candidate.accords),
+                    bool(candidate.notes),
+                    bool(candidate.seasons),
+                    bool(candidate.family),
+                )
+            )
+            / 4
+        )
+        reasons = [
+            f"{round(taste * 100)}% match to positive taste signals; "
+            "unrated ownership is weak evidence.",
+            f"{round(expansion * 100)}% of recorded profile signals add collection variety.",
+            f"{round(risk * 100)}% nearest-profile redundancy risk.",
+        ]
+        if mode == "seasonal" and season is not None:
+            reasons.append(f"Recorded {season} suitability: {round(season_fit * 100)}%.")
+        if affinity > 0:
+            reasons.append("Personal taste fit from explicit preferences and rated scent profiles.")
+        elif affinity < 0:
+            reasons.append("Some recorded scent signals conflict with your personal taste.")
+        if evidence < 0.5:
+            reasons.append(
+                "Limited catalog evidence; compare the fragrance details before deciding."
+            )
         results.append(
             DiscoveryResult(
                 fragrance=candidate.fragrance,
@@ -60,6 +103,12 @@ def _discovery(request: RecommendationJobInput) -> list[DiscoveryResult]:
                 collection_expansion=round(expansion, 4),
                 redundancy_risk=round(risk, 4),
                 score=round(score, 4),
+                generation_mode="baseline",
+                profile_version=request.profile_version,
+                mode=mode,
+                season_fit=season_fit if mode == "seasonal" else None,
+                evidence_coverage=evidence,
+                reasons=reasons,
             )
         )
     return sorted(
@@ -69,7 +118,7 @@ def _discovery(request: RecommendationJobInput) -> list[DiscoveryResult]:
             -(result.fragrance.rating_count or 0),
             str(result.fragrance.id),
         ),
-    )[:25]
+    )[:2000]
 
 
 def _layer(
@@ -120,7 +169,21 @@ def process_recommendation(request: RecommendationJobInput) -> dict[str, Any]:
     """Return the stable bundle envelope populated by the scoring task."""
     return {
         "profile_version": request.profile_version,
-        "discovery": [item.model_dump(mode="json") for item in _discovery(request)],
+        "discovery": [item.model_dump(mode="json") for item in _discovery(request)[:25]],
+        "discovery_modes": {
+            mode: [
+                item.model_dump(mode="json")
+                for item in _discovery(request, mode)[:DISCOVERY_SNAPSHOT_LIMIT]
+            ]
+            for mode in ("balance", "taste", "explore")
+        },
+        "discovery_seasonal": {
+            season: [
+                item.model_dump(mode="json")
+                for item in _discovery(request, "seasonal", season)[:DISCOVERY_SNAPSHOT_LIMIT]
+            ]
+            for season in ("spring", "summer", "fall", "winter")
+        },
         "layering": {
             mode: [item.model_dump(mode="json") for item in _layering(request, mode)]
             for mode in ("safe", "contrast", "experimental")

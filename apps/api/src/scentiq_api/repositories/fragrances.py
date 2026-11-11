@@ -10,7 +10,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, Select, desc, func, or_, select
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, joinedload, load_only, selectinload
 from sqlalchemy.sql.base import ExecutableOption
 
 from scentiq_api.catalog_import.normalize import fold
@@ -38,6 +38,31 @@ def _catalog_options() -> tuple[ExecutableOption, ...]:
         selectinload(Fragrance.perfumer_links).joinedload(FragrancePerfumer.perfumer),
         selectinload(Fragrance.community),
         selectinload(Fragrance.source_links),
+    )
+
+
+def _summary_options() -> tuple[ExecutableOption, ...]:
+    """Load exactly the fields read by ``to_fragrance_summary``."""
+    return (
+        load_only(
+            Fragrance.id,
+            Fragrance.brand_id,
+            Fragrance.owner_user_id,
+            Fragrance.updated_at,
+            Fragrance.name,
+            Fragrance.concentration,
+            Fragrance.release_year,
+            Fragrance.image_blob_path,
+            Fragrance.image_url,
+            Fragrance.gender,
+            Fragrance.olfactory_family,
+            Fragrance.rating_average,
+            Fragrance.rating_count,
+            Fragrance.longevity_score,
+            Fragrance.projection_level,
+        ),
+        joinedload(Fragrance.brand),
+        selectinload(Fragrance.accord_links).joinedload(FragranceAccord.accord),
     )
 
 
@@ -80,7 +105,7 @@ class FragranceRepository:
         _max_limit: int = MAX_SEARCH_LIMIT,
         _options: tuple[ExecutableOption, ...] | None = None,
     ) -> list[Fragrance]:
-        statement = self._base_query(user_id, options=_options)
+        statement = self._base_query(user_id, options=_options or _summary_options())
         if shared_only:
             statement = statement.where(Fragrance.owner_user_id.is_(None))
         if exclude_ids:

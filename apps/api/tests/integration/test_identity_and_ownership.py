@@ -224,6 +224,24 @@ def test_request_without_a_token_is_unauthorized(client: TestClient) -> None:
     assert response.json()["code"] == "unauthorized"
 
 
+def test_discovery_feed_authentication_envelope_and_pagination(client: TestClient) -> None:
+    assert client.get("/api/v1/discovery-feed").status_code == 401
+
+    response = client.get(
+        "/api/v1/discovery-feed",
+        params={"limit": 2, "offset": 1, "mode": "taste"},
+        headers=auth_headers("user_discovery_feed"),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "taste"
+    assert payload["limit"] == 2
+    assert payload["offset"] == 1
+    assert len(payload["items"]) == 2
+    assert payload["refresh_status"] == "fallback"
+
+
 def test_expired_token_is_unauthorized(client: TestClient) -> None:
     import time
 

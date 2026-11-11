@@ -1,4 +1,5 @@
 import json
+from uuid import uuid4
 
 import pytest
 from domain_fixtures import make_brand, make_collection_item, make_fragrance, make_user
@@ -325,6 +326,8 @@ def test_recommendation_processor_always_returns_the_versioned_bundle_shape() ->
     assert process_recommendation(request) == {
         "profile_version": None,
         "discovery": [],
+        "discovery_modes": {"balance": [], "taste": [], "explore": []},
+        "discovery_seasonal": {"spring": [], "summer": [], "fall": [], "winter": []},
         "layering": {"safe": [], "contrast": [], "experimental": []},
     }
 
@@ -409,5 +412,23 @@ def test_recommendation_processor_scores_discovery_and_all_layering_modes() -> N
     assert result["discovery"][0]["fragrance"]["name"] == "Candidate"
     # Unrated ownership is weaker evidence than explicit or positively rated taste.
     assert result["discovery"][0]["taste_match"] == 0.425
+    assert set(result["discovery_modes"]) == {"balance", "taste", "explore"}
+    assert result["discovery_modes"]["taste"][0]["mode"] == "taste"
+    assert result["discovery_seasonal"]["summer"][0]["season_fit"] == 0.7
+    assert result["discovery_seasonal"]["spring"] == []
     assert set(result["layering"]) == {"safe", "contrast", "experimental"}
     assert all(len(suggestions) == 1 for suggestions in result["layering"].values())
+
+    broad_request = request.model_copy(
+        update={
+            "candidates": [
+                candidate.model_copy(
+                    update={"fragrance": candidate.fragrance.model_copy(update={"id": uuid4()})}
+                )
+                for _ in range(205)
+            ]
+        }
+    )
+    broad_result = process_recommendation(broad_request)
+    assert len(broad_result["discovery_modes"]["balance"]) == 200
+    assert len(broad_result["discovery_seasonal"]["summer"]) == 200

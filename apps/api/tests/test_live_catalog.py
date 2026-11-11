@@ -164,6 +164,27 @@ def test_discovery_paginates_after_catalog_wide_scoring(session: Session) -> Non
     assert [item.fragrance.id for item in results] == [best.id]
 
 
+def test_filtered_discovery_can_return_a_candidate_beyond_unfiltered_page(session: Session) -> None:
+    user = make_user(session, email="filtered-outside-page@example.test")
+    brand = make_brand(session, name="Filtered Page House")
+    target = None
+    for index in range(30):
+        candidate = make_fragrance(session, brand=brand, name=f"Candidate {index}")
+        candidate.popularity_score = 100 - index
+        candidate.olfactory_family = "Citrus" if index == 29 else "Woody"
+        if index == 29:
+            target = candidate
+    session.flush()
+
+    results = DiscoveryService(DiscoveryRepository(session)).discover(
+        user.id, family="Citrus", limit=1, rank_with_ai=False
+    )
+
+    assert target is not None
+    assert len(results) == 1
+    assert results[0].fragrance.id == target.id
+
+
 def test_discovery_loads_only_relationships_and_columns_used_for_scoring(
     session: Session,
 ) -> None:

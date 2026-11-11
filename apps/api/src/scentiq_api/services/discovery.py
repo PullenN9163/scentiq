@@ -47,6 +47,7 @@ class DiscoveryService:
         accord: str | None = None,
         minimum_value: float | None = None,
         mode: DiscoveryMode = "balance",
+        rank_with_ai: bool = True,
     ) -> list[DiscoveryResult]:
         owned = self._repository.owned(user_id)
         profile = TasteProfileService(self._repository._session).for_user(user_id)
@@ -62,6 +63,7 @@ class DiscoveryService:
             minimum_value=minimum_value,
         )
         owned_accords = set().union(*(_accords(item) for item in owned)) if owned else set()
+        owned_accord_sets = [set(_accords(item)) for item in owned]
         owned_notes = set().union(*(_notes(item) for item in owned)) if owned else set()
         owned_families = {item.olfactory_family for item in owned if item.olfactory_family}
         similarities = self._repository.similarity_strengths(
@@ -73,22 +75,22 @@ class DiscoveryService:
             if candidate.id in profile.excluded_ids:
                 continue
             candidate_accords = _accords(candidate)
+            candidate_accord_ids = set(candidate_accords)
             candidate_notes = _notes(candidate)
             taste = positive_taste_overlap(
                 candidate_accords, candidate_notes, owned_accords, owned_notes, profile.features
             )
 
-            expansion_parts = [key not in owned_accords for key in candidate_accords]
+            expansion_parts = [key not in owned_accords for key in candidate_accord_ids]
             if candidate.olfactory_family:
                 expansion_parts.append(candidate.olfactory_family not in owned_families)
             expansion = sum(expansion_parts) / len(expansion_parts) if expansion_parts else 0.0
 
             risk = 0.0
-            for owned_item in owned:
-                owned_item_accords = set(_accords(owned_item))
-                union = set(candidate_accords) | owned_item_accords
+            for owned_item, owned_item_accords in zip(owned, owned_accord_sets, strict=True):
+                union = candidate_accord_ids | owned_item_accords
                 overlap = (
-                    len(set(candidate_accords) & owned_item_accords) / len(union) if union else 0
+                    len(candidate_accord_ids & owned_item_accords) / len(union) if union else 0
                 )
                 risk = max(risk, overlap, similarities.get((candidate.id, owned_item.id), 0.0))
             season_fit = (
@@ -157,6 +159,8 @@ class DiscoveryService:
                 str(result.fragrance.id),
             ),
         )
+        if not rank_with_ai:
+            return ranked[offset : offset + limit]
         ranking = rerank(
             self._repository._session,
             user_id,
