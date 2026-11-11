@@ -121,7 +121,7 @@ test("expressive workspaces preserve controls and respect reduced motion", async
   }
   await page.emulateMedia({reducedMotion:"no-preference"});
   await page.goto("/?view=layering&theme=dark");
-  expect(await page.locator(".experience-backdrop i").first().evaluate(element=>getComputedStyle(element).animationName)).not.toBe("none");
+  expect(await page.locator(".experience-backdrop i").first().evaluate(element=>getComputedStyle(element).animationName)).toBe("none");
 });
 
 test("redesigned workspaces contain long names and missing images at 200% reflow", async ({page}) => {

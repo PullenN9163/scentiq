@@ -7,7 +7,7 @@
 .fingerprint { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(150px, 1fr); align-items: center; gap: 20px; margin: 24px 0 12px; }
 .fingerprint__visual { position: relative; min-width: 0; aspect-ratio: 1; }
 .fingerprint__rings { width: 100%; height: 100%; position: relative; }
-.fingerprint__halo { position: absolute; inset: 20%; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, #71b4a7 28%, transparent), transparent 70%); animation: fingerprint-breathe 8s ease-in-out infinite alternate; }
+.fingerprint__halo { position: absolute; inset: 20%; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, #71b4a7 18%, transparent), transparent 70%); }
 .fingerprint__center { position: absolute; inset: 27%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; }
 .fingerprint__center > strong { font-size: clamp(32px, 4vw, 56px); line-height: 1; letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
 .fingerprint__center strong small { font-size: .4em; }
@@ -39,7 +39,6 @@
 .insight-coverage .coverage-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr)); }
 .insight-coverage .coverage-grid > div { border-radius: 18px; padding: 22px; background: var(--surface-elevated); border: 1px solid var(--border); }
 .insights-experience .insight-notes .card__content { height: 100%; }
-@keyframes fingerprint-breathe { from { transform: scale(.9); opacity: .7; } to { transform: scale(1.25); opacity: 1; } }
 @media (max-width: 1023px) { .insights-experience .insight-stage { grid-template-columns: 1fr; } }
 @media (max-width: 860px) { .fingerprint { grid-template-columns: 1fr; } .fingerprint__visual { width: min(100%, 330px); margin: auto; } .fingerprint__legend { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fingerprint__legend .data-note { grid-column: 1 / -1; } .fingerprint__choice { gap: 6px; padding: 10px; } }
 @media (max-width: 430px) { .fingerprint__legend { grid-template-columns:1fr; } .fingerprint__legend .data-note { grid-column:auto; } .insights-experience .note-bars > div { grid-template-columns:minmax(4.5rem,.8fr) minmax(0,1fr) 1.5rem; } }

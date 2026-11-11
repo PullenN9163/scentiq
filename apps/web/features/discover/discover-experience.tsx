@@ -184,9 +184,6 @@ function DiscoverContent({
         title="Discover"
         description="Source-backed recommendations scored against your owned collection."
       />
-      {!isSearching && <nav className="discovery-directions" aria-label="Discovery directions">
-        {[{value:"balance",title:"Balance my collection",description:"Find the missing piece",icon:Layers},{value:"taste",title:"More of what I love",description:"Follow your signature",icon:Heart},{value:"explore",title:"Explore something new",description:"Step beyond the familiar",icon:Sparkles},{value:"seasonal",title:"Prepare for a season",description:"Meet your next season",icon:Sun}].map(({value,title,description,icon:Icon}) => <Link key={value} href={directionHref(value)} aria-label={title} aria-current={filters.mode === value ? "page" : undefined} className="discovery-direction"><Icon size={20} aria-hidden="true" /><strong>{title}</strong><span>{description}</span><ArrowUpRight className="discovery-direction__arrow" size={16} aria-hidden="true" /></Link>)}
-      </nav>}
       <div className="discovery-toolbar">
         <DiscoverSearch query={activeQuery} onChange={(value)=>{const next=value.slice(0,120); setActiveQuery(next); writeUrl(next); if(!next.trim()){searchAbort.current?.abort();paginationController.current?.abort();sequence.current++;setBusy(false);setSearchError(null);setMatches([]);setHasMore(false);}else setBusy(true);}} onSubmit={()=>void search(activeQuery,true)} onClear={()=>{searchAbort.current?.abort(); paginationController.current?.abort(); sequence.current++; setActiveQuery(""); setBusy(false); setSearchError(null); setMatches([]); setHasMore(false); writeUrl("",filters,true);}}/>
         <div className="discovery-toolbar__actions">
@@ -194,6 +191,9 @@ function DiscoverContent({
           <div className="discovery-view-switch" aria-label="Result layout"><Button type="button" variant="ghost" aria-label="Gallery view" aria-pressed={!compact} onClick={() => setCompact(false)}><LayoutGrid size={16}/></Button><Button type="button" variant="ghost" aria-label="Compact view" aria-pressed={compact} onClick={() => setCompact(true)}><List size={16}/></Button></div>
         </div>
       </div>
+      {!isSearching && <nav className="discovery-directions" aria-label="Discovery directions">
+        {[{value:"balance",title:"Balance my collection",description:"Find the missing piece",icon:Layers},{value:"taste",title:"More of what I love",description:"Follow your signature",icon:Heart},{value:"explore",title:"Explore something new",description:"Step beyond the familiar",icon:Sparkles},{value:"seasonal",title:"Prepare for a season",description:"Meet your next season",icon:Sun}].map(({value,title,description,icon:Icon}) => <Link key={value} href={directionHref(value)} aria-label={title} aria-current={filters.mode === value ? "page" : undefined} className="discovery-direction"><Icon size={20} aria-hidden="true" /><strong>{title}</strong><span>{description}</span><ArrowUpRight className="discovery-direction__arrow" size={16} aria-hidden="true" /></Link>)}
+      </nav>}
       {sessionExpired && <p role="alert" className="field-error">Your session expired. <Link href="/sign-in">Sign in again</Link> to continue.</p>}
       <form id="discovery-filter-panel" className="discover-filters" method="get" onSubmit={event=>{event.preventDefault();writeUrl(activeQuery,filters,true);}} hidden={!filtersOpen}>
           <SlidersHorizontal size={18} />
@@ -341,6 +341,8 @@ function DiscoverContent({
                   name={item.name}
                   brand={item.brand.name}
                   imageUrl={item.image_url}
+                  priority={index === 0}
+                  sizes={index === 0 ? "(max-width: 640px) 76vw, (max-width: 1200px) 46vw, 500px" : undefined}
                 />
                 </motion.div>
                 <CardContent>
