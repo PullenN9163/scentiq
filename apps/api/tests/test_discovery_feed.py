@@ -56,7 +56,7 @@ def test_discovery_feed_fails_closed_when_authentication_is_unconfigured() -> No
 def test_snapshot_modes_keep_legacy_payloads_safe_and_page_mode_rows() -> None:
     balance = _row()
     taste = _row()
-    payload = {
+    payload: dict[str, object] = {
         "discovery": [balance],
         "discovery_modes": {"balance": [balance], "taste": [taste]},
     }
