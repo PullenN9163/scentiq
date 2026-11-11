@@ -504,7 +504,9 @@ describe("LayeringLab intelligence", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: "Make it fresher" }));
-    expect(await screen.findByText("Fresh citrus support")).toBeVisible();
+    const rankedSuggestions = screen.getByRole("region", { name: "Ranked layering suggestions" });
+    const rationales = await within(rankedSuggestions).findAllByText("Fresh citrus support");
+    rationales.forEach((rationale) => expect(rationale).toBeVisible());
   });
   it("edits a triple, prevents duplicates, and supports accessible reorder", async () => {
     const user = userEvent.setup();

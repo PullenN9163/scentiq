@@ -41,7 +41,9 @@ resource insights 'Microsoft.Insights/components@2020-02-02' = {
     Application_Type: 'web'
     WorkspaceResourceId: workspace.id
     IngestionMode: 'LogAnalytics'
-    RetentionInDays: logRetentionDays
+    // Application Insights accepts its own discrete retention settings. Keep
+    // the supported 90-day default; workspace retention is configured above.
+    RetentionInDays: 90
     DisableIpMasking: false
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
