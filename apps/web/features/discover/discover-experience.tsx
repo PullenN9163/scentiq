@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   BookmarkPlus,
@@ -28,8 +28,14 @@ import type { DiscoveryResult, FragranceSummary } from "@/types/api";
 const percentage = (value: number) => `${Math.round(value * 100)}%`;
 const emptyCatalog: FragranceSummary[] = [];
 
+class DiscoverRequestError extends Error {
+  constructor(readonly status: number) { super("Discover request failed"); }
+}
+const isUnauthorized = (error: unknown) => error instanceof DiscoverRequestError && error.status === 401;
+
 export function DiscoverExperience(props: Parameters<typeof DiscoverContent>[0]) {
-  return <DiscoverContent key={JSON.stringify([props.query, props.mode, props.selectedSeason, props.selectedFamily, props.selectedGender, props.selectedMinimumValue])} {...props} />;
+  const staticKey = props.liveMode ? undefined : JSON.stringify([props.query, props.mode, props.selectedSeason, props.selectedFamily, props.selectedGender, props.selectedMinimumValue]);
+  return <DiscoverContent key={staticKey} {...props} />;
 }
 
 function DiscoverContent({
@@ -44,6 +50,8 @@ function DiscoverContent({
   selectedMinimumValue = "",
   recommendationError,
   wishlistError,
+  liveMode = false,
+  initialRefreshStatus,
 }: {
   results: DiscoveryResult[];
   query?: string;
@@ -56,26 +64,109 @@ function DiscoverContent({
   selectedMinimumValue?: string;
   recommendationError?: string;
   wishlistError?: string;
+  liveMode?: boolean;
+  initialRefreshStatus?: string;
 }) {
+  const [activeQuery, setActiveQuery] = useState(query.slice(0, 120));
+  const [activeFilters, setActiveFilters] = useState({mode, season:selectedSeason, family:selectedFamily, gender:selectedGender, minimum_value:selectedMinimumValue});
+  const [activeWishlist, setActiveWishlist] = useState(wishlistIds);
+  const [wishlistUnavailable, setWishlistUnavailable] = useState(Boolean(wishlistError) || liveMode);
+  const [liveRecommendationError, setLiveRecommendationError] = useState<string | undefined>(recommendationError);
+  const [refreshStatus, setRefreshStatus] = useState(initialRefreshStatus);
+  const [busy, setBusy] = useState(Boolean(liveMode && query.trim()));
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [matches, setMatches] = useState(catalogResults);
+  const [hasMore, setHasMore] = useState(catalogResults.length === 25);
+  const [paginationError, setPaginationError] = useState<string | null>(null);
   const [displayedResults,setDisplayedResults] = useState(results);
+  const searchAbort = useRef<AbortController | null>(null);
+  const feedAbort = useRef<AbortController | null>(null);
+  const sequence = useRef(0);
+  const paginationSequence = useRef(0);
+  const filters = activeFilters;
+  const isSearching = activeQuery.trim().length > 0;
+  const writeUrl = useCallback((nextQuery: string, nextFilters = filters, push = false) => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams();
+    if (nextQuery.trim()) params.set("q", nextQuery.trim().slice(0, 120));
+    if (nextFilters.mode !== "balance") params.set("mode", nextFilters.mode);
+    if (nextFilters.family) params.set("family", nextFilters.family);
+    if (nextFilters.season) params.set("season", nextFilters.season);
+    if (nextFilters.gender) params.set("gender", nextFilters.gender);
+    if (nextFilters.minimum_value) params.set("minimum_value", nextFilters.minimum_value);
+    const href = `/discover${params.size ? `?${params}` : ""}`;
+    window.history[push ? "pushState" : "replaceState"]({}, "", href);
+  }, [filters]);
+  const search = useCallback(async (value: string, immediate = false) => {
+    const normalized = value.trim().slice(0, 120);
+    searchAbort.current?.abort();
+    const requestId = ++sequence.current;
+    if (!normalized) { setBusy(false); setSearchError(null); setMatches([]); setHasMore(false); return; }
+    const controller = new AbortController(); searchAbort.current = controller;
+    try {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, immediate ? 0 : 200));
+      if (controller.signal.aborted) return;
+      setBusy(true); setSearchError(null);
+      const params = new URLSearchParams({q:normalized, limit:"25", offset:"0", ...filters});
+      const response = await fetch(`/api/discover/search?${params}`, {signal:controller.signal, cache:"no-store"});
+      if (!response.ok) throw new DiscoverRequestError(response.status);
+      const data = await response.json() as FragranceSummary[];
+      if (controller.signal.aborted || requestId !== sequence.current) return;
+      setMatches(data); setHasMore(data.length === 25); setPaginationError(null);
+    } catch (error) {
+      if (!controller.signal.aborted && requestId === sequence.current) {
+        if (isUnauthorized(error)) setSessionExpired(true);
+        else setSearchError("Search is temporarily unavailable. Your current results are still here. Try again.");
+      }
+    }
+    finally { if (requestId === sequence.current) setBusy(false); }
+  }, [filters]);
+  useEffect(() => {
+    if (!liveMode) return;
+    const onPopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const nextQuery = (params.get("q") ?? "").slice(0, 120);
+      setActiveQuery(nextQuery);
+      setBusy(Boolean(nextQuery.trim()));
+      setActiveFilters({mode:params.get("mode") ?? "balance", season:params.get("season") ?? "", family:params.get("family") ?? "", gender:params.get("gender") ?? "", minimum_value:params.get("minimum_value") ?? ""});
+    };
+    window.addEventListener("popstate", onPopState);
+    const controller = new AbortController();
+    void fetch("/api/discover/wishlist", {signal:controller.signal, cache:"no-store"}).then(async response => {if (!response.ok) throw new DiscoverRequestError(response.status); setActiveWishlist(await response.json() as string[]); setWishlistUnavailable(false);}).catch(error=>{setWishlistUnavailable(true);if(isUnauthorized(error))setSessionExpired(true);});
+    return () => { window.removeEventListener("popstate", onPopState); controller.abort(); };
+  }, [liveMode]);
+  useEffect(() => {
+    if (!liveMode) return;
+    searchAbort.current?.abort(); feedAbort.current?.abort();
+    if (activeQuery.trim()) {
+      const schedule = window.setTimeout(()=>void search(activeQuery),0);
+      return ()=>{window.clearTimeout(schedule);searchAbort.current?.abort();};
+    }
+    const controller = new AbortController(); feedAbort.current = controller;
+    const params = new URLSearchParams({...filters, limit:"25", offset:"0"});
+    void fetch(`/api/discover/feed?${params}`, {signal:controller.signal, cache:"no-store"}).then(async response => {
+      if (!response.ok) throw new DiscoverRequestError(response.status);
+      const data = await response.json() as {items:DiscoveryResult[];refresh_status:string};
+      if (!controller.signal.aborted) { setDisplayedResults(data.items); setRefreshStatus(data.refresh_status); setLiveRecommendationError(undefined); }
+    }).catch(error=>{if (!controller.signal.aborted) {if(isUnauthorized(error))setSessionExpired(true);else setLiveRecommendationError("Your recommendations could not be loaded. You can still search the catalog or retry.");}});
+    return () => controller.abort();
+  }, [activeQuery, filters, liveMode, search]);
   const selectDiscovery = useCallback((choice: DiscoveryResult | import("@/types/layering").LayeringStackSuggestion) => {
     if ("fragrance" in choice) setDisplayedResults(previous=>[choice,...previous.filter(item=>item.fragrance.id !== choice.fragrance.id)]);
-  },[]);
+  },[setDisplayedResults]);
   const [compact, setCompact] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(Boolean(selectedFamily || selectedSeason || selectedGender || selectedMinimumValue));
+  const [filtersOpen, setFiltersOpen] = useState(Boolean(filters.family || filters.season || filters.gender || filters.minimum_value));
   const reducedMotion = useReducedMotion();
   const directionHref = (direction: string) => {
     const params = new URLSearchParams({ mode: direction });
-    if (selectedFamily) params.set("family", selectedFamily);
-    if (selectedSeason) params.set("season", selectedSeason);
-    if (selectedGender) params.set("gender", selectedGender);
-    if (selectedMinimumValue) params.set("minimum_value", selectedMinimumValue);
+    if (filters.family) params.set("family", filters.family);
+    if (filters.season) params.set("season", filters.season);
+    if (filters.gender) params.set("gender", filters.gender);
+    if (filters.minimum_value) params.set("minimum_value", filters.minimum_value);
     return `/discover?${params}`;
   };
-  const [matches, setMatches] = useState(catalogResults);
-  const [hasMore, setHasMore] = useState(catalogResults.length === 25);
   const [previousResults, setPreviousResults] = useState(catalogResults);
-  const [paginationError, setPaginationError] = useState<string | null>(null);
   if (previousResults !== catalogResults) {
     setPreviousResults(catalogResults);
     setMatches(catalogResults);
@@ -83,9 +174,10 @@ function DiscoverContent({
     setPaginationError(null);
   }
   const [isLoadingMore, startLoadingMore] = useTransition();
-  const isSearching = query.trim().length > 0;
+  const paginationController = useRef<AbortController | null>(null);
+  useEffect(()=>{paginationController.current?.abort();paginationSequence.current++;},[activeQuery,filters]);
   return (
-    <section className={`page experience-page discovery-experience ${compact ? "discovery-experience--compact" : ""}`}>
+    <section className={`page experience-page discovery-experience ${compact ? "discovery-experience--compact" : ""}`} aria-busy={busy || isLoadingMore}>
       <ExperienceBackdrop tone="discover" />
       <PageHeader
         eyebrow="Beyond the shelf"
@@ -93,21 +185,21 @@ function DiscoverContent({
         description="Source-backed recommendations scored against your owned collection."
       />
       {!isSearching && <nav className="discovery-directions" aria-label="Discovery directions">
-        {[{value:"balance",title:"Balance my collection",description:"Find the missing piece",icon:Layers},{value:"taste",title:"More of what I love",description:"Follow your signature",icon:Heart},{value:"explore",title:"Explore something new",description:"Step beyond the familiar",icon:Sparkles},{value:"seasonal",title:"Prepare for a season",description:"Meet your next season",icon:Sun}].map(({value,title,description,icon:Icon}) => <Link key={value} href={directionHref(value)} aria-label={title} aria-current={mode === value ? "page" : undefined} className="discovery-direction"><Icon size={20} aria-hidden="true" /><strong>{title}</strong><span>{description}</span><ArrowUpRight className="discovery-direction__arrow" size={16} aria-hidden="true" /></Link>)}
+        {[{value:"balance",title:"Balance my collection",description:"Find the missing piece",icon:Layers},{value:"taste",title:"More of what I love",description:"Follow your signature",icon:Heart},{value:"explore",title:"Explore something new",description:"Step beyond the familiar",icon:Sparkles},{value:"seasonal",title:"Prepare for a season",description:"Meet your next season",icon:Sun}].map(({value,title,description,icon:Icon}) => <Link key={value} href={directionHref(value)} aria-label={title} aria-current={filters.mode === value ? "page" : undefined} className="discovery-direction"><Icon size={20} aria-hidden="true" /><strong>{title}</strong><span>{description}</span><ArrowUpRight className="discovery-direction__arrow" size={16} aria-hidden="true" /></Link>)}
       </nav>}
       <div className="discovery-toolbar">
-        <DiscoverSearch query={query}/>
+        <DiscoverSearch query={activeQuery} onChange={(value)=>{const next=value.slice(0,120); setActiveQuery(next); writeUrl(next); if(!next.trim()){searchAbort.current?.abort();paginationController.current?.abort();sequence.current++;setBusy(false);setSearchError(null);setMatches([]);setHasMore(false);}else setBusy(true);}} onSubmit={()=>void search(activeQuery,true)} onClear={()=>{searchAbort.current?.abort(); paginationController.current?.abort(); sequence.current++; setActiveQuery(""); setBusy(false); setSearchError(null); setMatches([]); setHasMore(false); writeUrl("",filters,true);}}/>
         <div className="discovery-toolbar__actions">
-          {!isSearching && <Button type="button" variant="secondary" aria-expanded={filtersOpen} aria-controls="discovery-filter-panel" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />More filters<ChevronDown size={14} className={filtersOpen ? "discovery-chevron--open" : ""} /></Button>}
+          <Button type="button" variant="secondary" aria-expanded={filtersOpen} aria-controls="discovery-filter-panel" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />More filters<ChevronDown size={14} className={filtersOpen ? "discovery-chevron--open" : ""} /></Button>
           <div className="discovery-view-switch" aria-label="Result layout"><Button type="button" variant="ghost" aria-label="Gallery view" aria-pressed={!compact} onClick={() => setCompact(false)}><LayoutGrid size={16}/></Button><Button type="button" variant="ghost" aria-label="Compact view" aria-pressed={compact} onClick={() => setCompact(true)}><List size={16}/></Button></div>
         </div>
       </div>
-      {!isSearching ? (
-        <form id="discovery-filter-panel" className="discover-filters" method="get" hidden={!filtersOpen}>
+      {sessionExpired && <p role="alert" className="field-error">Your session expired. <Link href="/sign-in">Sign in again</Link> to continue.</p>}
+      <form id="discovery-filter-panel" className="discover-filters" method="get" onSubmit={event=>{event.preventDefault();writeUrl(activeQuery,filters,true);}} hidden={!filtersOpen}>
           <SlidersHorizontal size={18} />
           <label>
             Discovery direction
-            <select className="select" name="mode" defaultValue={mode}>
+            <select className="select" name="mode" value={filters.mode} onChange={event=>{const next={...filters,mode:event.target.value};setActiveFilters(next);writeUrl(activeQuery,next,true);}}>
               <option value="balance">Balance my collection</option>
               <option value="taste">More of what I love</option>
               <option value="explore">Explore something new</option>
@@ -119,7 +211,8 @@ function DiscoverContent({
             <input
               className="input"
               name="family"
-              defaultValue={selectedFamily}
+              value={filters.family}
+              onChange={event=>{const next={...filters,family:event.target.value};setActiveFilters(next);writeUrl(activeQuery,next,true);}}
               placeholder="Woody, Floral…"
             />
           </label>
@@ -128,7 +221,8 @@ function DiscoverContent({
             <select
               className="select"
               name="season"
-              defaultValue={selectedSeason}
+              value={filters.season}
+              onChange={event=>{const next={...filters,season:event.target.value};setActiveFilters(next);writeUrl(activeQuery,next,true);}}
             >
               <option value="">All</option>
               <option value="spring">Spring</option>
@@ -139,7 +233,7 @@ function DiscoverContent({
           </label>
           <label>
             Gender
-            <select className="select" name="gender" defaultValue={selectedGender}>
+            <select className="select" name="gender" value={filters.gender} onChange={event=>{const next={...filters,gender:event.target.value};setActiveFilters(next);writeUrl(activeQuery,next,true);}}>
               <option value="">All</option>
               <option value="female">Female</option>
               <option value="male">Male</option>
@@ -148,7 +242,7 @@ function DiscoverContent({
           </label>
           <label>
             Minimum value rating
-            <select className="select" name="minimum_value" defaultValue={selectedMinimumValue}>
+          <select className="select" name="minimum_value" value={filters.minimum_value} onChange={event=>{const next={...filters,minimum_value:event.target.value};setActiveFilters(next);writeUrl(activeQuery,next,true);}}>
               <option value="">Any</option>
               <option value="3">3+</option>
               <option value="4">4+</option>
@@ -157,23 +251,22 @@ function DiscoverContent({
           <Button type="submit" variant="secondary">
             Apply filters
           </Button>
-        </form>
-      ) : null}
-      {!isSearching && !recommendationError && results.length > 0 && <SurfaceOptions surface="discovery" parameters={{mode,...(selectedFamily?{family:selectedFamily}:{}),...(selectedSeason?{season:selectedSeason}:{}),...(selectedGender?{gender:selectedGender}:{}),...(selectedMinimumValue?{minimum_value:Number(selectedMinimumValue)}:{})}} onChoice={selectDiscovery}/>}
+      </form>
+      {!isSearching && !liveRecommendationError && displayedResults.length > 0 && <SurfaceOptions surface="discovery" parameters={{mode:filters.mode,...(filters.family?{family:filters.family}:{}),...(filters.season?{season:filters.season}:{}),...(filters.gender?{gender:filters.gender}:{}),...(filters.minimum_value?{minimum_value:Number(filters.minimum_value)}:{})}} onChoice={selectDiscovery}/>}
       {isSearching ? (
         matches.length ? (
           <>
             <p className="discover-result-count">
-              Catalog results for “{query}”
+              Catalog results for “{activeQuery}”
             </p>
             <div className="discover-grid">
               {matches.map((item) => (
                 <CatalogResultCard
                   key={item.id}
                   item={item}
-                  query={query}
-                  wishlistSaved={wishlistIds.includes(item.id)}
-                  wishlistUnavailable={Boolean(wishlistError)}
+                  query={activeQuery}
+                  wishlistSaved={activeWishlist.includes(item.id)}
+                  wishlistUnavailable={wishlistUnavailable}
                 />
               ))}
             </div>
@@ -186,18 +279,29 @@ function DiscoverContent({
                   onClick={() =>
                     startLoadingMore(async () => {
                       setPaginationError(null);
+                      let controller:AbortController|null=null;
+                      let requestId=0;
                       try {
-                      const more = await searchCatalogPage(
-                        query,
-                        matches.length,
-                      );
+                      paginationController.current?.abort();
+                      controller=new AbortController();paginationController.current=controller;
+                      requestId=++paginationSequence.current;
+                      let more:FragranceSummary[];
+                      if (liveMode) {
+                        const params=new URLSearchParams({q:activeQuery.trim(),limit:"25",offset:String(matches.length),...filters});
+                        const response=await fetch(`/api/discover/search?${params}`,{signal:controller.signal,cache:"no-store"});
+                        if(!response.ok)throw new DiscoverRequestError(response.status);
+                        more=await response.json() as FragranceSummary[];
+                      } else more=await searchCatalogPage(activeQuery,matches.length);
+                      if(!controller || controller.signal.aborted || paginationController.current!==controller || requestId!==paginationSequence.current)return;
                       setMatches((current) => {
                         const known = new Set(current.map(item => item.id));
                         return [...current, ...more.filter(item => !known.has(item.id))];
                       });
                       setHasMore(more.length === 25);
-                      } catch {
-                        setPaginationError("Could not load more fragrances. Your results are still here. Try again.");
+                      } catch (error) {
+                        if(!controller || controller.signal.aborted || paginationController.current!==controller || requestId!==paginationSequence.current)return;
+                        if(isUnauthorized(error))setSessionExpired(true);
+                        else setPaginationError("Could not load more fragrances. Your results are still here. Try again.");
                       }
                     })
                   }
@@ -208,17 +312,17 @@ function DiscoverContent({
               </div>
             ) : null}
           </>
-        ) : (
+        ) : busy ? <p role="status">Searching the catalog…</p> : (
           <Card>
             <CardContent className="empty-panel">
               <Search />
-              <h2>No fragrances found for “{query}”</h2>
+              <h2>No fragrances found for “{activeQuery}”</h2>
               <p>Try a fragrance name, brand, or concentration.</p>
             </CardContent>
           </Card>
         )
-      ) : recommendationError ? (
-        <Card><CardContent className="state-block" role="alert"><h2>Recommendations are taking a moment</h2><p className="muted">{recommendationError}</p><Button asChild variant="secondary"><Link href={`/discover?${new URLSearchParams({mode, family:selectedFamily, gender:selectedGender, season:selectedSeason, minimum_value:selectedMinimumValue})}`}>Try again</Link></Button></CardContent></Card>
+      ) : liveRecommendationError ? (
+        <Card><CardContent className="state-block" role="alert"><h2>Recommendations are taking a moment</h2><p className="muted">{liveRecommendationError}</p><Button asChild variant="secondary"><Link href={`/discover?${new URLSearchParams({mode:filters.mode, family:filters.family, gender:filters.gender, season:filters.season, minimum_value:filters.minimum_value})}`}>Try again</Link></Button></CardContent></Card>
       ) : displayedResults.length ? (
         <div className="discover-grid">
           {displayedResults.map((result, index) => {
@@ -288,8 +392,8 @@ function DiscoverContent({
                     </Button>
                     <WishlistButton
                       fragranceId={item.id}
-                      initialSaved={wishlistIds.includes(item.id)}
-                      unavailable={Boolean(wishlistError)}
+                      initialSaved={activeWishlist.includes(item.id)}
+                      unavailable={wishlistUnavailable}
                     />
                   </div>
                 </CardContent>
@@ -309,7 +413,10 @@ function DiscoverContent({
           </CardContent>
         </Card>
       )}
-      {wishlistError && <p role="status" className="data-note">{wishlistError}</p>}
+      {isSearching && <p role="status" aria-live="polite">{busy ? `Searching for ${activeQuery}…` : searchError ? searchError : `${matches.length} fragrances found for ${activeQuery}.`}</p>}
+      {searchError && <Button type="button" variant="secondary" onClick={()=>void search(activeQuery,true)}>Retry search</Button>}
+      {!isSearching && refreshStatus && <p className="data-note" aria-live="polite">{refreshStatus === "pending" ? "Recommendations are being refreshed." : refreshStatus === "fallback" ? "Showing your latest available recommendations." : "Recommendations are up to date."}</p>}
+      {wishlistUnavailable && <p role="status" className="data-note">Wishlist status is temporarily unavailable. Refresh before saving an existing entry.</p>}
     </section>
   );
 }

@@ -1,5 +1,5 @@
 vi.mock("@/lib/server/surface-choice-actions",()=>({surfaceChoice:vi.fn().mockResolvedValue({ok:false,error:""})}));
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { discoveryResult, fragranceSummary } from "@/test/catalog-fixtures";
@@ -13,7 +13,7 @@ vi.mock("@/lib/server/actions", () => ({
   searchCatalogPage: vi.fn().mockResolvedValue([]),
 }));
 
-afterEach(cleanup);
+afterEach(()=>{cleanup();vi.useRealTimers();vi.unstubAllGlobals();});
 
 describe("DiscoverExperience", () => {
   it("offers discovery directions while preserving active filters",()=>{
@@ -151,5 +151,99 @@ describe("DiscoverExperience", () => {
       "href",
       "/discover",
     );
+  });
+
+  it("debounces live search by 200ms, sends filters, and skips recommendations for a query", async()=>{
+    vi.useFakeTimers();
+    const fetchMock=vi.fn(async (input:RequestInfo|URL)=>new Response(JSON.stringify(String(input).includes("wishlist")?[]:[fragranceSummary({name:"Search result"})]),{status:200}));
+    vi.stubGlobal("fetch",fetchMock);
+    render(<DiscoverExperience results={[]} query="cedar" liveMode selectedFamily="Woody" selectedGender="unisex" selectedSeason="fall" selectedMinimumValue="4"/>);
+    await act(async()=>{await vi.advanceTimersByTimeAsync(200);});
+    const calls=fetchMock.mock.calls.map(call=>String(call[0]));
+    expect(calls.some(url=>url.startsWith("/api/discover/feed"))).toBe(false);
+    expect(calls.some(url=>url.includes("/api/discover/search?q=cedar")&&url.includes("family=Woody")&&url.includes("gender=unisex")&&url.includes("season=fall")&&url.includes("minimum_value=4"))).toBe(true);
+    fireEvent.change(screen.getByRole("searchbox"),{target:{value:"cedar musk"}});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(199);});
+    expect(fetchMock.mock.calls.filter(call=>String(call[0]).startsWith("/api/discover/search"))).toHaveLength(1);
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1);});
+    expect(fetchMock.mock.calls.filter(call=>String(call[0]).startsWith("/api/discover/search"))).toHaveLength(2);
+  });
+
+  it("ignores an older response that arrives after a newer query", async()=>{
+    const pending:Array<{resolve:(response:Response)=>void}>=[];
+    const fetchMock=vi.fn((input:RequestInfo|URL)=>{
+      if(String(input).includes("wishlist"))return Promise.resolve(new Response("[]"));
+      return new Promise<Response>(resolve=>pending.push({resolve}));
+    });
+    vi.stubGlobal("fetch",fetchMock);
+    render(<DiscoverExperience results={[]} query="first" liveMode/>);
+    await waitFor(()=>expect(pending).toHaveLength(1));
+    fireEvent.change(screen.getByRole("searchbox"),{target:{value:"second"}});
+    await waitFor(()=>expect(pending).toHaveLength(2));
+    await act(async()=>pending[1]!.resolve(new Response(JSON.stringify([fragranceSummary({id:"second",name:"Second result"})]))));
+    expect(screen.getByRole("heading",{name:"Second result"})).toBeVisible();
+    await act(async()=>pending[0]!.resolve(new Response(JSON.stringify([fragranceSummary({id:"first",name:"First result"})]))));
+    expect(screen.queryByRole("heading",{name:"First result"})).not.toBeInTheDocument();
+  });
+
+  it("clear cancels the pending search and restores recommendation mode", async()=>{
+    const pending:Array<{signal?:AbortSignal;resolve:(response:Response)=>void}>=[];
+    const fetchMock=vi.fn((input:RequestInfo|URL,init?:RequestInit)=>{
+      const url=String(input);
+      if(url.includes("wishlist"))return Promise.resolve(new Response("[]"));
+      if(url.includes("feed"))return Promise.resolve(new Response(JSON.stringify({items:[],refresh_status:"fresh"})));
+      return new Promise<Response>(resolve=>pending.push({signal:init?.signal as AbortSignal|undefined,resolve}));
+    });
+    vi.stubGlobal("fetch",fetchMock);
+    render(<DiscoverExperience results={[]} query="cedar" liveMode/>);
+    await waitFor(()=>expect(pending).toHaveLength(1));
+    const signal=pending[0]?.signal;
+    fireEvent.click(screen.getByRole("link",{name:"Clear search"}));
+    expect(signal?.aborted).toBe(true);
+    await act(async()=>{pending[0]?.resolve(new Response(JSON.stringify([fragranceSummary({name:"Stale result"})])));});
+    expect(screen.queryByRole("heading",{name:"Stale result"})).not.toBeInTheDocument();
+    await waitFor(()=>expect(screen.getByText("No recommendations yet")).toBeVisible());
+  });
+
+  it("ignores pagination JSON and errors after the query changes",async()=>{
+    let resolveMore:(items:ReturnType<typeof fragranceSummary>[])=>void=()=>{};
+    vi.mocked(searchCatalogPage).mockReturnValueOnce(new Promise(resolve=>{resolveMore=resolve;}));
+    const items=Array.from({length:25},(_,index)=>fragranceSummary({id:`page-${index}`,name:`Page scent ${index}`}));
+    render(<DiscoverExperience results={[]} query="scent" catalogResults={items}/>);
+    fireEvent.click(screen.getByRole("button",{name:"Load more"}));
+    await waitFor(()=>expect(searchCatalogPage).toHaveBeenCalled());
+    fireEvent.change(screen.getByRole("searchbox"),{target:{value:"new query"}});
+    resolveMore([fragranceSummary({id:"stale-page",name:"Stale page scent"})]);
+    await act(async()=>{await Promise.resolve();});
+    expect(screen.queryByRole("heading",{name:"Stale page scent"})).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("catalog-result-card")).toHaveLength(25);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("offers sign-in recovery when live search receives an expired-session response",async()=>{
+    const fetchMock=vi.fn(async(input:RequestInfo|URL)=>String(input).includes("wishlist")?new Response("[]"):new Response(JSON.stringify({message:"Sign in again"}),{status:401}));
+    vi.stubGlobal("fetch",fetchMock);
+    render(<DiscoverExperience results={[]} query="cedar" liveMode/>);
+    expect(await screen.findByRole("link",{name:"Sign in again"})).toHaveAttribute("href","/sign-in");
+    expect(screen.queryByText(/Search is temporarily unavailable/)).not.toBeInTheDocument();
+  });
+
+  it("offers sign-in recovery for expired feed and wishlist requests",async()=>{
+    const fetchMock=vi.fn(async(_input:RequestInfo|URL)=>new Response(JSON.stringify({message:"Sign in again"}),{status:401}));
+    vi.stubGlobal("fetch",fetchMock);
+    render(<DiscoverExperience results={[]} liveMode/>);
+    expect(await screen.findByRole("link",{name:"Sign in again"})).toHaveAttribute("href","/sign-in");
+    expect(fetchMock.mock.calls.some(call=>String(call[0]).startsWith("/api/discover/feed"))).toBe(true);
+    expect(fetchMock.mock.calls.some(call=>String(call[0]).startsWith("/api/discover/wishlist"))).toBe(true);
+  });
+
+  it("offers sign-in recovery when pagination receives an expired-session response",async()=>{
+    const items=Array.from({length:25},(_,index)=>fragranceSummary({id:`auth-page-${index}`,name:`Auth scent ${index}`}));
+    const fetchMock=vi.fn(async(input:RequestInfo|URL)=>String(input).includes("wishlist")?new Response("[]"):String(input).includes("offset=0")?new Response(JSON.stringify(items)):new Response(JSON.stringify({message:"Sign in again"}),{status:401}));
+    vi.stubGlobal("fetch",fetchMock);
+    render(<DiscoverExperience results={[]} query="scent" liveMode/>);
+    fireEvent.click(await screen.findByRole("button",{name:"Load more"}));
+    expect(await screen.findByRole("link",{name:"Sign in again"})).toHaveAttribute("href","/sign-in");
+    expect(screen.queryByText(/Could not load more fragrances/)).not.toBeInTheDocument();
   });
 });
