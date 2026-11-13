@@ -65,8 +65,11 @@ class HybridJobRepository:
         # Feed reads only need the last committed version. Reusing
         # state_for_update() here takes row locks on both the user and state,
         # serializing concurrent reads for the same member.
-        return self._session.scalar(
-            select(RecommendationState.input_version).where(
-                RecommendationState.user_id == user_id
+        return (
+            self._session.scalar(
+                select(RecommendationState.input_version).where(
+                    RecommendationState.user_id == user_id
+                )
             )
-        ) or 0
+            or 0
+        )
