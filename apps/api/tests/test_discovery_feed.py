@@ -1,6 +1,7 @@
 from typing import Any
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from scentiq_api.api.v1.discovery_feed import _safe_snapshot_page, _snapshot_rows
@@ -97,6 +98,184 @@ def test_snapshot_page_rechecks_owned_excluded_and_shared_visibility() -> None:
         )
         is None
     )
+
+
+def _feed_client(session: Any, user: Any) -> Any:
+    from collections.abc import Iterator
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from sqlalchemy.orm import Session
+
+    from scentiq_api.api.v1.discovery_feed import create_discovery_feed_router
+    from scentiq_api.auth import AuthenticatedUser
+
+    def get_session() -> Iterator[Session]:
+        yield session
+
+    def current_user() -> AuthenticatedUser:
+        return AuthenticatedUser(
+            user_id=user.id,
+            email=user.email,
+            display_name=user.display_name,
+            lifecycle_state="active",
+        )
+
+    app = FastAPI()
+    app.include_router(
+        create_discovery_feed_router(
+            get_session,
+            current_user,
+            catalog_version="catalog-test",
+            algorithm_version="algorithm-test",
+            max_age_seconds=3600,
+        )
+    )
+    return TestClient(app)
+
+
+def _add_feed_snapshot(
+    session: Any, user: Any, fragrance: Any, payload: dict[str, object], *, input_version: int = 0
+) -> None:
+    from scentiq_api.models import AsyncJob, RecommendationSnapshot
+
+    row = _row()
+    row["fragrance"]["id"] = str(fragrance.id)
+    payload = {**payload, "discovery": [row], "discovery_modes": {"balance": [row]}}
+    job = AsyncJob(
+        job_type="recommendation_bundle",
+        status="succeeded",
+        user_id=user.id,
+        input_version=input_version,
+        idempotency_key=f"feed-test:{user.id}:{input_version}",
+        reason="feed_test",
+        schema_version=1,
+        attempt_count=0,
+    )
+    session.add(job)
+    session.flush()
+    session.add(
+        RecommendationSnapshot(
+            user_id=user.id,
+            source_job_id=job.id,
+            input_version=input_version,
+            algorithm_version="algorithm-test",
+            catalog_version="catalog-test",
+            payload=payload,
+        )
+    )
+    session.flush()
+
+
+def test_fresh_snapshot_fast_path_trusts_valid_profile_metadata(
+    session: Any, monkeypatch: Any
+) -> None:
+    from domain_fixtures import make_brand, make_fragrance, make_user
+
+    from scentiq_api.services.taste_profile import TasteProfileService
+
+    user = make_user(session, email="feed-fast-path@example.test")
+    fragrance = make_fragrance(
+        session, brand=make_brand(session, name="Feed fast path"), name="One"
+    )
+    _add_feed_snapshot(
+        session,
+        user,
+        fragrance,
+        {"profile_version": "a" * 64, "excluded_ids": []},
+    )
+
+    def unexpected_recompute(self: Any, user_id: Any) -> Any:
+        raise AssertionError("fresh snapshot should avoid taste-profile recomputation")
+
+    monkeypatch.setattr(TasteProfileService, "for_user", unexpected_recompute)
+    with _feed_client(session, user) as client:
+        response = client.get("/discovery-feed?limit=1")
+    assert response.status_code == 200, response.text
+    assert response.json()["refresh_status"] == "fresh"
+    assert len(response.json()["items"]) == 1
+
+
+def test_snapshot_page_discards_when_version_changes_after_profile_recompute(
+    session: Any, monkeypatch: Any
+) -> None:
+    from domain_fixtures import make_brand, make_fragrance, make_user
+
+    from scentiq_api.repositories import HybridJobRepository
+    from scentiq_api.services.taste_profile import TasteProfileService
+
+    user = make_user(session, email="feed-race@example.test")
+    fragrance = make_fragrance(session, brand=make_brand(session, name="Feed race"), name="One")
+    _add_feed_snapshot(
+        session,
+        user,
+        fragrance,
+        {},
+    )
+    version_reads = 0
+    original_profile = TasteProfileService.for_user
+
+    def changing_version(self: Any, user_id: Any) -> int:
+        nonlocal version_reads
+        version_reads += 1
+        return 0 if version_reads == 1 else 1
+
+    profile_reads = 0
+
+    def recompute_profile(self: Any, user_id: Any) -> Any:
+        nonlocal profile_reads
+        profile_reads += 1
+        return original_profile(self, user_id)
+
+    monkeypatch.setattr(HybridJobRepository, "current_input_version", changing_version)
+    monkeypatch.setattr(TasteProfileService, "for_user", recompute_profile)
+    with _feed_client(session, user) as client:
+        response = client.get("/discovery-feed?limit=1")
+    assert response.status_code == 200, response.text
+    assert response.json()["refresh_status"] == "fallback"
+    assert version_reads == 2
+    assert profile_reads >= 1
+
+
+@pytest.mark.parametrize("case", ["stale", "legacy", "invalid_metadata"])
+def test_snapshot_profile_fallback_recomputes_for_stale_or_untrusted_metadata(
+    session: Any, monkeypatch: Any, case: str
+) -> None:
+    from domain_fixtures import make_brand, make_fragrance, make_user
+
+    from scentiq_api.services.taste_profile import TasteProfileService
+
+    user = make_user(session, email=f"feed-fallback-{case}@example.test")
+    fragrance = make_fragrance(
+        session, brand=make_brand(session, name=f"Fallback {case}"), name="One"
+    )
+    profile_version = TasteProfileService(session).for_user(user.id).version
+    if case == "legacy":
+        metadata: dict[str, object] = {}
+    elif case == "invalid_metadata":
+        metadata = {"profile_version": profile_version, "excluded_ids": ["not-a-uuid"]}
+    else:
+        metadata = {"profile_version": profile_version, "excluded_ids": []}
+    _add_feed_snapshot(
+        session,
+        user,
+        fragrance,
+        metadata,
+        input_version=1 if case == "stale" else 0,
+    )
+    original = TasteProfileService.for_user
+    calls = 0
+
+    def recompute(self: Any, user_id: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return original(self, user_id)
+
+    monkeypatch.setattr(TasteProfileService, "for_user", recompute)
+    with _feed_client(session, user) as client:
+        response = client.get("/discovery-feed?limit=1")
+    assert response.status_code == 200, response.text
+    assert calls >= 1
 
 
 def test_snapshot_feed_mode_results_are_paginated_after_constraints() -> None:

@@ -10,7 +10,7 @@ from uuid import UUID
 from scentiq_api.errors import not_found, unprocessable
 from scentiq_api.models import Fragrance, WearLog
 from scentiq_api.models.layer_stacks import LayerStack, LayerStackItem, LayerStackWear
-from scentiq_api.repositories import LayeringRepository
+from scentiq_api.repositories import HybridJobRepository, LayeringRepository
 from scentiq_api.schemas import LayeringMode, LayeringSuggestion
 from scentiq_api.schemas.layering import (
     LayeringGoal,
@@ -20,6 +20,7 @@ from scentiq_api.schemas.layering import (
     SavedLayeringStack,
 )
 from scentiq_api.services.fragrances import to_fragrance_summary
+from scentiq_api.services.hybrid_jobs import HybridJobService
 from scentiq_api.services.layer_stack_scoring import (
     AUTO_COLLECTION_LIMIT,
     PAIR_BASE_LIMIT,
@@ -385,6 +386,10 @@ class LayeringService:
         )
         stack.wears.append(wear)
         self._repository.flush()
+        if rating is not None:
+            HybridJobService(
+                HybridJobRepository(self._repository._session)
+            ).invalidate_recommendations(user_id, reason="layer_wear_rated")
         collection = {
             item.fragrance_id: item for item in self._repository.collection_items(user_id)
         }
@@ -414,8 +419,13 @@ class LayeringService:
             raise not_found("Combination wear not found")
         if rating not in range(1, 6):
             raise unprocessable("invalid_rating", "Rating must be between one and five")
+        previous_rating = wear.rating
         wear.rating = rating
         self._repository.flush()
+        if wear.rating != previous_rating:
+            HybridJobService(
+                HybridJobRepository(self._repository._session)
+            ).invalidate_recommendations(user_id, reason="layer_wear_rated")
         return self._wear_response(wear)
 
     def suggest(

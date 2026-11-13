@@ -12,12 +12,14 @@ from scentiq_api.models.recommendation_choices import (
     RecommendationChoiceReceipt,
     RecommendationFeedback,
 )
+from scentiq_api.repositories import HybridJobRepository
 from scentiq_api.schemas.wear_recommendations import (
     RecommendationFeedbackRequest,
     RecommendationFeedbackResponse,
     RecommendationNextRequest,
     WearRecommendationResponse,
 )
+from scentiq_api.services.hybrid_jobs import HybridJobService
 
 
 class RecommendationChoiceService:
@@ -220,6 +222,19 @@ class RecommendationChoiceService:
             candidate.fragrance.id for candidate in [response, *response.alternatives]
         }:
             raise not_found("Eligible fragrance not found")
+        already_disliked = (
+            request.reason == "dislike_scent"
+            and self.session.scalar(
+                select(RecommendationFeedback.id)
+                .where(
+                    RecommendationFeedback.user_id == user_id,
+                    RecommendationFeedback.fragrance_id == request.fragrance_id,
+                    RecommendationFeedback.reason == "dislike_scent",
+                )
+                .limit(1)
+            )
+            is not None
+        )
         entry = RecommendationFeedback(
             user_id=user_id,
             recommendation_id=recommendation_id,
@@ -228,4 +243,8 @@ class RecommendationChoiceService:
         )
         self.session.add(entry)
         self.session.flush()
+        if request.reason == "dislike_scent" and not already_disliked:
+            HybridJobService(HybridJobRepository(self.session)).invalidate_recommendations(
+                user_id, reason="recommendation_disliked"
+            )
         return RecommendationFeedbackResponse(id=entry.id, reason=request.reason)

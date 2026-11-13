@@ -41,6 +41,28 @@ def _snapshot_rows(
         return []
 
 
+def _snapshot_profile_metadata(
+    payload: dict[str, object],
+) -> tuple[str, set[UUID]] | None:
+    """Return validated worker metadata suitable for a fresh feed snapshot."""
+    version = payload.get("profile_version")
+    excluded = payload.get("excluded_ids")
+    if (
+        not isinstance(version, str)
+        or len(version) != 64
+        or any(character not in "0123456789abcdef" for character in version.lower())
+        or not isinstance(excluded, list)
+    ):
+        return None
+    try:
+        excluded_ids = {
+            value if isinstance(value, UUID) else UUID(str(value)) for value in excluded
+        }
+    except ValueError, TypeError, AttributeError:
+        return None
+    return version, excluded_ids
+
+
 def _safe_snapshot_page(
     rows: list[DiscoveryResult],
     *,
@@ -89,10 +111,10 @@ def create_discovery_feed_router(
         jobs = HybridJobService(HybridJobRepository(session))
         input_version = jobs.current_input_version(user_id)
         snapshot = jobs.latest_snapshot(user_id)
-        profile = TasteProfileService(session).for_user(user_id)
         filtered = any(
             value is not None for value in (gender, family, season, accord, minimum_value)
         )
+        profile = None
         results: list[DiscoveryResult] | None = None
         generated_at = None
         stale = True
@@ -100,13 +122,9 @@ def create_discovery_feed_router(
         payload: dict[str, object] = {}
         compatible_profile = False
         hard_versions_match = False
+        trusted_excluded_ids: set[UUID] | None = None
         if snapshot is not None:
             payload = snapshot.payload if isinstance(snapshot.payload, dict) else {}
-            compatible_profile = payload.get("profile_version") == profile.version or (
-                payload.get("profile_version") is None
-                and not profile.features
-                and not profile.excluded_ids
-            )
             hard_versions_match = (
                 snapshot.catalog_version == catalog_version
                 and snapshot.algorithm_version == algorithm_version
@@ -117,15 +135,37 @@ def create_discovery_feed_router(
             stale = (
                 snapshot.input_version != input_version
                 or not hard_versions_match
-                or not compatible_profile
                 or datetime.now(UTC) - snapshot_time >= timedelta(seconds=max_age_seconds)
             )
             refresh_required = stale
+            metadata = _snapshot_profile_metadata(payload)
+            if (
+                not filtered
+                and mode != "seasonal"
+                and snapshot.input_version == input_version
+                and hard_versions_match
+                and not stale
+                and metadata is not None
+            ):
+                _, trusted_excluded_ids = metadata
+                compatible_profile = True
+            else:
+                profile = TasteProfileService(session).for_user(user_id)
+                compatible_profile = payload.get("profile_version") == profile.version or (
+                    payload.get("profile_version") is None
+                    and not profile.features
+                    and not profile.excluded_ids
+                )
+            stale = stale or not compatible_profile
+            refresh_required = stale
+        else:
+            profile = TasteProfileService(session).for_user(user_id)
         if snapshot is not None and not filtered:
             selected_season = None
             if mode == "seasonal":
                 from scentiq_api.services.personalized_ranking import surface_context
 
+                assert profile is not None
                 context = surface_context(session, user_id, profile)
                 selected_season = str(context.get("season", "spring"))
             variants = payload.get(
@@ -161,11 +201,23 @@ def create_discovery_feed_router(
                 page = _safe_snapshot_page(
                     parsed,
                     owned_ids=owned_ids,
-                    excluded_ids=set(profile.excluded_ids),
+                    excluded_ids=trusted_excluded_ids
+                    if trusted_excluded_ids is not None
+                    else set(profile.excluded_ids if profile is not None else ()),
                     shared_ids=shared_ids,
                     offset=offset,
                     limit=limit,
                 )
+                if page is not None:
+                    latest_input_version = jobs.current_input_version(user_id)
+                    if latest_input_version != input_version:
+                        # A taste-affecting write committed while the snapshot
+                        # page was being checked. Drop it and recompute against
+                        # the newly observed version.
+                        input_version = latest_input_version
+                        stale = True
+                        refresh_required = True
+                        page = None
                 generated_at = snapshot.created_at
                 results = page
         if results is None:

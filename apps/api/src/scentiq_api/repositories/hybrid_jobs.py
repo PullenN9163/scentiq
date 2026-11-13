@@ -62,9 +62,6 @@ class HybridJobRepository:
         )
 
     def current_input_version(self, user_id: UUID) -> int:
-        # Feed reads only need the last committed version. Reusing
-        # state_for_update() here takes row locks on both the user and state,
-        # serializing concurrent reads for the same member.
         return (
             self._session.scalar(
                 select(RecommendationState.input_version).where(

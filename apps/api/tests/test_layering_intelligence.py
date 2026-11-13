@@ -153,21 +153,29 @@ def test_three_strong_scents_get_overload_penalty(session: Session) -> None:
 
 
 def test_save_wear_rate_rename_delete_is_user_isolated(session: Session) -> None:
+    from scentiq_api.repositories import HybridJobRepository
+
     user, items = scents(session)
     other = make_user(session, email="other-layer@example.test")
     service = LayeringService(LayeringRepository(session))
     saved = service.save_stack(user.id, [items[0].id, items[1].id], name="Summer")
+    jobs = HybridJobRepository(session)
+    assert jobs.current_input_version(user.id) == 0
     assert saved.name == "Summer"
     with pytest.raises(ApiError):
         service.rename_stack(other.id, saved.id, "Stolen")
     with pytest.raises(ApiError):
         service.evaluate_stack(other.id, [items[0].id, items[1].id])
     worn = service.log_stack_wear(user.id, saved.id, rating=5, notes="A bright day")
+    assert jobs.current_input_version(user.id) == 1
     assert worn.rating == 5
     assert service.history(user.id, saved.id)[0].notes == "A bright day"
     assert service.saved_stacks(user.id)[0].average_rating == 5
     before = service.evaluate_stack(user.id, [items[0].id, items[1].id])
     service.rate_stack_wear(user.id, saved.id, worn.id, rating=1)
+    assert jobs.current_input_version(user.id) == 2
+    service.rate_stack_wear(user.id, saved.id, worn.id, rating=1)
+    assert jobs.current_input_version(user.id) == 2
     after = service.evaluate_stack(user.id, [items[0].id, items[1].id])
     assert 0 < before.score - after.score <= 0.1
     assert service.rename_stack(user.id, saved.id, "Renamed").name == "Renamed"

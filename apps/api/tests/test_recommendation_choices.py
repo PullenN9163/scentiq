@@ -75,27 +75,48 @@ def test_single_candidate_exhaustion_and_tenant_isolation(session: Session) -> N
     assert error.value.status_code == 404
 
 
-def test_reasoned_feedback_preserves_neutral_skip_and_does_not_reject(session: Session) -> None:
+def test_reasoned_feedback_preserves_neutral_skip_and_does_not_reject(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
     from sqlalchemy import select
 
     from scentiq_api.models import RecommendationDecision
     from scentiq_api.models.recommendation_choices import RecommendationFeedback
+    from scentiq_api.repositories import HybridJobRepository
     from scentiq_api.schemas.wear_recommendations import RecommendationFeedbackRequest
 
     user, _, original = batch(session)
     service = RecommendationChoiceService(session)
+    jobs = HybridJobRepository(session)
     for reason in ("not_today", "too_strong", "dislike_scent"):
         service.feedback(
             user.id,
             original.id,
             RecommendationFeedbackRequest(fragrance_id=original.fragrance.id, reason=reason),
         )
+    from scentiq_api.services.taste_profile import TasteProfileService
+
+    profile = TasteProfileService(session).for_user(user.id)
+    monkeypatch.setattr(
+        TasteProfileService,
+        "for_user",
+        lambda self, user_id: replace(profile, excluded_ids=frozenset()),
+    )
+    service.feedback(
+        user.id,
+        original.id,
+        RecommendationFeedbackRequest(fragrance_id=original.fragrance.id, reason="dislike_scent"),
+    )
     assert list(session.scalars(select(RecommendationFeedback.reason))) == [
         "not_today",
         "too_strong",
         "dislike_scent",
+        "dislike_scent",
     ]
     assert session.scalar(select(RecommendationDecision)) is None
+    assert jobs.current_input_version(user.id) == 1
 
 
 def test_stale_concurrent_click_does_not_advance_twice(session: Session) -> None:
