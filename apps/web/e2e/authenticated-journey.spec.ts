@@ -27,6 +27,24 @@ async function openCollection(page: Page) {
   }
 }
 
+async function selectAvailableCatalogFragrance(page: Page) {
+  const rows = page.locator(".catalog-picker__result");
+  const selectable = page.locator(".catalog-picker__result input:not(:disabled)");
+  for (let pageNumber = 0; pageNumber < 20; pageNumber += 1) {
+    if (await selectable.count()) {
+      await selectable.first().check();
+      return;
+    }
+
+    const previousCount = await rows.count();
+    await page.getByRole("button", { name: "Load more" }).click();
+    await expect
+      .poll(() => rows.count(), { timeout: 10_000 })
+      .toBeGreaterThan(previousCount);
+  }
+  throw new Error("The catalog did not return an unowned fragrance after 20 pages.");
+}
+
 test.describe("invited member journey", () => {
   test.skip(!email, "Set E2E_CLERK_EMAIL to run the signed-in journey");
 
@@ -104,7 +122,7 @@ test.describe("invited member journey", () => {
       await openCollection(page);
       await page.getByRole("button", { name: /add fragrance/i }).click();
       await page.getByRole("button", { name: /from catalog/i }).click();
-      await page.locator(".catalog-picker__result input:not(:disabled)").first().check();
+      await selectAvailableCatalogFragrance(page);
       await page.getByRole("button", { name: /add to collection/i }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
     }
