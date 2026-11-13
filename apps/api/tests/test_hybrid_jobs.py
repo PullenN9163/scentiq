@@ -64,6 +64,19 @@ def test_invalidation_creates_state_and_job_in_the_same_transaction(session: Ses
     assert job.idempotency_key == f"recommendation_bundle:{user.id}:1"
 
 
+def test_current_input_version_is_a_nonlocking_read_without_creating_state(
+    session: Session,
+) -> None:
+    user = make_user(session, email="member@example.com")
+    repository = HybridJobRepository(session)
+
+    assert repository.current_input_version(user.id) == 0
+    assert session.get(RecommendationState, user.id) is None
+
+    _service(session).invalidate_recommendations(user.id, reason="collection_changed")
+    assert repository.current_input_version(user.id) == 1
+
+
 def test_ensure_job_coalesces_duplicate_version(session: Session) -> None:
     user = make_user(session, email="member@example.com")
     service = _service(session)
