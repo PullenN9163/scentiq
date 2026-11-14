@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 
 import { AtelierShell, CATALOG_ATTRIBUTION } from "./atelier-shell";
-import { activeDestination } from "./navigation";
+import { activeDestination, isStudioPath } from "./navigation";
 
 const navigation = vi.hoisted(() => ({ pathname: "/collection/abc" }));
 const clerk = vi.hoisted(() => ({ signOut: vi.fn(), openUserProfile: vi.fn() }));
@@ -97,5 +97,13 @@ describe("activeDestination", () => {
     ["/weekly", null],
   ])("maps %s to %s", (path, value) => {
     expect(activeDestination(path)).toBe(value);
+  });
+});
+
+describe("isStudioPath", () => {
+  it("runs the Blend studio full screen, and only that route", () => {
+    expect(isStudioPath("/layering")).toBe(true);
+    expect(isStudioPath("/layering/extra")).toBe(false);
+    expect(isStudioPath("/dashboard")).toBe(false);
   });
 });

@@ -10,6 +10,8 @@ const viteRequire=createRequire(require.resolve('vitest'));
 const {createServer}=await import(pathToFileURL(viteRequire.resolve('vite')).href);
 const dir=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(dir,'../..');
+// Layering actions the Blend studio fixture answers from globalThis.__scentiqFixtures.
+const hooked=new Set(['evaluateLayerStack','saveLayerStack','renameLayerStack','deleteLayerStack','logLayerStackWear','rateLayerStackWear','getLayerStackHistory','getLayeringIntelligence']);
 const serviceDoubles={
   name:'service-doubles', enforce:'pre',
   resolveId(source) {
@@ -24,7 +26,7 @@ const serviceDoubles={
     if(!id.startsWith('\0service:')) return;
     const source=readFileSync(id.slice(9),'utf8');
     const names=[...source.matchAll(/export (?:async )?function (\w+)/g)].map(match=>match[1]);
-    return names.map(name=>`export async function ${name}(...args) { ${name==='searchCatalogPage'?'throw new Error("Fixture pagination unavailable");':name==='getWearFeedback'?'return null;':name==='wearRecommendation'?'return {ok:true,data:{id:"fixture-wear"}};':name==='decideRecommendation'?'return {ok:true,data:{}};':name.startsWith('search') || name.startsWith('get')?'return [];':'return {status:"error",message:"Fixture save failed. Your values are preserved.",values:Object.fromEntries(args.find(value=>value instanceof FormData)??[])};'} }`).join('\n');
+    return names.map(name=>`export async function ${name}(...args) { ${hooked.has(name)?`return (globalThis.__scentiqFixtures?.${name} ?? (async()=>{throw new Error('Fixture unavailable');}))(...args);`:name==='searchCatalogPage'?'throw new Error("Fixture pagination unavailable");':name==='getWearFeedback'?'return null;':name==='wearRecommendation'?'return {ok:true,data:{id:"fixture-wear"}};':name==='decideRecommendation'?'return {ok:true,data:{}};':name.startsWith('search') || name.startsWith('get')?'return [];':'return {status:"error",message:"Fixture save failed. Your values are preserved.",values:Object.fromEntries(args.find(value=>value instanceof FormData)??[])};'} }`).join('\n');
   },
 };
 const server=await createServer({

@@ -23,9 +23,17 @@ import type {CalendarResult} from "@/lib/calendar";
 import {collectionInsights} from "@/test/catalog-fixtures";
 import {TodaySkeleton, TodayView} from "@/features/today/today-view";
 import {WeekGlance} from "@/features/today/week-glance";
+import {BlendStudio} from "@/features/blend/blend-studio";
+import {blendStartFromQuery, shelfOrder, type BlendQuery} from "@/features/blend/blend-start";
+import type {LayeringGoal, StackMode} from "@/types/layering";
+
+declare global {
+  // Answers for the layering server actions the Blend studio calls; set by the blend fixture view.
+  var __scentiqFixtures: Record<string, (...args: unknown[]) => Promise<unknown>> | undefined;
+}
 
 /** Views that render with the Atelier tokens (data-atelier on the root). */
-export const ATELIER_VIEWS = new Set(["primitives"]);
+export const ATELIER_VIEWS = new Set(["primitives", "blend"]);
 
 /** Page views rendered inside the Atelier shell. */
 export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier", "collection-atelier", "blends", "week-atelier", "discover-atelier", "discover-atelier-error", "discover-loading", "insights-atelier", "settings-atelier"]);
@@ -97,6 +105,7 @@ export function atelierView(view: string, fragrances: FragranceSummary[], params
     case "fragrance": return <div className="at-page">{fragranceFixture(shelf, params, "page")}</div>;
     case "ask": stubAdvisor(shelf); return <>{todayFixture(shelf, params)}<OpenAskOnMount/></>;
     case "agent-atelier": stubAdvisor(shelf); return <AskPage/>;
+    case "blend": return blendFixture(shelf, params);
     case "collection-atelier": return collectionFixture(shelf, params, "shelf");
     case "blends": return collectionFixture(shelf, params, "blends");
     case "week-atelier": return weekFixture(shelf, params);
@@ -207,4 +216,33 @@ function tasteFixture(shelf: FragranceSummary[], params: URLSearchParams) {
     cost_per_wear: [entry(0, 4, 2)],
   });
   return <TasteView insights={insights} collection={owned}/>;
+}
+
+/** A reading for the flask: the first bottle anchors, later ones add spray share. */
+function stubSuggestion(shelf: FragranceSummary[], ids: string[], mode: StackMode, goal: LayeringGoal | null): LayeringStackSuggestion {
+  const sprays = [2, 1, 1];
+  const items = ids.flatMap((id, index) => {
+    const fragrance = shelf.find(entry => entry.id === id);
+    return fragrance ? [{fragrance, role: index === 0 ? "anchor" : "accent", application_order: index + 1, suggested_sprays: sprays[index]}] : [];
+  });
+  const total = items.reduce((sum, item) => sum + item.suggested_sprays, 0);
+  return {items, mode, goal, score: .78, verdict: "Strong fit", evidence_label: "partial", evidence_summary: "Some information missing", evidence_coverage: .8, generation_mode: "baseline", algorithm_version: "layering-v3", total_sprays: total, shared_notes: ["Cedar"], shared_accords: ["Woody"], bridge_signals: ["Cedar"], complementary_signals: ["Tea"], best_contexts: ["fall"], reasons: [], warnings: [], score_components: {bridge: .7, complement: .6, season_context: .8, projection_balance: .8, longevity_balance: .7, novelty: .5, user_affinity: .6, redundancy_penalty: .1, overload_penalty: 0}, explanation: {why_they_fit: ["These fragrances connect through cedar and woody notes."], what_changes: ["The second bottle adds a softer accent."], watch_out_for: ["Start light and adjust after it settles."]}} as unknown as LayeringStackSuggestion;
+}
+
+/** The Blend studio with a stubbed shelf, reading and query. Options: few, empty, error. */
+function blendFixture(shelf: FragranceSummary[], params: URLSearchParams) {
+  const owned: CollectionItem[] = shelf.map((fragrance, index) => ({id: `b-${index}`, fragrance, ownership_type: "bottle", status: "owned", bottle_size_ml: 100, remaining_ml: 60, user_rating: index === 0 ? 5 : index === 2 ? 4 : null, purchase_price: null, purchase_date: null, custom_longevity: null, custom_projection: null}));
+  const items = params.has("few") ? owned.slice(0, 1) : params.has("empty") ? [] : shelfOrder(owned);
+  globalThis.__scentiqFixtures = {
+    evaluateLayerStack: async (...args: unknown[]) => {
+      if (params.has("error")) throw new Error("Fixture unavailable");
+      const [ids, mode, goal] = args as [string[], StackMode, LayeringGoal | null];
+      return stubSuggestion(shelf, ids, mode, goal);
+    },
+    getLayeringIntelligence: async () => ({suggestions: [], saved: [], supported_goals: []}),
+  };
+  const query: BlendQuery = {a: params.get("a") ?? undefined, stack: params.get("stack") ?? undefined, mode: params.get("mode") ?? undefined, goal: params.get("goal") ?? undefined};
+  const load = blendStartFromQuery(query, items, []);
+  const start = load.evaluate ? {...load.start, suggestion: stubSuggestion(shelf, load.start.ids, load.start.mode, load.start.goal)} : load.start;
+  return <BlendStudio owned={items} start={start}/>;
 }

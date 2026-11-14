@@ -20,3 +20,8 @@ export function activeDestination(pathname: string): AtelierDestination["value"]
   }
   return null;
 }
+
+/** Routes that run full screen without the top bar or the dock (the Blend studio). */
+export function isStudioPath(pathname: string): boolean {
+  return pathname === "/layering";
+}

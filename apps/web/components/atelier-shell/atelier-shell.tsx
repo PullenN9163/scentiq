@@ -12,7 +12,7 @@ import { FragranceListProvider } from "@/features/fragrance/fragrance-list-conte
 import { CATALOG_ATTRIBUTION } from "@/lib/attribution";
 
 import { AccountMenu } from "./account-menu";
-import { ATELIER_DESTINATIONS, activeDestination } from "./navigation";
+import { ATELIER_DESTINATIONS, activeDestination, isStudioPath } from "./navigation";
 import styles from "./atelier-shell.module.css";
 
 export { CATALOG_ATTRIBUTION };
@@ -50,6 +50,15 @@ function ShellFrame({ children, sheet }: { children: ReactNode; sheet?: ReactNod
   const pathname = usePathname() ?? "/";
   const active = activeDestination(pathname);
   const shortcut = useShortcutLabel();
+  if (isStudioPath(pathname)) {
+    // The studio is a dark room of its own: no top bar, no dock, no scrolling page.
+    return (
+      <div className={styles.shell} data-studio="true">
+        <main className={styles.studioMain} id="main-content" tabIndex={-1}>{children}</main>
+        {sheet}
+      </div>
+    );
+  }
   return (
     <>
     <div className={styles.shell}>

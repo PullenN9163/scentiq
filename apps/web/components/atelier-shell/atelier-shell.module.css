@@ -206,3 +206,7 @@
 @media (prefers-reduced-motion: reduce) {
   .dock, .menu { transition: none; animation: none; }
 }
+
+/* The Blend studio route: the room fills the viewport, the page never scrolls. */
+.shell[data-studio="true"] { min-height: 0; height: 100dvh; overflow: hidden; }
+.studioMain { min-height: 0; height: 100%; outline: none; }
