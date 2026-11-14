@@ -187,7 +187,7 @@
 /* The dock steps aside while a sheet is open. */
 :global(body[data-scroll-locked]) .dock { opacity: 0; pointer-events: none; transform: translateY(calc(100% + 24px)); }
 
-.commandHost :global(.command-launch) { display: none; }
+
 
 @media (min-width: 700px) {
   .topBar { display: flex; }

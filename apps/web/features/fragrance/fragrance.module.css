@@ -133,3 +133,4 @@
 /* Full page title: display-md on phones, display-lg from 700px. */
 .page .name { font-size: 36px; line-height: 1.05; }
 @media (min-width: 700px) { .page .name { font-size: 56px; line-height: 1; } }
+.askAbout { justify-self: start; margin-top: var(--space-1); }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore, type ReactNode } from "react";
 
-import { CommandMenu } from "@/components/app-shell/command-menu";
+import { AskProvider, useAsk } from "@/features/ask/ask-provider";
 import { SegmentedControl } from "@/components/atelier/segmented-control";
 import { cn } from "@/lib/utils";
 
@@ -17,9 +17,6 @@ import styles from "./atelier-shell.module.css";
 
 export { CATALOG_ATTRIBUTION };
 
-function openAsk() {
-  window.dispatchEvent(new Event("scentiq:command"));
-}
 
 const noSubscription = () => () => {};
 
@@ -38,11 +35,23 @@ function useShortcutLabel() {
  * with Blend raised in the center.
  */
 export function AtelierShell({ children, sheet }: { children: ReactNode; sheet?: ReactNode }) {
+  return (
+    <FragranceListProvider>
+      <AskProvider>
+        <ShellFrame sheet={sheet}>{children}</ShellFrame>
+      </AskProvider>
+    </FragranceListProvider>
+  );
+}
+
+function ShellFrame({ children, sheet }: { children: ReactNode; sheet?: ReactNode }) {
+  const ask = useAsk();
+  const openAsk = () => ask(null);
   const pathname = usePathname() ?? "/";
   const active = activeDestination(pathname);
   const shortcut = useShortcutLabel();
   return (
-    <FragranceListProvider>
+    <>
     <div className={styles.shell}>
       <a className={styles.skip} href="#main-content">Skip to content</a>
       <header className={styles.topBar}>
@@ -89,10 +98,8 @@ export function AtelierShell({ children, sheet }: { children: ReactNode; sheet?:
           </Link>
         ))}
       </nav>
-      {/* The command menu keeps Ctrl/⌘ K and the "Ask ScentIQ" entry; its own launcher is hidden. */}
-      <div className={styles.commandHost}><CommandMenu /></div>
       {sheet}
     </div>
-    </FragranceListProvider>
+    </>
   );
 }

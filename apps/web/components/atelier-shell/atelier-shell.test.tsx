@@ -66,13 +66,10 @@ describe("AtelierShell", () => {
     expect(main).toHaveTextContent(CATALOG_ATTRIBUTION);
   });
 
-  it("opens the command menu from Ask", async () => {
-    const listener = vi.fn();
-    window.addEventListener("scentiq:command", listener);
+  it("opens the Ask panel from Ask", async () => {
     renderShell();
     await userEvent.click(screen.getAllByRole("button", { name: /Ask/ })[0]);
-    expect(listener).toHaveBeenCalled();
-    window.removeEventListener("scentiq:command", listener);
+    expect(await screen.findByRole("dialog", { name: "Ask" })).toBeInTheDocument();
   });
 
   it("puts Your taste, Settings, appearance and sign out in the account menu", async () => {

@@ -14,6 +14,9 @@ import { accordFor, accordVars } from "@/lib/accord";
 import { cn } from "@/lib/utils";
 import type { FragrancePageData } from "@/types/api";
 
+import { Button } from "@/components/atelier/button";
+import { useAsk } from "@/features/ask/ask-provider";
+
 import { FragranceActions, ownershipOf } from "./fragrance-actions";
 import { notesByStage, personalLine, weeklyWears } from "./fragrance-copy";
 import styles from "./fragrance.module.css";
@@ -64,6 +67,7 @@ export function FragranceContent({
           <Name className={cn(variant === "page" ? "at-display-lg" : "at-display-md", styles.name)}>{fragrance.name}</Name>
           {line ? <p className={styles.line}>{line}</p> : null}
           <FragranceActions fragrance={fragrance} item={item} compact={variant === "sheet"} />
+          <AskAboutThis id={fragrance.id} name={fragrance.name} brand={fragrance.brand.name} />
         </div>
       </header>
 
@@ -143,4 +147,9 @@ export function FragranceSkeleton() {
       <span className="at-skeleton" style={{ width: 220, height: 44 }} />
     </div>
   );
+}
+
+function AskAboutThis({ id, name, brand }: { id: string; name: string; brand: string }) {
+  const ask = useAsk();
+  return <Button size="sm" variant="text" className={styles.askAbout} onClick={() => ask({ fragranceId: id, name, brand })}>Ask about this</Button>;
 }

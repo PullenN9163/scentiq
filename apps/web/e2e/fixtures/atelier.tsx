@@ -1,5 +1,5 @@
 // Atelier fixture views. Rendered by main.tsx with deterministic stub data.
-import {useState, type ReactNode} from "react";
+import {useEffect, useState, type ReactNode} from "react";
 import {Button, Chip, FragranceCard, FragranceRow, Plate, Sheet} from "@/components/atelier";
 import {accordFor} from "@/lib/accord";
 import {toast} from "sonner";
@@ -9,6 +9,8 @@ import {FragranceContent} from "@/features/fragrance/fragrance-content";
 import {FragranceSheetFrame} from "@/features/fragrance/fragrance-sheet-frame";
 import {FragranceListProvider} from "@/features/fragrance/fragrance-list-context";
 import {LayersWellWith} from "@/features/fragrance/layers-well-with";
+import {AskPage} from "@/features/ask/ask-page";
+import {useAsk} from "@/features/ask/ask-provider";
 import type {WearPlan, WearRecommendation} from "@/types/wear-intelligence";
 import type {WeatherResult} from "@/lib/weather";
 import type {CalendarResult} from "@/lib/calendar";
@@ -20,7 +22,7 @@ import {WeekGlance} from "@/features/today/week-glance";
 export const ATELIER_VIEWS = new Set(["primitives"]);
 
 /** Page views rendered inside the Atelier shell. */
-export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance"]);
+export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier"]);
 
 /** A stand-in product photo: a bottle on a white studio background. */
 export function bottlePhoto(glass = "#e9e2d8", cap = "#2b2622") {
@@ -87,6 +89,8 @@ export function atelierView(view: string, fragrances: FragranceSummary[], params
     case "today-loading": return <TodaySkeleton/>;
     case "sheet": return <>{todayFixture(shelf, params)}<FragranceListProvider><FragranceSheetFrame id={shelf[0].id} title={shelf[0].name} fullHref={`/collection/${shelf[0].id}`}>{fragranceFixture(shelf, params, "sheet")}</FragranceSheetFrame></FragranceListProvider></>;
     case "fragrance": return <div className="at-page">{fragranceFixture(shelf, params, "page")}</div>;
+    case "ask": stubAdvisor(shelf); return <>{todayFixture(shelf, params)}<OpenAskOnMount/></>;
+    case "agent-atelier": stubAdvisor(shelf); return <AskPage/>;
     default: return null;
   }
 }
@@ -134,4 +138,25 @@ function fragranceFixture(shelf: FragranceSummary[], params: URLSearchParams, va
   const wears: WearLogEntry[] = params.has("sparse") ? [] : [2, 12, 30, 61].map((days, index) => ({id: `fw${index}`, collection_item_id: "owned-0", fragrance_id: fragrance.id, fragrance_name: fragrance.name, brand_name: fragrance.brand.name, worn_at: new Date(Date.now() - days * 864e5).toISOString(), sprays: 3, occasion: null, setting: null, notes: null}));
   const suggestions = [1, 2, 4].map((index) => ({items: [{fragrance, role: "anchor", application_order: 1, suggested_sprays: 2}, {fragrance: shelf[index], role: "accent", application_order: 2, suggested_sprays: 1}], mode: "balanced", score: .8 - index * .05})) as unknown as LayeringStackSuggestion[];
   return <FragranceContent data={{fragrance, collection_item: item, recent_wears: wears}} variant={variant} back={variant === "page" ? {href: "/collection", label: "Collection"} : undefined} layersWell={params.has("sparse") ? null : <LayersWellWith anchorId={fragrance.id} suggestions={suggestions}/>}/>;
+}
+
+/** Opens the Ask panel once, as the Ask button would. */
+function OpenAskOnMount() {
+  const ask = useAsk();
+  useEffect(() => { const timer = setTimeout(() => ask(null), 50); return () => clearTimeout(timer); }, [ask]);
+  return null;
+}
+
+/** A canned advisor stream so Ask can be captured without the API. */
+function stubAdvisor(shelf: FragranceSummary[]) {
+  const original = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    if (String(input).includes("/api/agent/chat")) {
+      const recommendation = fixtureRecommendation(shelf[0]);
+      const stack = {mode: "balanced", goal: "warmer", score: .82, verdict: "Strong fit", items: [{fragrance: shelf[0], role: "anchor", application_order: 1, suggested_sprays: 2}, {fragrance: shelf[1], role: "accent", application_order: 2, suggested_sprays: 1}]};
+      const events = [{type: "status", label: "Checking your week…"}, {type: "text_delta", delta: "Another 13 suits a cool, cloudy work day. For dinner, layer it with By the Fireplace."}, {type: "card", card: {kind: "recommendation", data: recommendation}}, {type: "card", card: {kind: "layering", data: [stack]}}, {type: "done"}];
+      return new Response(events.map(event => JSON.stringify(event)).join("\n") + "\n", {status: 200});
+    }
+    return original(input, init);
+  };
 }

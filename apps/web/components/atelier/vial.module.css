@@ -1,0 +1,18 @@
+.vial {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 999px 999px var(--radius-sm) var(--radius-sm);
+  padding: 3px;
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+/* A short neck reads as a vial rather than a pill. */
+.vial::before { content: ""; height: 18%; flex: none; }
+.liquid { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 2px; overflow: hidden; border-radius: 6px 6px 10px 10px; }
+.layer { min-height: 4px; flex-basis: 0; background: var(--ac); opacity: 0.95; }
+.sm { width: 28px; height: 44px; }
+.md { width: 56px; height: 88px; }
+.lg { width: 96px; height: 150px; }
