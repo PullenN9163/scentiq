@@ -4,7 +4,7 @@ import { ApiError } from "@/lib/server/api-client";
 import { evaluateLayerStack, getLayeringIntelligence } from "@/lib/server/layering-actions";
 import { getCollection } from "@/lib/server/queries";
 import type { CollectionItem } from "@/types/api";
-import type { LayeringGoal, LayeringIntelligencePage } from "@/types/layering";
+import type { LayeringGoal, LayeringIntelligencePage, SavedLayeringStack } from "@/types/layering";
 
 import { BlendStudio } from "./blend-studio";
 import { blendStartFromQuery, shelfOrder, type BlendQuery } from "./blend-start";
@@ -21,10 +21,16 @@ async function optional(read: Promise<LayeringIntelligencePage>): Promise<Layeri
   }
 }
 
+/** Identifies the query, so the studio reloads when the member opens another blend. */
+function routeKey(query: BlendQuery): string {
+  return [query.saved, query.stack, query.a, query.mode, query.goal].map((value) => value ?? "").join("|");
+}
+
 /** The studio's server half: the owned shelf, the query's starting blend, and a first reading when the query asks for one. */
 export async function BlendRoute({ query }: { query: BlendQuery }) {
   let owned: CollectionItem[];
   let supportedGoals: LayeringGoal[] | undefined;
+  let saved: SavedLayeringStack[] = [];
   let start: BlendStart;
   try {
     const [collection, intelligence] = await Promise.all([
@@ -33,7 +39,8 @@ export async function BlendRoute({ query }: { query: BlendQuery }) {
     ]);
     owned = shelfOrder(collection.filter((item) => item.status === "owned"));
     supportedGoals = intelligence?.supported_goals;
-    const load = blendStartFromQuery(query, owned, intelligence?.saved ?? []);
+    saved = intelligence?.saved ?? [];
+    const load = blendStartFromQuery(query, owned, saved);
     start = load.start;
     if (load.evaluate) {
       // A failed first reading is left to the studio, which shows it with a retry.
@@ -45,7 +52,8 @@ export async function BlendRoute({ query }: { query: BlendQuery }) {
     if (error instanceof ApiError) return <div className="at-page"><AtelierError title="The blend room did not load" message={error.message} /></div>;
     throw error;
   }
-  return <BlendStudio owned={owned} supportedGoals={supportedGoals} start={start} />;
+  // A new query remounts the studio, so opening another saved blend loads it.
+  return <BlendStudio key={routeKey(query)} owned={owned} saved={saved} supportedGoals={supportedGoals} start={start} />;
 }
 
 /** Plate skeletons while the shelf loads. */

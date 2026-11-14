@@ -229,20 +229,39 @@ function stubSuggestion(shelf: FragranceSummary[], ids: string[], mode: StackMod
   return {items, mode, goal, score: .78, verdict: "Strong fit", evidence_label: "partial", evidence_summary: "Some information missing", evidence_coverage: .8, generation_mode: "baseline", algorithm_version: "layering-v3", total_sprays: total, shared_notes: ["Cedar"], shared_accords: ["Woody"], bridge_signals: ["Cedar"], complementary_signals: ["Tea"], best_contexts: ["fall"], reasons: [], warnings: [], score_components: {bridge: .7, complement: .6, season_context: .8, projection_balance: .8, longevity_balance: .7, novelty: .5, user_affinity: .6, redundancy_penalty: .1, overload_penalty: 0}, explanation: {why_they_fit: ["These fragrances connect through cedar and woody notes."], what_changes: ["The second bottle adds a softer accent."], watch_out_for: ["Start light and adjust after it settles."]}} as unknown as LayeringStackSuggestion;
 }
 
+/** A saved blend for the cabinet fixture. */
+function savedFixture(shelf: FragranceSummary[], id: string, name: string, ids: string[], wears: number, rating: number | null, mode: StackMode = "balanced", goal: LayeringGoal | null = null): SavedLayeringStack {
+  return {id, name, notes: null, wear_count: wears, average_rating: rating, last_worn_at: wears ? "2026-11-10T12:00:00Z" : null, created_at: "2026-11-01T00:00:00Z", suggestion: stubSuggestion(shelf, ids, mode, goal)};
+}
+
 /** The Blend studio with a stubbed shelf, reading and query. Options: few, empty, error. */
 function blendFixture(shelf: FragranceSummary[], params: URLSearchParams) {
   const owned: CollectionItem[] = shelf.map((fragrance, index) => ({id: `b-${index}`, fragrance, ownership_type: "bottle", status: "owned", bottle_size_ml: 100, remaining_ml: 60, user_rating: index === 0 ? 5 : index === 2 ? 4 : null, purchase_price: null, purchase_date: null, custom_longevity: null, custom_projection: null}));
   const items = params.has("few") ? owned.slice(0, 1) : params.has("empty") ? [] : shelfOrder(owned);
+  const saved: SavedLayeringStack[] = params.has("nosaved") ? [] : [
+    savedFixture(shelf, "aaaaaaaa-0000-4000-8000-000000000001", "Amber Dusk", [shelf[1].id, shelf[0].id], 3, 4.5),
+    savedFixture(shelf, "aaaaaaaa-0000-4000-8000-000000000002", "Green Rain", [shelf[2].id, shelf[3].id], 0, null),
+  ];
+  const savedEntry = (id: string) => saved.find(entry => entry.id === id);
   globalThis.__scentiqFixtures = {
     evaluateLayerStack: async (...args: unknown[]) => {
       if (params.has("error")) throw new Error("Fixture unavailable");
       const [ids, mode, goal] = args as [string[], StackMode, LayeringGoal | null];
       return stubSuggestion(shelf, ids, mode, goal);
     },
-    getLayeringIntelligence: async () => ({suggestions: [], saved: [], supported_goals: []}),
+    getLayeringIntelligence: async () => ({suggestions: [], saved, supported_goals: []}),
+    saveLayerStack: async (...args: unknown[]) => {
+      const [ids, mode, goal, name] = args as [string[], StackMode, LayeringGoal | null, string];
+      return savedFixture(shelf, "aaaaaaaa-0000-4000-8000-0000000000ff", name, ids, 0, null, mode, goal);
+    },
+    logLayerStackWear: async () => ({id: "wear-fixture", notes: null, rating: null, stack_id: "x", worn_at: "2026-11-14T12:00:00Z"}),
+    rateLayerStackWear: async () => ({id: "wear-fixture", notes: null, rating: 4, stack_id: "x", worn_at: "2026-11-14T12:00:00Z"}),
+    getLayerStackHistory: async () => [{id: "wear-old", notes: null, rating: 5, stack_id: "x", worn_at: "2026-11-10T12:00:00Z"}],
+    renameLayerStack: async (...args: unknown[]) => ({...savedEntry(String(args[0])), name: String(args[1])}),
+    deleteLayerStack: async () => undefined,
   };
-  const query: BlendQuery = {a: params.get("a") ?? undefined, stack: params.get("stack") ?? undefined, mode: params.get("mode") ?? undefined, goal: params.get("goal") ?? undefined};
-  const load = blendStartFromQuery(query, items, []);
+  const query: BlendQuery = {a: params.get("a") ?? undefined, stack: params.get("stack") ?? undefined, saved: params.get("saved") ?? undefined, mode: params.get("mode") ?? undefined, goal: params.get("goal") ?? undefined};
+  const load = blendStartFromQuery(query, items, saved);
   const start = load.evaluate ? {...load.start, suggestion: stubSuggestion(shelf, load.start.ids, load.start.mode, load.start.goal)} : load.start;
-  return <BlendStudio owned={items} start={start}/>;
+  return <BlendStudio owned={items} saved={saved} start={start}/>;
 }

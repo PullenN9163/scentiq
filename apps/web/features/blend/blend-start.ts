@@ -2,7 +2,7 @@ import type { CollectionItem } from "@/types/api";
 import type { SavedLayeringStack } from "@/types/layering";
 
 import { toGoal, toMode } from "./blend-copy";
-import { MAX_BOTTLES, type BlendStart } from "./blend-state";
+import { MAX_BOTTLES, type BlendSnapshot, type BlendStart } from "./blend-state";
 
 /** The query parameters the studio understands (the assistant links to these). */
 export type BlendQuery = { a?: string; stack?: string; saved?: string; mode?: string; goal?: string };
@@ -50,4 +50,13 @@ export function blendStartFromQuery(query: BlendQuery, owned: CollectionItem[], 
   }
 
   return { start: { ids: [], mode, goal, savedId: null, suggestion: null }, evaluate: false };
+}
+
+/** The snapshot a saved blend was made from, for matching the flask to it. */
+export function snapshotOfSaved(entry: SavedLayeringStack): BlendSnapshot {
+  return {
+    ids: [...entry.suggestion.items].sort((a, b) => a.application_order - b.application_order).map((item) => item.fragrance.id),
+    mode: entry.suggestion.mode,
+    goal: entry.suggestion.goal ?? null,
+  };
 }

@@ -9,19 +9,22 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/atelier/button";
 import { Chip } from "@/components/atelier/chip";
+import { centerOf, effectsReduced, playMist, resolveColor } from "@/components/atelier/mist";
 import { Plate, plateFragrance } from "@/components/atelier/plate";
 import { SegmentedControl } from "@/components/atelier/segmented-control";
 import { Sheet } from "@/components/atelier/sheet";
-import { accordFor, accordVars } from "@/lib/accord";
-import { centerOf, effectsReduced, playMist, resolveColor } from "@/components/atelier/mist";
+import { accordFor, accordVars, type AccordKey } from "@/lib/accord";
+import { generateBlendName } from "@/lib/blend-names";
 import { motionTokens } from "@/lib/motion";
-import { getLayeringIntelligence } from "@/lib/server/layering-actions";
+import { getLayeringIntelligence, logLayerStackWear, rateLayerStackWear, saveLayerStack } from "@/lib/server/layering-actions";
 import { cn } from "@/lib/utils";
 import type { CollectionItem, FragranceSummary } from "@/types/api";
-import type { LayeringGoal, LayeringStackSuggestion, StackMode } from "@/types/layering";
+import type { LayeringGoal, LayeringStackSuggestion, SavedLayeringStack, StackMode } from "@/types/layering";
 
+import { RatingSheet, SaveSheet, VaultSheet } from "./blend-sheets";
 import { GOAL_LABELS, MODES, MORE_GOALS, PRIMARY_GOALS, scoreOf } from "./blend-copy";
-import { blendReducer, initialBlend, suggestionMatches, type BlendStart } from "./blend-state";
+import { snapshotOfSaved } from "./blend-start";
+import { blendReducer, initialBlend, sameBlend, suggestionMatches, type BlendStart } from "./blend-state";
 import { Flask, type FlaskLayer } from "./flask";
 import { useBlendEvaluation } from "./use-blend-evaluation";
 import styles from "./blend.module.css";
@@ -30,30 +33,41 @@ const UNDO_MS = 6000;
 /** A drag shorter than this is a tap. */
 const DRAG_SLOP_PX = 6;
 
+type SaveMode = "save" | "wear";
+
 /**
  * The Blend studio: a dark room, a glass flask, the member's owned bottles on
  * a shelf. Adding a bottle pours it in; the API's suggested spray split sets
- * the layer heights; the score and verdict react.
+ * the layer heights; the score and verdict react. Blends are saved, worn and
+ * rated from here, and the cabinet lists the saved ones.
  */
-export function BlendStudio({ owned, supportedGoals, start }: { owned: CollectionItem[]; supportedGoals?: LayeringGoal[]; start: BlendStart }) {
+export function BlendStudio({ owned, saved, supportedGoals, start }: { owned: CollectionItem[]; saved: SavedLayeringStack[]; supportedGoals?: LayeringGoal[]; start: BlendStart }) {
   const router = useRouter();
   const [state, dispatch] = useReducer(blendReducer, start, (value) => initialBlend(value));
   const { retry } = useBlendEvaluation(state, dispatch, Boolean(start.suggestion));
   const [moreGoals, setMoreGoals] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
   const [tuneOpen, setTuneOpen] = useState(false);
+  const [vaultOpen, setVaultOpen] = useState(false);
+  const [saveMode, setSaveMode] = useState<SaveMode | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [rating, setRating] = useState<{ stackId: string; wearId: string } | null>(null);
+  const [pulse, setPulse] = useState(0);
   const [undoVisible, setUndoVisible] = useState(false);
   const [query, setQuery] = useState("");
   const [surprising, startSurprise] = useTransition();
+  const [committing, startCommit] = useTransition();
+  const [ratingPending, startRating] = useTransition();
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSurprise = useRef<string | null>(null);
   const pourTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const flaskRef = useRef<HTMLDivElement>(null);
   const atomizerRef = useRef<HTMLSpanElement>(null);
+  const wearRef = useRef<HTMLButtonElement>(null);
   const roomRef = useRef<HTMLDivElement>(null);
   const shownRef = useRef<number | null>(null);
-  const [counting, setCounting] = useState<number | null>(null);
   const dragged = useRef(false);
+  const [counting, setCounting] = useState<number | null>(null);
 
   const byId = useMemo(() => new Map<string, FragranceSummary>(owned.map((item) => [item.fragrance.id, item.fragrance])), [owned]);
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); pourTimers.current.forEach(clearTimeout); }, []);
@@ -95,6 +109,32 @@ export function BlendStudio({ owned, supportedGoals, start }: { owned: Collectio
     });
   }
 
+  function done() {
+    if (window.history.length > 1) router.back();
+    else router.push("/dashboard");
+  }
+
+  const matches = suggestionMatches(state);
+  const suggestion = matches ? state.suggestion : null;
+  const items = suggestion ? [...suggestion.items].sort((a, b) => a.application_order - b.application_order) : null;
+  const layers: FlaskLayer[] = items
+    ? items.map((item) => ({ id: item.fragrance.id, accord: accordFor(item.fragrance), sprays: item.suggested_sprays }))
+    : state.ids.flatMap((id) => { const fragrance = byId.get(id); return fragrance ? [{ id, accord: accordFor(fragrance), sprays: 1 }] : []; });
+  const fill = state.ids.length === 1 ? 0.4 : layers.length ? 0.85 : 0;
+  const glow = layers.map((layer) => `var(--chart-${layer.accord === "neutral" ? "musk" : layer.accord})`);
+  const glowColor = glow.length === 0 ? "transparent" : glow.slice(1).reduce((mix, color) => `color-mix(in srgb, ${mix}, ${color})`, glow[0]);
+  const notes = suggestion ? [...new Set([...suggestion.shared_notes, ...suggestion.bridge_signals])].slice(0, 3) : [];
+  const goals = [...PRIMARY_GOALS, ...(moreGoals ? MORE_GOALS : [])].filter((goal) => !supportedGoals || supportedGoals.includes(goal));
+  const lastName = state.lastAdded ? byId.get(state.lastAdded)?.name : null;
+  const announcement = suggestion && lastName ? `Added ${lastName}. Score ${scoreOf(suggestion.score)}, ${suggestion.verdict}.` : "";
+  const shelf = owned.filter((item) => !query.trim() || `${item.fragrance.name} ${item.fragrance.brand.name}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const lastAddedFragrance = state.lastAdded ? byId.get(state.lastAdded) : undefined;
+
+  // The saved blend this flask matches, if any (by bottles, mode and tilt).
+  const savedMatch = useMemo(() => saved.find((entry) => sameBlend(snapshotOfSaved(entry), state)) ?? null, [saved, state]);
+  const savedId = savedMatch?.id ?? (state.savedId && saved.some((entry) => entry.id === state.savedId) ? state.savedId : null);
+  const existing = savedMatch;
+
   // Each bottle added sprays a burst of mist from the atomizer into the flask.
   useEffect(() => {
     const id = state.lastAdded;
@@ -112,14 +152,8 @@ export function BlendStudio({ owned, supportedGoals, start }: { owned: Collectio
     return () => document.removeEventListener("visibilitychange", sync);
   }, []);
 
-  function done() {
-    if (window.history.length > 1) router.back();
-    else router.push("/dashboard");
-  }
-
-  const matches = suggestionMatches(state);
-  const target = matches && state.suggestion ? scoreOf(state.suggestion.score) : null;
   // The numeral counts to its new value; with reduced effects it simply changes.
+  const target = suggestion ? scoreOf(suggestion.score) : null;
   useEffect(() => {
     if (target === null) return;
     if (effectsReduced()) { shownRef.current = target; return; }
@@ -134,20 +168,75 @@ export function BlendStudio({ owned, supportedGoals, start }: { owned: Collectio
     return () => controls.stop();
   }, [target]);
   const numeral = counting ?? target;
-  const lastAddedFragrance = state.lastAdded ? byId.get(state.lastAdded) : undefined;
-  const suggestion = matches ? state.suggestion : null;
-  const items = suggestion ? [...suggestion.items].sort((a, b) => a.application_order - b.application_order) : null;
-  const layers: FlaskLayer[] = items
-    ? items.map((item) => ({ id: item.fragrance.id, accord: accordFor(item.fragrance), sprays: item.suggested_sprays }))
-    : state.ids.flatMap((id) => { const fragrance = byId.get(id); return fragrance ? [{ id, accord: accordFor(fragrance), sprays: 1 }] : []; });
-  const fill = state.ids.length === 1 ? 0.4 : layers.length ? 0.85 : 0;
-  const glow = layers.map((layer) => `var(--chart-${layer.accord === "neutral" ? "musk" : layer.accord})`);
-  const glowColor = glow.length === 0 ? "transparent" : glow.slice(1).reduce((mix, color) => `color-mix(in srgb, ${mix}, ${color})`, glow[0]);
-  const notes = suggestion ? [...new Set([...suggestion.shared_notes, ...suggestion.bridge_signals])].slice(0, 3) : [];
-  const goals = [...PRIMARY_GOALS, ...(moreGoals ? MORE_GOALS : [])].filter((goal) => !supportedGoals || supportedGoals.includes(goal));
-  const lastName = state.lastAdded ? byId.get(state.lastAdded)?.name : null;
-  const announcement = suggestion && lastName ? `Added ${lastName}. Score ${scoreOf(suggestion.score)}, ${suggestion.verdict}.` : "";
-  const shelf = owned.filter((item) => !query.trim() || `${item.fragrance.name} ${item.fragrance.brand.name}`.toLowerCase().includes(query.trim().toLowerCase()));
+
+  /** Mist from the wear button up into the flask, in the strongest accord's color. */
+  function mistFromWear() {
+    const from = wearRef.current;
+    const flask = flaskRef.current;
+    if (!from || !flask) return;
+    const strongest: AccordKey = layers[layers.length - 1]?.accord ?? "neutral";
+    const color = resolveColor(flask, `--chart-${strongest === "neutral" ? "musk" : strongest}`);
+    void playMist({ from: centerOf(from), to: centerOf(flask), color, particles: 36 });
+  }
+
+  /** Logs a wear of a saved blend, then offers a rating. */
+  function wearSaved(stackId: string) {
+    startCommit(async () => {
+      try {
+        const wear = await logLayerStackWear(stackId, null, "");
+        mistFromWear();
+        toast.success("Blend worn");
+        setRating({ stackId, wearId: wear.id });
+        router.refresh();
+      } catch {
+        toast.error("That did not log. Try again.");
+      }
+    });
+  }
+
+  function onWear() {
+    if (savedId) wearSaved(savedId);
+    else { setSaveError(null); setSaveMode("wear"); }
+  }
+
+  /** Saves the flask (and wears it when asked). */
+  function saveBlend(name: string, note: string, andWear: boolean) {
+    startCommit(async () => {
+      try {
+        const entry = await saveLayerStack(state.ids, state.mode, state.goal, name, note || undefined);
+        dispatch({ type: "saved", savedId: entry.id });
+        setPulse((count) => count + 1);
+        setSaveMode(null);
+        setSaveError(null);
+        toast.success("Blend saved");
+        router.refresh();
+        if (andWear) {
+          const wear = await logLayerStackWear(entry.id, null, "");
+          mistFromWear();
+          toast.success("Blend worn");
+          setRating({ stackId: entry.id, wearId: wear.id });
+          router.refresh();
+        }
+      } catch {
+        setSaveError("That did not save. Try again.");
+      }
+    });
+  }
+
+  function rate(value: number) {
+    if (!rating) return;
+    const pending = rating;
+    startRating(async () => {
+      try {
+        await rateLayerStackWear(pending.stackId, pending.wearId, value);
+        toast.success("Rating saved");
+        setRating(null);
+        router.refresh();
+      } catch {
+        toast.error("That rating did not save. Try again.");
+      }
+    });
+  }
 
   const controls = (
     <div className={styles.controls}>
@@ -183,7 +272,9 @@ export function BlendStudio({ owned, supportedGoals, start }: { owned: Collectio
       <header className={styles.bar}>
         <Button variant="text" onClick={done}><ChevronLeft aria-hidden="true" />Done</Button>
         <div className={styles.barActions}>
+          <Button variant="outline" size="sm" onClick={() => setVaultOpen(true)}>Blends <span key={pulse} className={pulse ? styles.landed : undefined}>{saved.length}</span></Button>
           <Button variant="soft" size="sm" disabled={surprising} onClick={surprise}>{surprising ? "Finding…" : "Surprise me"}</Button>
+          <Button size="sm" disabled={state.ids.length < 2 || committing} onClick={() => { setSaveError(null); setSaveMode("save"); }}>Save blend</Button>
         </div>
       </header>
 
@@ -218,6 +309,7 @@ export function BlendStudio({ owned, supportedGoals, start }: { owned: Collectio
           ) : null}
           {notes.length ? <div className={styles.chips} aria-label="Shared notes">{notes.map((note) => <Chip key={note} variant="note">{note}</Chip>)}</div> : null}
           {suggestion ? <Button variant="text" size="sm" onClick={() => setWhyOpen(true)}>Why it works</Button> : null}
+          {suggestion ? <Button ref={wearRef} variant="primary" size="sm" disabled={committing} onClick={onWear}>{savedId ? "Wear this blend" : "Save and wear"}</Button> : null}
           {state.status === "error" ? (
             <p className={styles.error} role="alert">Could not read this blend. Try again. <Button variant="text" size="sm" onClick={retry}>Try again</Button></p>
           ) : null}
@@ -290,6 +382,20 @@ export function BlendStudio({ owned, supportedGoals, start }: { owned: Collectio
           </div>
         ) : null}
       </Sheet>
+      <SaveSheet
+        open={saveMode !== null}
+        onOpenChange={(open) => { if (!open) setSaveMode(null); }}
+        title={saveMode === "wear" ? "Save and wear" : "Save blend"}
+        submitLabel={saveMode === "wear" ? "Save and wear" : "Save blend"}
+        suggestedName={generateBlendName(items ? items.map((item) => accordFor(item.fragrance)) : layers.map((layer) => layer.accord))}
+        existing={saveMode === "save" ? existing : null}
+        pending={committing}
+        error={saveError}
+        onSubmit={(name, note) => saveBlend(name, note, saveMode === "wear")}
+        onOpenExisting={(id) => { setSaveMode(null); router.push(`/layering?saved=${id}`); }}
+      />
+      <RatingSheet open={rating !== null} onOpenChange={(open) => { if (!open) setRating(null); }} pending={ratingPending} onRate={rate} />
+      <VaultSheet open={vaultOpen} onOpenChange={setVaultOpen} saved={saved} />
     </div>
   );
 }

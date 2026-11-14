@@ -10,7 +10,7 @@ import { BlendStudio } from "./blend-studio";
 import { initialBlend } from "./blend-state";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
-const layering = vi.hoisted(() => ({ evaluateLayerStack: vi.fn(), getLayeringIntelligence: vi.fn() }));
+const layering = vi.hoisted(() => ({ evaluateLayerStack: vi.fn(), getLayeringIntelligence: vi.fn(), saveLayerStack: vi.fn(), logLayerStackWear: vi.fn(), rateLayerStackWear: vi.fn() }));
 vi.mock("@/lib/server/layering-actions", () => layering);
 
 const names = ["Cedar Drift", "Amber Hour", "Silver Mist"];
@@ -34,7 +34,7 @@ beforeEach(() => {
 describe("BlendStudio", () => {
   it("adds and removes bottles from the keyboard and reads the blend", async () => {
     const user = userEvent.setup();
-    render(<BlendStudio owned={owned} start={initialBlend()} />);
+    render(<BlendStudio owned={owned} saved={[]} start={initialBlend()} />);
     const shelf = screen.getByRole("list", { name: "Your shelf" });
     const cedar = within(shelf).getByRole("button", { name: "Add Cedar Drift" });
     cedar.focus();
@@ -57,7 +57,7 @@ describe("BlendStudio", () => {
 
   it("keeps the flask's tilt and mode controls reachable by name", async () => {
     const user = userEvent.setup();
-    render(<BlendStudio owned={owned} start={initialBlend({ ids: [owned[0].fragrance.id, owned[1].fragrance.id] })} />);
+    render(<BlendStudio owned={owned} saved={[]} start={initialBlend({ ids: [owned[0].fragrance.id, owned[1].fragrance.id] })} />);
     const tilt = screen.getAllByRole("group", { name: "Tilt it" })[0];
     await user.click(within(tilt).getByRole("button", { name: "Warmer" }));
     expect(within(tilt).getByRole("button", { name: "Warmer" })).toHaveAttribute("aria-pressed", "true");
@@ -66,8 +66,53 @@ describe("BlendStudio", () => {
   });
 
   it("offers the empty room when fewer than two bottles are owned", () => {
-    render(<BlendStudio owned={owned.slice(0, 1)} start={initialBlend()} />);
+    render(<BlendStudio owned={owned.slice(0, 1)} saved={[]} start={initialBlend()} />);
     expect(screen.getByRole("heading", { name: "Add fragrances to your shelf to start blending" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open Collection" })).toHaveAttribute("href", "/collection");
+  });
+});
+
+describe("BlendStudio saving and wearing", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+  const ids = [owned[0].fragrance.id, owned[1].fragrance.id];
+  const saved = (id: string, members: string[]) => ({ id, name: "Amber Dusk", notes: null, wear_count: 0, average_rating: null, last_worn_at: null, created_at: "2026-11-01T00:00:00Z", suggestion: { items: members.map((fragrance, index) => ({ fragrance: owned.find((item) => item.fragrance.id === fragrance)!.fragrance, role: "anchor", application_order: index + 1, suggested_sprays: 1 })), mode: "balanced", goal: null } }) as unknown as import("@/types/layering").SavedLayeringStack;
+
+  it("saves the flask under a generated name and reports the save", async () => {
+    const user = userEvent.setup();
+    layering.saveLayerStack.mockResolvedValue({ id: "new-blend" });
+    render(<BlendStudio owned={owned} saved={[]} start={initialBlend({ ids })} />);
+    await waitFor(() => expect(screen.getByText("Strong fit")).toBeInTheDocument(), { timeout: 2000 });
+    await user.click(screen.getByRole("button", { name: "Save blend" }));
+    const dialog = await screen.findByRole("dialog", { name: "Save blend" });
+    expect((within(dialog).getByLabelText("Name") as HTMLInputElement).value).toMatch(/^\S+ \S+$/);
+    await user.click(within(dialog).getByRole("button", { name: "Save blend" }));
+    await waitFor(() => expect(layering.saveLayerStack).toHaveBeenCalledWith(ids, "balanced", null, expect.any(String), undefined));
+  });
+
+  it("offers the existing blend instead of saving an identical one", async () => {
+    const user = userEvent.setup();
+    render(<BlendStudio owned={owned} saved={[saved("existing-blend", ids)]} start={initialBlend({ ids })} />);
+    await waitFor(() => expect(screen.getByText("Strong fit")).toBeInTheDocument(), { timeout: 2000 });
+    await user.click(screen.getByRole("button", { name: "Save blend" }));
+    const dialog = await screen.findByRole("dialog", { name: "Save blend" });
+    expect(within(dialog).getByText(/already saved this blend as/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Open it" })).toBeInTheDocument();
+    expect(layering.saveLayerStack).not.toHaveBeenCalled();
+  });
+
+  it("saves and wears an unsaved blend, then rates the wear", async () => {
+    const user = userEvent.setup();
+    layering.saveLayerStack.mockResolvedValue({ id: "new-blend" });
+    layering.logLayerStackWear.mockResolvedValue({ id: "wear-1", stack_id: "new-blend", rating: null, notes: null, worn_at: "2026-11-14T12:00:00Z" });
+    layering.rateLayerStackWear.mockResolvedValue({ id: "wear-1" });
+    render(<BlendStudio owned={owned} saved={[]} start={initialBlend({ ids })} />);
+    await waitFor(() => expect(screen.getByText("Strong fit")).toBeInTheDocument(), { timeout: 2000 });
+    await user.click(screen.getByRole("button", { name: "Save and wear" }));
+    const dialog = await screen.findByRole("dialog", { name: "Save and wear" });
+    await user.click(within(dialog).getByRole("button", { name: "Save and wear" }));
+    await waitFor(() => expect(layering.logLayerStackWear).toHaveBeenCalledWith("new-blend", null, ""));
+    const ratings = await screen.findByRole("dialog", { name: "How did it wear?" });
+    await user.click(within(ratings).getByRole("button", { name: "Rate 4 of 5" }));
+    await waitFor(() => expect(layering.rateLayerStackWear).toHaveBeenCalledWith("new-blend", "wear-1", 4));
   });
 });
