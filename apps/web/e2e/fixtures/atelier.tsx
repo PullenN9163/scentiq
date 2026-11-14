@@ -14,6 +14,7 @@ import {useAsk} from "@/features/ask/ask-provider";
 import {CollectionAtelier} from "@/features/collection-atelier/collection-atelier";
 import {WeekView} from "@/features/week-atelier/week-view";
 import {DiscoverAtelier, DiscoverSkeleton} from "@/features/discover-atelier/discover-atelier";
+import {TasteView} from "@/features/taste/taste-view";
 import type {SavedLayeringStack} from "@/types/layering";
 import type {WearPlan, WearRecommendation} from "@/types/wear-intelligence";
 import type {WeatherResult} from "@/lib/weather";
@@ -26,7 +27,7 @@ import {WeekGlance} from "@/features/today/week-glance";
 export const ATELIER_VIEWS = new Set(["primitives"]);
 
 /** Page views rendered inside the Atelier shell. */
-export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier", "collection-atelier", "blends", "week-atelier", "discover-atelier", "discover-atelier-error", "discover-loading"]);
+export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier", "collection-atelier", "blends", "week-atelier", "discover-atelier", "discover-atelier-error", "discover-loading", "insights-atelier"]);
 
 /** A stand-in product photo: a bottle on a white studio background. */
 export function bottlePhoto(glass = "#e9e2d8", cap = "#2b2622") {
@@ -101,6 +102,7 @@ export function atelierView(view: string, fragrances: FragranceSummary[], params
     case "discover-atelier": return <DiscoverAtelier results={params.has("empty") ? [] : shelf.map((fragrance, index) => ({fragrance, taste_match: .8 - index * .1, collection_expansion: .5 + index * .05, redundancy_risk: .2, score: .8, reasons: index === 0 ? ["Adds a fresh, airy side to your woody shelf"] : []}))} wishlistIds={[shelf[2].id]} query={params.get("q") ?? ""} catalogResults={params.get("q") ? shelf.slice(2) : []}/>;
     case "discover-atelier-error": return <DiscoverAtelier results={[]} recommendationError="Your recommendations could not be loaded. You can still search the catalog or retry."/>;
     case "discover-loading": return <DiscoverSkeleton/>;
+    case "insights-atelier": return tasteFixture(shelf, params);
     default: return null;
   }
 }
@@ -187,4 +189,20 @@ function weekFixture(shelf: FragranceSummary[], params: URLSearchParams) {
   const event = (id: string, title: string, hour: number, occasion: Occasion, day = 0) => ({id, title, starts_at: `${addDays(FIXTURE_DAY, day)}T${String(hour + 5).padStart(2, "0")}:00:00Z`, ends_at: `${addDays(FIXTURE_DAY, day)}T${String(hour + 6).padStart(2, "0")}:00:00Z`, is_all_day: false, location_label: null, occasion, formality: null, is_hidden: false, calendar_name: "Work", provider: "google" as const});
   const calendar: CalendarResult = params.has("nocal") ? {status: "not_connected"} : {status: "ok", needsReconnect: params.has("reconnect"), events: [event("e1", "Team standup", 9, "work"), event("e2", "Lunch with Priya", 12, "casual"), event("e3", "Dinner at Zahav", 19, "dinner"), event("e4", "Office", 9, "work", 2), event("e5", "Client review", 14, "work", 2)]};
   return <WeekView plan={plan} calendar={calendar} forecast={forecast} location="Philadelphia" timeZone="America/New_York" unit="fahrenheit" emptyCollection={params.has("empty")}/>;
+}
+
+function tasteFixture(shelf: FragranceSummary[], params: URLSearchParams) {
+  const owned: CollectionItem[] = shelf.map((fragrance, index) => ({id: `t-${index}`, fragrance, ownership_type: "bottle", status: "owned", bottle_size_ml: 100, remaining_ml: 60, user_rating: 4, purchase_price: index === 0 ? "120" : null, purchase_date: null, custom_longevity: null, custom_projection: null}));
+  const entry = (index: number, wears: number, lastDays: number | null) => ({collection_item_id: owned[index].id, fragrance_id: shelf[index].id, fragrance_name: shelf[index].name, brand_name: shelf[index].brand.name, wear_count: wears, last_worn_at: lastDays === null ? null : new Date(Date.now() - lastDays * 864e5).toISOString(), user_rating: 4, cost_per_wear: index === 0 ? "30" : null});
+  const insights = collectionInsights({
+    total_items: 26, owned_items: 22, total_wears: params.has("nowears") ? 0 : 42, wears_last_30_days: 12, distinct_fragrances_worn: 9, priced_items: 1, unclassified_items: params.has("unclassified") ? 26 : 2,
+    accords: [{label: "Woody", count: 18, share: .38}, {label: "Fresh", count: 12, share: .25}, {label: "Amber", count: 8, share: .17}, {label: "Floral", count: 6, share: .13}, {label: "Green", count: 3, share: .07}],
+    most_worn: [entry(0, 22, 2), entry(4, 12, 5), entry(6, 8, 9), entry(3, 6, 12)],
+    neglected: [entry(2, 1, 60), entry(5, 0, null), entry(1, 2, 61), entry(3, 1, 64)],
+    seasons: [{label: "Spring", count: 12, share: .26}, {label: "Summer", count: 3, share: .06}, {label: "Fall", count: 18, share: .38}, {label: "Winter", count: 14, share: .3}],
+    season_gaps: ["summer"],
+    redundancy_pairs: [{first_id: shelf[4].id, first_name: shelf[4].name, second_id: shelf[6].id, second_name: shelf[6].name, overlap: .82, shared_accords: ["Cedar", "Tea"]}],
+    cost_per_wear: [entry(0, 4, 2)],
+  });
+  return <TasteView insights={insights} collection={owned}/>;
 }

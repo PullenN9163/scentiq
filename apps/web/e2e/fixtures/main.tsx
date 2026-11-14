@@ -55,7 +55,7 @@ switch(view) {
   case "layering":content=<LayeringLab owned={fragrances} initialIntelligence={{suggestions:[blend],saved:[],supported_goals:["fresher","warmer"]}}/>;break;
   case "agent":content=<AgentExperience authenticated/>;break;
   case "states":content=<section className="page"><PageHeader title="Your collection" eyebrow="Collection" description="Deterministic UI states"/><div className="stack"><LoadingState label="Loading fragrances"/><EmptyState title="A fresh start" description="Add your first fragrance to begin."/><UnavailableState/></div></section>;break;
-  case "primitives":case "today-atelier":case "today-loading":case "sheet":case "fragrance":case "ask":case "agent-atelier":case "collection-atelier":case "blends":case "week-atelier":case "discover-atelier":case "discover-atelier-error":case "discover-loading":content=atelierView(view,fragrances,params);break;
+  case "primitives":case "today-atelier":case "today-loading":case "sheet":case "fragrance":case "ask":case "agent-atelier":case "collection-atelier":case "blends":case "week-atelier":case "discover-atelier":case "discover-atelier-error":case "discover-loading":case "insights-atelier":content=atelierView(view,fragrances,params);break;
   default:content=<DashboardView me={me} insights={collectionInsights({total_items:26,owned_items:22,total_wears:42})} recentWears={[]} weather={{status:"location_required"}} calendar={{status:"not_connected"}} timeZone="America/New_York" plan={plan}/>;
 }
 const publicPage=["landing","sign-in","sign-up"].includes(view);

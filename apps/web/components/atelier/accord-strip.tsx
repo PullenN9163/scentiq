@@ -13,9 +13,12 @@ export function stripSegments(accords: readonly AccordShare[], limit = 5): Strip
   const total = positive.reduce((sum, accord) => sum + accord.share, 0);
   if (total <= 0) return [];
   const sorted = [...positive].sort((a, b) => b.share - a.share);
-  const top = sorted.slice(0, limit).map((accord) => ({ label: accord.label, share: accord.share / total, key: accordFromLabel(accord.label) as AccordKey | "other" }));
-  const rest = sorted.slice(limit).reduce((sum, accord) => sum + accord.share, 0) / total;
-  return rest > 0.0001 ? [...top, { label: "Other", share: rest, key: "other" }] : top;
+  // Shares that already sum to at most 1 are kept as they are, with the
+  // remainder shown as Other; larger sums (weights) are normalised.
+  const denominator = total > 1.0001 ? total : 1;
+  const top = sorted.slice(0, limit).map((accord) => ({ label: accord.label, share: accord.share / denominator, key: accordFromLabel(accord.label) as AccordKey | "other" }));
+  const rest = 1 - top.reduce((sum, segment) => sum + segment.share, 0);
+  return rest > 0.005 ? [...top, { label: "Other", share: rest, key: "other" }] : top;
 }
 
 function segmentColor(key: AccordKey | "other"): string {
