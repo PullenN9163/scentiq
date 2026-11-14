@@ -33,7 +33,7 @@ declare global {
 }
 
 /** Views that render with the Atelier tokens (data-atelier on the root). */
-export const ATELIER_VIEWS = new Set(["primitives", "blend"]);
+export const ATELIER_VIEWS = new Set(["primitives", "blend", "landing-atelier", "sign-in-atelier", "sign-up-atelier"]);
 
 /** Page views rendered inside the Atelier shell. */
 export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier", "collection-atelier", "blends", "week-atelier", "discover-atelier", "discover-atelier-error", "discover-loading", "insights-atelier", "settings-atelier"]);

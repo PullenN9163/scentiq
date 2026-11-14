@@ -19,3 +19,18 @@ it("presents the ScentIQ product loop and routes signed-out visitors to sign-in"
   expect(signIn[0]).toHaveAttribute("href", "/sign-in");
   expect(screen.getByText(/collection \+ schedule \+ weather/i)).toBeVisible();
 });
+
+it("renders the Atelier landing when the Atelier flag is on, and the current page otherwise", () => {
+  vi.stubEnv("SCENTIQ_ATELIER_UI_ENABLED", "true");
+  try {
+    const { unmount } = render(<Home />);
+    expect(screen.getByRole("heading", { level: 1, name: "Wear the scent your day calls for." })).toBeVisible();
+    expect(screen.queryByText(/your life already has a rhythm/i)).not.toBeInTheDocument();
+    unmount();
+  } finally {
+    vi.unstubAllEnvs();
+  }
+
+  render(<Home />);
+  expect(screen.getByText(/your life already has a rhythm/i)).toBeVisible();
+});

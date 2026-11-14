@@ -18,6 +18,9 @@ import {LoadingState,EmptyState,UnavailableState} from "@/components/shared/stat
 import Home from "@/app/page";
 import SignInPage from "@/app/sign-in/[[...sign-in]]/page";
 import SignUpPage from "@/app/sign-up/[[...sign-up]]/page";
+import {AtelierLanding} from "@/features/landing/atelier-landing";
+import {AtelierAuthFrame} from "@/features/auth/atelier-auth-frame";
+import {SignIn,SignUp} from "@clerk/nextjs";
 import {fragranceDetail,fragranceSummary,collectionInsights,discoveryResult} from "@/test/catalog-fixtures";
 import type {CollectionItem,Me} from "@/types/api";
 import type {LayeringStackSuggestion} from "@/types/layering";
@@ -44,6 +47,9 @@ switch(view) {
   case "landing":content=<Home/>;break;
   case "sign-in":content=<SignInPage/>;break;
   case "sign-up":content=<SignUpPage/>;break;
+  case "landing-atelier":content=<AtelierLanding/>;break;
+  case "sign-in-atelier":content=<AtelierAuthFrame mode="sign-in"><SignIn/></AtelierAuthFrame>;break;
+  case "sign-up-atelier":content=<AtelierAuthFrame mode="sign-up"><SignUp/></AtelierAuthFrame>;break;
   case "week":content=<WeekPlanner plan={plan}/>;break;
   case "collection":content=<CollectionView items={items} catalog={fragrances}/>;break;
   case "detail":content=<FragranceDetailView fragrance={fragrances[0]} ownedItem={items[0]} wears={[]}/>;break;
@@ -58,7 +64,7 @@ switch(view) {
   case "primitives":case "blend":case "today-atelier":case "today-loading":case "sheet":case "fragrance":case "ask":case "agent-atelier":case "collection-atelier":case "blends":case "week-atelier":case "discover-atelier":case "discover-atelier-error":case "discover-loading":case "insights-atelier":case "settings-atelier":content=atelierView(view,fragrances,params);break;
   default:content=<DashboardView me={me} insights={collectionInsights({total_items:26,owned_items:22,total_wears:42})} recentWears={[]} weather={{status:"location_required"}} calendar={{status:"not_connected"}} timeZone="America/New_York" plan={plan}/>;
 }
-const publicPage=["landing","sign-in","sign-up"].includes(view);
+const publicPage=["landing","sign-in","sign-up","landing-atelier","sign-in-atelier","sign-up-atelier"].includes(view);
 const atelierShell=params.get("shell")==="atelier"||ATELIER_PAGE_VIEWS.has(view);
 const atelier=ATELIER_VIEWS.has(view)||atelierShell;
 if(atelier) enableAtelier();

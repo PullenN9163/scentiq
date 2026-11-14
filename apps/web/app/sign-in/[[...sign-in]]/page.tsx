@@ -1,12 +1,15 @@
 import { SignIn } from "@clerk/nextjs";
 import Link from "next/link";
 import { AppearanceControl } from "@/components/ui/theme-provider";
+import { AtelierAuthFrame } from "@/features/auth/atelier-auth-frame";
+import { isAtelierEnabled } from "@/lib/atelier-flag";
 
 /**
  * Invite-only sign-in. Enrolment is controlled in Clerk (invitations or an
  * allowlist), so this page only renders the provider's own flow.
  */
 export default function SignInPage() {
+  if (isAtelierEnabled()) return <AtelierAuthFrame mode="sign-in"><SignIn /></AtelierAuthFrame>;
   return (
     <main className="auth-page">
       <nav className="auth-nav" aria-label="Account navigation"><Link href="/" className="brand"><span className="brand__mark">S</span>ScentIQ</Link><AppearanceControl /></nav>

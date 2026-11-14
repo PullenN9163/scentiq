@@ -2,6 +2,8 @@ import { SignedIn, SignedOut } from "@clerk/nextjs";
 import { ArrowRight, BarChart3, Beaker, CalendarDays, CloudSun, Compass, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { AppearanceControl } from "@/components/ui/theme-provider";
+import { AtelierLanding } from "@/features/landing/atelier-landing";
+import { isAtelierEnabled } from "@/lib/atelier-flag";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +18,7 @@ const features = [
 ] as const;
 
 export default function Home() {
+  if (isAtelierEnabled()) return <AtelierLanding />;
   return (
     <main className="landing">
       <nav className="landing-nav container" aria-label="Marketing navigation">

@@ -1,0 +1,169 @@
+.landing {
+  min-height: 100dvh;
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--page-gutter);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.navActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.hero {
+  display: grid;
+  gap: var(--space-7);
+  align-items: center;
+  padding: var(--space-7) var(--page-gutter) var(--space-8);
+}
+
+@media (min-width: 1100px) {
+  .hero {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    padding-top: var(--space-9);
+  }
+}
+
+.copy {
+  display: grid;
+  gap: var(--space-5);
+  justify-items: start;
+}
+
+.copy p {
+  max-width: 36ch;
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.collage {
+  position: relative;
+  height: 300px;
+}
+
+@media (min-width: 700px) {
+  .collage {
+    height: 420px;
+  }
+}
+
+.plate {
+  position: absolute;
+  border-radius: var(--radius-lg);
+  background: var(--af);
+}
+
+.back {
+  left: 0;
+  top: 14%;
+  width: 62%;
+  height: 70%;
+}
+
+.top {
+  right: 0;
+  top: 0;
+  width: 46%;
+  height: 64%;
+}
+
+.front {
+  right: 12%;
+  bottom: 0;
+  width: 38%;
+  height: 44%;
+}
+
+.steps {
+  padding: 0 var(--page-gutter) var(--space-9);
+}
+
+.stepList {
+  display: grid;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 700px) {
+  .stepList {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.step {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.numeral {
+  color: var(--ink-muted);
+  font-family: var(--font-serif);
+}
+
+.step h2 {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.step p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.band {
+  display: grid;
+  gap: var(--space-6);
+  align-items: end;
+  padding: var(--space-9) var(--page-gutter);
+  background: var(--ground);
+  color: var(--ink);
+}
+
+@media (min-width: 900px) {
+  .band {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.band h2 {
+  margin: 0;
+}
+
+.band p {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-muted);
+}

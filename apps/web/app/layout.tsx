@@ -10,6 +10,7 @@ import { MotionProvider } from "@/components/ui/motion-provider";
 import { isAtelierEnabled } from "@/lib/atelier-flag";
 import { EFFECTS_COOKIE, effectsReducedFromCookie } from "@/lib/effects";
 import { Figtree, Fraunces } from "next/font/google";
+import { atelierClerkAppearance } from "@/features/auth/clerk-appearance";
 
 import "./globals.css";
 
@@ -37,7 +38,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <html lang="en" data-scroll-behavior="smooth" data-theme={preference === "system" ? undefined : preference} data-atelier={atelier ? "true" : undefined} data-effects={reduceEffects ? "reduced" : undefined} className={atelier ? `${fraunces.variable} ${figtree.variable}` : undefined} suppressHydrationWarning>
         <head><script dangerouslySetInnerHTML={{__html:themeInitScript}} /></head>
         <body>
-          <ThemeProvider initialPreference={preference}><ClerkProvider appearance={{variables:{colorPrimary:"var(--primary)",colorBackground:"var(--surface)",colorText:"var(--foreground)",colorTextSecondary:"var(--muted-foreground)",colorInputBackground:"var(--surface-elevated)",colorInputText:"var(--foreground)",colorNeutral:"var(--foreground)",borderRadius:"1rem",fontFamily:"-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"},elements:{card:"auth-card",footer:"auth-footer",formButtonPrimary:"auth-primary",socialButtonsBlockButton:"auth-social"}}}>
+          <ThemeProvider initialPreference={preference}><ClerkProvider appearance={atelier ? atelierClerkAppearance : {variables:{colorPrimary:"var(--primary)",colorBackground:"var(--surface)",colorText:"var(--foreground)",colorTextSecondary:"var(--muted-foreground)",colorInputBackground:"var(--surface-elevated)",colorInputText:"var(--foreground)",colorNeutral:"var(--foreground)",borderRadius:"1rem",fontFamily:"-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"},elements:{card:"auth-card",footer:"auth-footer",formButtonPrimary:"auth-primary",socialButtonsBlockButton:"auth-social"}}}>
           <MotionProvider atelier={atelier} reduceEffects={reduceEffects}><RemoteImagesProvider enabled={remoteImagesEnabled}>{children}</RemoteImagesProvider></MotionProvider>
           </ClerkProvider></ThemeProvider>
         </body>
