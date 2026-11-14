@@ -21,6 +21,7 @@ import {fragranceDetail,fragranceSummary,collectionInsights,discoveryResult} fro
 import type {CollectionItem,Me} from "@/types/api";
 import type {LayeringStackSuggestion} from "@/types/layering";
 import type {WearPlan,WearRecommendation} from "@/types/wear-intelligence";
+import {ATELIER_VIEWS,atelierView,enableAtelier} from "./atelier";
 import "@/app/globals.css";
 
 const params=new URLSearchParams(location.search);
@@ -53,7 +54,10 @@ switch(view) {
   case "layering":content=<LayeringLab owned={fragrances} initialIntelligence={{suggestions:[blend],saved:[],supported_goals:["fresher","warmer"]}}/>;break;
   case "agent":content=<AgentExperience authenticated/>;break;
   case "states":content=<section className="page"><PageHeader title="Your collection" eyebrow="Collection" description="Deterministic UI states"/><div className="stack"><LoadingState label="Loading fragrances"/><EmptyState title="A fresh start" description="Add your first fragrance to begin."/><UnavailableState/></div></section>;break;
+  case "primitives":content=atelierView(view,fragrances);break;
   default:content=<DashboardView me={me} insights={collectionInsights({total_items:26,owned_items:22,total_wears:42})} recentWears={[]} weather={{status:"location_required"}} calendar={{status:"not_connected"}} timeZone="America/New_York" plan={plan}/>;
 }
 const publicPage=["landing","sign-in","sign-up"].includes(view);
-createRoot(document.getElementById("root")!).render(<ThemeProvider initialPreference={preference}><MotionProvider>{publicPage?content:<AppShell>{content}</AppShell>}</MotionProvider></ThemeProvider>);
+const atelier=ATELIER_VIEWS.has(view);
+if(atelier) enableAtelier();
+createRoot(document.getElementById("root")!).render(<ThemeProvider initialPreference={preference}><MotionProvider atelier={atelier}>{publicPage||atelier?content:<AppShell>{content}</AppShell>}</MotionProvider></ThemeProvider>);

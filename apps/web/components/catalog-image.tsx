@@ -17,6 +17,11 @@ export function RemoteImagesProvider({
   return <RemoteImagesContext value={enabled}>{children}</RemoteImagesContext>;
 }
 
+/** Whether catalog hotlinks may load; private uploads always may. */
+export function useRemoteImagesEnabled(): boolean {
+  return useContext(RemoteImagesContext);
+}
+
 export function CatalogImage({
   id,
   name,

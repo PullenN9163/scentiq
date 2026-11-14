@@ -1,0 +1,29 @@
+.row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+.main {
+  display: grid;
+  min-width: 0;
+  min-height: 60px;
+  flex: 1;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+button.main { cursor: pointer; }
+.main:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.plate { width: 52px; height: 60px; }
+.text { display: grid; min-width: 0; gap: 2px; }
+.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trailing { display: flex; flex: none; align-items: center; gap: var(--space-2); }

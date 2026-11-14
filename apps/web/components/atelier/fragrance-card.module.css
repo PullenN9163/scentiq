@@ -1,0 +1,81 @@
+.card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 2px;
+  -webkit-touch-callout: none;
+}
+.plateWrap { position: relative; margin-bottom: 8px; }
+.plate {
+  aspect-ratio: 4 / 5;
+  width: 100%;
+  transition: transform 120ms ease-out;
+}
+.selected .plate { outline: 2px solid var(--ink); outline-offset: 3px; }
+.name { display: block; overflow-wrap: anywhere; }
+.caption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status { color: var(--ink); }
+
+/* The whole card is the target: the title link stretches over it. */
+.open {
+  position: static;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.open::after { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: var(--radius-sm); }
+.open:focus-visible { outline: none; }
+.open:focus-visible::after { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.corner { position: absolute; top: 6px; right: 6px; z-index: 3; }
+
+.quick {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 120ms ease-out, transform 120ms ease-out;
+}
+.quickButton {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 0 8px;
+  background: #f7f4efe6;
+  color: #241a12;
+  font: 600 14px/1.2 var(--font-sans);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+.quickButton:active { transform: scale(0.97); }
+.quickButton:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.quickButton:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.card:focus-within .quick,
+.card[data-actions-open="true"] .quick { opacity: 1; pointer-events: auto; transform: none; }
+@media (hover: hover) {
+  .card:hover .plate { transform: translateY(-2px); }
+  .card:hover .quick { opacity: 1; pointer-events: auto; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plate, .quick { transition: none; }
+  .card:hover .plate { transform: none; }
+}

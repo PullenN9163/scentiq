@@ -1,0 +1,73 @@
+// Atelier fixture views. Rendered by main.tsx with deterministic stub data.
+import {useState, type ReactNode} from "react";
+import {Button, Chip, FragranceCard, FragranceRow, Plate, Sheet} from "@/components/atelier";
+import {accordFor} from "@/lib/accord";
+import {toast} from "sonner";
+import type {FragranceSummary} from "@/types/api";
+
+/** Views that render with the Atelier tokens (data-atelier on the root). */
+export const ATELIER_VIEWS = new Set(["primitives"]);
+
+/** A stand-in product photo: a bottle on a white studio background. */
+export function bottlePhoto(glass = "#e9e2d8", cap = "#2b2622") {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 375 500"><rect width="375" height="500" fill="#ffffff"/><rect x="157" y="92" width="61" height="58" rx="6" fill="${cap}"/><rect x="171" y="146" width="33" height="22" fill="#b9b1a6"/><rect x="112" y="166" width="151" height="250" rx="18" fill="${glass}" stroke="#b9b1a6" stroke-width="3"/><rect x="134" y="250" width="107" height="70" rx="4" fill="#ffffff" opacity=".85"/></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/** A varied shelf for Atelier views: different accords, some without photos. */
+export function atelierFragrances(base: FragranceSummary[]): FragranceSummary[] {
+  const [first] = base;
+  const make = (id: string, name: string, house: string, accords: string[], photo: string | null): FragranceSummary => ({...first, id, name, brand: {...first.brand, id: `${id}-house`, name: house}, top_accords: accords, olfactory_family: accords[0] ?? null, image_url: photo});
+  return [
+    {...base[0], top_accords: ["Musky", "Woody", "Fresh"], image_url: bottlePhoto()},
+    make("44444444-4444-4444-8444-444444444444", "By the Fireplace", "Maison Margiela", ["Amber", "Smoky"], bottlePhoto("#c98a4b", "#3b2a1c")),
+    make("55555555-5555-4555-8555-555555555555", "Silver Mountain Water", "Creed", ["Fresh", "Citrus"], bottlePhoto("#dfe7ea", "#9aa3a8")),
+    make("66666666-6666-4666-8666-666666666666", "MYSLF Le Parfum", "Yves Saint Laurent", ["Floral", "Woody"], bottlePhoto("#f1ece6", "#1d1d1d")),
+    {...base[1], top_accords: ["Woody", "Spicy"], image_url: null},
+    make("77777777-7777-4777-8777-777777777777", "Dumont Nitro White", "Dumont", [], null),
+    {...base[2], top_accords: ["Aquatic", "Woody"], image_url: bottlePhoto("#cfdbe4", "#2c3e50")},
+  ].map(fragrance => ({...fragrance, olfactory_family: fragrance.top_accords[0] ?? null}));
+}
+
+/** Mirrors the root layout: tokens on, and the two type faces from Google Fonts. */
+export function enableAtelier() {
+  document.documentElement.dataset.atelier = "true";
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Figtree:wght@400;500;600&display=swap";
+  document.head.append(link);
+  document.documentElement.style.setProperty("--font-fraunces", "\"Fraunces\"");
+  document.documentElement.style.setProperty("--font-figtree", "\"Figtree\"");
+}
+
+function PrimitivesView({fragrances}: {fragrances: FragranceSummary[]}) {
+  const [sheet, setSheet] = useState(false);
+  const [pressed, setPressed] = useState(["Woody"]);
+  const plate = (fragrance: FragranceSummary) => ({id: fragrance.id, name: fragrance.name, brand: fragrance.brand.name, imageUrl: fragrance.image_url});
+  return <main className="at-page" style={{display: "grid", gap: 32}}>
+    <h1 className="at-display-lg">Primitives</h1>
+    <div style={{display: "flex", gap: 8, flexWrap: "wrap"}}>
+      <Button>Wear it</Button><Button variant="soft">Not today</Button><Button variant="text">Not for me</Button><Button variant="outline">Add fragrance</Button><Button variant="danger">Delete</Button><Button size="sm" variant="soft">Plan it</Button><Button disabled>Saving…</Button>
+    </div>
+    <div style={{display: "flex", gap: 8, flexWrap: "wrap"}}>
+      <Chip>45°F cloudy</Chip><Chip variant="note">Cedar</Chip>
+      {["Woody", "Fresh", "Amber"].map(label => <Chip key={label} variant="choice" pressed={pressed.includes(label)} onClick={() => setPressed(value => value.includes(label) ? value.filter(item => item !== label) : [...value, label])}>{label}</Chip>)}
+    </div>
+    <div style={{display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(168px, 1fr))", gap: 20}}>
+      {fragrances.map((fragrance, index) => <FragranceCard key={fragrance.id} fragrance={plate(fragrance)} accord={accordFor(fragrance)} href={`/collection/${fragrance.id}`} status={index === 1 ? "Nearly empty" : null} actions={[{label: "Wear it", onSelect: () => toast.success("Wear logged")}, {label: "Layer it", href: `/layering?a=${fragrance.id}`}]}/>)}
+    </div>
+    <div style={{maxWidth: 480}}>
+      {fragrances.map(fragrance => <FragranceRow key={fragrance.id} fragrance={plate(fragrance)} accord={accordFor(fragrance)} caption="Mon · office" href={`/collection/${fragrance.id}`} trailing={<span className="at-caption">41° rain</span>}/>)}
+    </div>
+    <div style={{display: "flex", gap: 12, flexWrap: "wrap"}}>{fragrances.map(fragrance => <Plate key={fragrance.id} fragrance={plate(fragrance)} accord={accordFor(fragrance)} style={{width: 120, height: 150}}/>)}</div>
+    <div><Button variant="outline" onClick={() => setSheet(true)}>Open sheet</Button><Button variant="soft" onClick={() => toast.success("Saved: wore Another 13")}>Show toast</Button></div>
+    <Sheet open={sheet} onOpenChange={setSheet} title="Why this" footer={<Button>Done</Button>}><p className="at-body">A clean musk that stays close for a cool, cloudy work day.</p></Sheet>
+  </main>;
+}
+
+export function atelierView(view: string, fragrances: FragranceSummary[]): ReactNode | null {
+  switch (view) {
+    case "primitives": return <PrimitivesView fragrances={atelierFragrances(fragrances)}/>;
+    default: return null;
+  }
+}
