@@ -25,6 +25,8 @@ function reading(ids: string[]): LayeringStackSuggestion {
 }
 
 beforeEach(() => {
+  // jsdom has no canvas; mist is skipped without one.
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   layering.evaluateLayerStack.mockImplementation(async (ids: string[]) => reading(ids));
 });

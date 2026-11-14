@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion, type PanInfo } from "motion/react";
+import { animate, motion, type PanInfo } from "motion/react";
 import { ChevronLeft, Search, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -13,6 +13,8 @@ import { Plate, plateFragrance } from "@/components/atelier/plate";
 import { SegmentedControl } from "@/components/atelier/segmented-control";
 import { Sheet } from "@/components/atelier/sheet";
 import { accordFor, accordVars } from "@/lib/accord";
+import { centerOf, effectsReduced, playMist, resolveColor } from "@/components/atelier/mist";
+import { motionTokens } from "@/lib/motion";
 import { getLayeringIntelligence } from "@/lib/server/layering-actions";
 import { cn } from "@/lib/utils";
 import type { CollectionItem, FragranceSummary } from "@/types/api";
@@ -47,6 +49,10 @@ export function BlendStudio({ owned, supportedGoals, start }: { owned: Collectio
   const lastSurprise = useRef<string | null>(null);
   const pourTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const flaskRef = useRef<HTMLDivElement>(null);
+  const atomizerRef = useRef<HTMLSpanElement>(null);
+  const roomRef = useRef<HTMLDivElement>(null);
+  const shownRef = useRef<number | null>(null);
+  const [counting, setCounting] = useState<number | null>(null);
   const dragged = useRef(false);
 
   const byId = useMemo(() => new Map<string, FragranceSummary>(owned.map((item) => [item.fragrance.id, item.fragrance])), [owned]);
@@ -89,12 +95,46 @@ export function BlendStudio({ owned, supportedGoals, start }: { owned: Collectio
     });
   }
 
+  // Each bottle added sprays a burst of mist from the atomizer into the flask.
+  useEffect(() => {
+    const id = state.lastAdded;
+    const fragrance = id ? byId.get(id) : undefined;
+    if (!fragrance || !atomizerRef.current || !flaskRef.current) return;
+    const key = accordFor(fragrance);
+    const color = resolveColor(flaskRef.current, `--chart-${key === "neutral" ? "musk" : key}`);
+    void playMist({ from: centerOf(atomizerRef.current), to: centerOf(flaskRef.current), color, particles: 32 });
+  }, [state.lastAdded, byId]);
+
+  // Waves and bubbles stop drifting while the tab is hidden.
+  useEffect(() => {
+    const sync = () => roomRef.current?.setAttribute("data-paused", String(document.hidden));
+    document.addEventListener("visibilitychange", sync);
+    return () => document.removeEventListener("visibilitychange", sync);
+  }, []);
+
   function done() {
     if (window.history.length > 1) router.back();
     else router.push("/dashboard");
   }
 
   const matches = suggestionMatches(state);
+  const target = matches && state.suggestion ? scoreOf(state.suggestion.score) : null;
+  // The numeral counts to its new value; with reduced effects it simply changes.
+  useEffect(() => {
+    if (target === null) return;
+    if (effectsReduced()) { shownRef.current = target; return; }
+    const from = shownRef.current ?? target;
+    if (from === target) return;
+    const controls = animate(from, target, {
+      duration: 0.4,
+      ease: "easeOut",
+      onUpdate: (value) => { const rounded = Math.round(value); shownRef.current = rounded; setCounting(rounded); },
+      onComplete: () => { shownRef.current = target; setCounting(null); },
+    });
+    return () => controls.stop();
+  }, [target]);
+  const numeral = counting ?? target;
+  const lastAddedFragrance = state.lastAdded ? byId.get(state.lastAdded) : undefined;
   const suggestion = matches ? state.suggestion : null;
   const items = suggestion ? [...suggestion.items].sort((a, b) => a.application_order - b.application_order) : null;
   const layers: FlaskLayer[] = items
@@ -139,7 +179,7 @@ export function BlendStudio({ owned, supportedGoals, start }: { owned: Collectio
   }
 
   return (
-    <div className={styles.room} data-theme="dark">
+    <div className={styles.room} data-theme="dark" ref={roomRef}>
       <header className={styles.bar}>
         <Button variant="text" onClick={done}><ChevronLeft aria-hidden="true" />Done</Button>
         <div className={styles.barActions}>
@@ -150,6 +190,13 @@ export function BlendStudio({ owned, supportedGoals, start }: { owned: Collectio
       <div className={styles.stage}>
         <div className={styles.flaskArea} ref={flaskRef}>
           <span className={styles.glow} style={{ backgroundColor: glowColor }} aria-hidden="true" />
+          <span ref={atomizerRef} className={styles.atomizer} aria-hidden="true" />
+          {lastAddedFragrance ? (
+            // The plate lifts from the shelf into the flask's neck, then fades.
+            <motion.div key={`${state.lastAdded}:${state.ids.join()}`} className={styles.ghost} initial={{ y: 120, scale: 0.8 }} animate={{ y: 0, scale: 1 }} transition={motionTokens.springLively} aria-hidden="true">
+              <Plate fragrance={plateFragrance(lastAddedFragrance)} accord={accordFor(lastAddedFragrance)} className={styles.ghostPlate} decorative compact />
+            </motion.div>
+          ) : null}
           <Flask layers={layers} fill={fill} />
           {state.ids.length === 0 ? <p className={styles.prompt}>Tap or drag a bottle into the flask</p> : null}
           {state.ids.length === 1 ? <p className={styles.prompt}>Add a second bottle</p> : null}
@@ -158,7 +205,7 @@ export function BlendStudio({ owned, supportedGoals, start }: { owned: Collectio
         <section className={styles.reading} aria-label="Blend reading">
           {suggestion ? (
             <>
-              <p className={styles.numeral}><span className="at-tabular">{scoreOf(suggestion.score)}</span></p>
+              <p className={styles.numeral}><span className="at-tabular">{numeral}</span></p>
               <p className={styles.verdict}>{suggestion.verdict}</p>
             </>
           ) : state.ids.length >= 2 ? (

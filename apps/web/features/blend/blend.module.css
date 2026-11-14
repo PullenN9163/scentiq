@@ -88,3 +88,24 @@
   .glow { transition: none; }
 }
 .skeletonPlate { width: 84px; height: 100px; border-radius: var(--radius-sm); }
+
+/* Signature motion (11b). Waves and bubbles drift; reduced effects stop them. */
+.atomizer { position: absolute; top: 3%; left: 50%; z-index: 2; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--ink-muted); opacity: 0.6; }
+.ghost { position: absolute; top: 2%; left: 50%; z-index: 3; width: 64px; margin-left: -32px; pointer-events: none; animation: ghostFade 1.2s ease-in forwards; }
+.ghostPlate { width: 64px; height: 76px; }
+@keyframes ghostFade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+.wave { animation: waveDrift 7s linear infinite; }
+@keyframes waveDrift { from { transform: translateX(0); } to { transform: translateX(-100px); } }
+.bubble { opacity: 0; animation: bubbleRise 8s ease-in infinite; }
+@keyframes bubbleRise { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 0.7; } 100% { transform: translateY(-150px); opacity: 0; } }
+.room[data-paused="true"] .wave,
+.room[data-paused="true"] .bubble { animation-play-state: paused; }
+:global(html[data-effects="reduced"]) .wave,
+:global(html[data-effects="reduced"]) .bubble,
+:global(html[data-effects="reduced"]) .ghost { animation: none; }
+:global(html[data-effects="reduced"]) .ghost { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .wave,
+  .bubble { animation: none; }
+  .ghost { display: none; }
+}
