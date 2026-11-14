@@ -8,12 +8,14 @@ import { CommandMenu } from "@/components/app-shell/command-menu";
 import { SegmentedControl } from "@/components/atelier/segmented-control";
 import { cn } from "@/lib/utils";
 
+import { FragranceListProvider } from "@/features/fragrance/fragrance-list-context";
+import { CATALOG_ATTRIBUTION } from "@/lib/attribution";
+
 import { AccountMenu } from "./account-menu";
 import { ATELIER_DESTINATIONS, activeDestination } from "./navigation";
 import styles from "./atelier-shell.module.css";
 
-export const CATALOG_ATTRIBUTION =
-  "Catalogue data includes Fragrantica data via Kaggle (ledecanteur/fragrantica-perfumes), CC BY-NC-SA 4.0, and Parfumo and Luckyscent listings.";
+export { CATALOG_ATTRIBUTION };
 
 function openAsk() {
   window.dispatchEvent(new Event("scentiq:command"));
@@ -35,11 +37,12 @@ function useShortcutLabel() {
  * destinations, Ask, account) and, on phones, a header plus a floating dock
  * with Blend raised in the center.
  */
-export function AtelierShell({ children }: { children: ReactNode }) {
+export function AtelierShell({ children, sheet }: { children: ReactNode; sheet?: ReactNode }) {
   const pathname = usePathname() ?? "/";
   const active = activeDestination(pathname);
   const shortcut = useShortcutLabel();
   return (
+    <FragranceListProvider>
     <div className={styles.shell}>
       <a className={styles.skip} href="#main-content">Skip to content</a>
       <header className={styles.topBar}>
@@ -88,6 +91,8 @@ export function AtelierShell({ children }: { children: ReactNode }) {
       </nav>
       {/* The command menu keeps Ctrl/⌘ K and the "Ask ScentIQ" entry; its own launcher is hidden. */}
       <div className={styles.commandHost}><CommandMenu /></div>
+      {sheet}
     </div>
+    </FragranceListProvider>
   );
 }

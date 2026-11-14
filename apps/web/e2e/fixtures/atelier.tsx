@@ -3,7 +3,12 @@ import {useState, type ReactNode} from "react";
 import {Button, Chip, FragranceCard, FragranceRow, Plate, Sheet} from "@/components/atelier";
 import {accordFor} from "@/lib/accord";
 import {toast} from "sonner";
-import type {FragranceSummary, Me, Occasion, WearLogEntry} from "@/types/api";
+import type {CollectionItem, FragranceDetail, FragranceSummary, Me, NoteStage, Occasion, WearLogEntry} from "@/types/api";
+import type {LayeringStackSuggestion} from "@/types/layering";
+import {FragranceContent} from "@/features/fragrance/fragrance-content";
+import {FragranceSheetFrame} from "@/features/fragrance/fragrance-sheet-frame";
+import {FragranceListProvider} from "@/features/fragrance/fragrance-list-context";
+import {LayersWellWith} from "@/features/fragrance/layers-well-with";
 import type {WearPlan, WearRecommendation} from "@/types/wear-intelligence";
 import type {WeatherResult} from "@/lib/weather";
 import type {CalendarResult} from "@/lib/calendar";
@@ -15,7 +20,7 @@ import {WeekGlance} from "@/features/today/week-glance";
 export const ATELIER_VIEWS = new Set(["primitives"]);
 
 /** Page views rendered inside the Atelier shell. */
-export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading"]);
+export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance"]);
 
 /** A stand-in product photo: a bottle on a white studio background. */
 export function bottlePhoto(glass = "#e9e2d8", cap = "#2b2622") {
@@ -80,6 +85,8 @@ export function atelierView(view: string, fragrances: FragranceSummary[], params
     case "primitives": return <PrimitivesView fragrances={shelf}/>;
     case "today-atelier": return todayFixture(shelf, params);
     case "today-loading": return <TodaySkeleton/>;
+    case "sheet": return <>{todayFixture(shelf, params)}<FragranceListProvider><FragranceSheetFrame id={shelf[0].id} title={shelf[0].name} fullHref={`/collection/${shelf[0].id}`}>{fragranceFixture(shelf, params, "sheet")}</FragranceSheetFrame></FragranceListProvider></>;
+    case "fragrance": return <div className="at-page">{fragranceFixture(shelf, params, "page")}</div>;
     default: return null;
   }
 }
@@ -108,4 +115,23 @@ function todayFixture(shelf: FragranceSummary[], params: URLSearchParams) {
   const calendar: CalendarResult = params.has("nocal") ? {status: "not_connected"} : {status: "ok", events: [], needsReconnect: params.has("reconnect")};
   const wears: WearLogEntry[] = shelf.slice(3, 6).map((fragrance, index) => ({id: `w${index}`, collection_item_id: `c${index}`, fragrance_id: fragrance.id, fragrance_name: fragrance.name, brand_name: fragrance.brand.name, worn_at: `2026-10-2${2 - index}T14:00:00Z`, sprays: 3, occasion: null, setting: null, notes: null}));
   return <TodayView plan={plan} me={me} insights={collectionInsights({total_items: params.has("empty") ? 0 : 26})} recentWears={wears} weather={weather} calendar={calendar} timeZone="America/New_York" week={<WeekGlance plan={params.has("noweek") ? null : week} today={FIXTURE_DAY} unit="fahrenheit"/>}/>;
+}
+
+function fragranceFixture(shelf: FragranceSummary[], params: URLSearchParams, variant: "sheet" | "page") {
+  const base = shelf[0] as FragranceDetail;
+  const fragrance: FragranceDetail = {
+    ...base,
+    description: params.has("sparse") ? null : "Clean musk and ambroxan. Close, long-lasting, easy to wear.",
+    concentration: "Eau de Parfum",
+    notes: params.has("sparse") ? [] : [["Pear", "top"], ["Citrus", "top"], ["Jasmine", "middle"], ["Moss", "middle"], ["Ambroxan", "base"], ["Musk", "base"], ["Cedar", "base"]].map(([name, stage]) => ({id: name, name, slug: name.toLowerCase(), stage: stage as NoteStage, weight: null})),
+    accords: params.has("sparse") ? [] : [{id: "a1", name: "Musky", slug: "musky", weight: .55}, {id: "a2", name: "Woody", slug: "woody", weight: .25}, {id: "a3", name: "Fresh", slug: "fresh", weight: .2}],
+    perfumers: [{id: "p", name: "Frank Voelkl", slug: "frank-voelkl"}],
+    similar: params.has("sparse") ? [] : shelf.slice(1, 6),
+    sources: [{source: "Fragrantica", url: null}],
+  };
+  const status = params.get("status");
+  const item: CollectionItem | null = status === "none" ? null : {id: "owned-0", fragrance, ownership_type: "bottle", status: (status as CollectionItem["status"]) ?? "owned", bottle_size_ml: 100, remaining_ml: 60, user_rating: 4, purchase_price: "120", purchase_date: null, custom_longevity: null, custom_projection: null};
+  const wears: WearLogEntry[] = params.has("sparse") ? [] : [2, 12, 30, 61].map((days, index) => ({id: `fw${index}`, collection_item_id: "owned-0", fragrance_id: fragrance.id, fragrance_name: fragrance.name, brand_name: fragrance.brand.name, worn_at: new Date(Date.now() - days * 864e5).toISOString(), sprays: 3, occasion: null, setting: null, notes: null}));
+  const suggestions = [1, 2, 4].map((index) => ({items: [{fragrance, role: "anchor", application_order: 1, suggested_sprays: 2}, {fragrance: shelf[index], role: "accent", application_order: 2, suggested_sprays: 1}], mode: "balanced", score: .8 - index * .05})) as unknown as LayeringStackSuggestion[];
+  return <FragranceContent data={{fragrance, collection_item: item, recent_wears: wears}} variant={variant} back={variant === "page" ? {href: "/collection", label: "Collection"} : undefined} layersWell={params.has("sparse") ? null : <LayersWellWith anchorId={fragrance.id} suggestions={suggestions}/>}/>;
 }

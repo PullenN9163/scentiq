@@ -9,3 +9,4 @@ export { AtelierToaster } from "./toast";
 export { Field, Select, Stepper, Switch, TextArea, TextInput } from "./field";
 export { centerOf, effectsReduced, playMist, resolveColor } from "./mist";
 export { AtelierEmpty, AtelierError, AtelierUnavailable } from "./states";
+export { AccordStrip, stripLegend, stripSegments, type AccordShare } from "./accord-strip";
