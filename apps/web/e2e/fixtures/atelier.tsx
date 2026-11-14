@@ -3,13 +3,19 @@ import {useState, type ReactNode} from "react";
 import {Button, Chip, FragranceCard, FragranceRow, Plate, Sheet} from "@/components/atelier";
 import {accordFor} from "@/lib/accord";
 import {toast} from "sonner";
-import type {FragranceSummary} from "@/types/api";
+import type {FragranceSummary, Me, Occasion, WearLogEntry} from "@/types/api";
+import type {WearPlan, WearRecommendation} from "@/types/wear-intelligence";
+import type {WeatherResult} from "@/lib/weather";
+import type {CalendarResult} from "@/lib/calendar";
+import {collectionInsights} from "@/test/catalog-fixtures";
+import {TodaySkeleton, TodayView} from "@/features/today/today-view";
+import {WeekGlance} from "@/features/today/week-glance";
 
 /** Views that render with the Atelier tokens (data-atelier on the root). */
 export const ATELIER_VIEWS = new Set(["primitives"]);
 
 /** Page views rendered inside the Atelier shell. */
-export const ATELIER_PAGE_VIEWS = new Set<string>([]);
+export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading"]);
 
 /** A stand-in product photo: a bottle on a white studio background. */
 export function bottlePhoto(glass = "#e9e2d8", cap = "#2b2622") {
@@ -68,9 +74,38 @@ function PrimitivesView({fragrances}: {fragrances: FragranceSummary[]}) {
   </main>;
 }
 
-export function atelierView(view: string, fragrances: FragranceSummary[]): ReactNode | null {
+export function atelierView(view: string, fragrances: FragranceSummary[], params: URLSearchParams = new URLSearchParams()): ReactNode | null {
+  const shelf = atelierFragrances(fragrances);
   switch (view) {
-    case "primitives": return <PrimitivesView fragrances={atelierFragrances(fragrances)}/>;
+    case "primitives": return <PrimitivesView fragrances={shelf}/>;
+    case "today-atelier": return todayFixture(shelf, params);
+    case "today-loading": return <TodaySkeleton/>;
     default: return null;
   }
+}
+
+const FIXTURE_DAY = "2026-11-14";
+function addDays(date: string, days: number) { const value = new Date(`${date}T12:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); }
+
+export function fixtureRecommendation(fragrance: FragranceSummary, overrides: Partial<WearRecommendation> & {date?: string; daypart?: "day" | "night"; occasion?: Occasion | null} = {}): WearRecommendation {
+  const {date = FIXTURE_DAY, daypart = "day", occasion = "work", ...rest} = overrides;
+  return {
+    id: `rec-${fragrance.id}-${date}-${daypart}`, context_key: `${daypart}:${date}`, recommended_for: `${date}T12:00:00Z`, generation_mode: "baseline", options_exhausted: false, remaining_options: 3, algorithm_version: "wear-v2",
+    context: {context_key: `${daypart}:${date}`, recommended_for: `${date}T12:00:00Z`, local_date: date, timezone: "America/New_York", daypart, season: "fall", occasion, high_celsius: 7, condition: "cloudy", source: "day", weather_resolution: "daily", weather_stale: false} as WearRecommendation["context"],
+    fragrance, score: 80, evidence_coverage: .7, recommended_sprays: 3, score_components: {occasion: 12.5, weather: 10, season: 15, rotation: 10},
+    reasons: ["Clean musk that stays close for a cool, cloudy work day", "Not worn in 12 days", "It fits what you rate highly"], warnings: [], alternatives: [], decision: null,
+    ...rest,
+  };
+}
+
+function todayFixture(shelf: FragranceSummary[], params: URLSearchParams) {
+  const me: Me = {id: "fixture-member", display_name: "Alex", email: "alex@example.com", created_at: "2026-10-13T12:00:00Z", lifecycle_state: "active", preferences: {location: "Philadelphia", location_label: "Philadelphia", maximum_sprays: 4, temperature_unit: "fahrenheit", timezone: "America/New_York", preferred_season: null, preferred_occasion: null, preferred_projection: null, preferred_longevity: null}};
+  const recs = [fixtureRecommendation(shelf[0], {options_exhausted: params.has("exhausted")})];
+  if (!params.has("single")) recs.push(fixtureRecommendation(shelf[1], {daypart: "night", occasion: "dinner", reasons: ["A warmer choice for dinner"]}));
+  const plan: WearPlan = {local_date: FIXTURE_DAY, timezone: "America/New_York", gaps: params.has("gaps") ? ["Nothing in your collection suits a formal dinner tonight."] : [], recommendations: params.has("norecs") ? [] : recs};
+  const week: WearPlan = {local_date: FIXTURE_DAY, timezone: "America/New_York", gaps: [], recommendations: Array.from({length: 6}, (_, index) => fixtureRecommendation(shelf[(index + 2) % shelf.length], {date: addDays(FIXTURE_DAY, index + 1), occasion: index % 2 ? "work" : null}))};
+  const weather: WeatherResult = params.has("nolocation") ? {status: "location_required"} : {status: "ok", forecast: {location_label: "Philadelphia", timezone: "America/New_York", temperature_unit: "fahrenheit", fetched_at: "2026-11-14T08:00:00Z", stale: false, days: [{date: FIXTURE_DAY, condition: "cloudy", high_celsius: 7.2, low_celsius: 2, precipitation_probability: .1, humidity: null}]}};
+  const calendar: CalendarResult = params.has("nocal") ? {status: "not_connected"} : {status: "ok", events: [], needsReconnect: params.has("reconnect")};
+  const wears: WearLogEntry[] = shelf.slice(3, 6).map((fragrance, index) => ({id: `w${index}`, collection_item_id: `c${index}`, fragrance_id: fragrance.id, fragrance_name: fragrance.name, brand_name: fragrance.brand.name, worn_at: `2026-10-2${2 - index}T14:00:00Z`, sprays: 3, occasion: null, setting: null, notes: null}));
+  return <TodayView plan={plan} me={me} insights={collectionInsights({total_items: params.has("empty") ? 0 : 26})} recentWears={wears} weather={weather} calendar={calendar} timeZone="America/New_York" week={<WeekGlance plan={params.has("noweek") ? null : week} today={FIXTURE_DAY} unit="fahrenheit"/>}/>;
 }

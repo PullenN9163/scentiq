@@ -22,9 +22,9 @@ export function plateFragrance(fragrance: {
   id: string;
   name: string;
   brand: { name: string };
-  image_url: string | null;
+  image_url?: string | null;
 }): PlateFragrance {
-  return { id: fragrance.id, name: fragrance.name, brand: fragrance.brand.name, imageUrl: fragrance.image_url };
+  return { id: fragrance.id, name: fragrance.name, brand: fragrance.brand.name, imageUrl: fragrance.image_url ?? null };
 }
 
 /**

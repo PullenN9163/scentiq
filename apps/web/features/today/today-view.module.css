@@ -1,0 +1,91 @@
+.dateline { margin: 0 0 var(--space-3); }
+
+.layout {
+  display: grid;
+  grid-template-areas: "hero" "later" "week" "blend" "lately";
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-7);
+}
+.main, .side { display: contents; }
+.heroSlot { display: grid; min-width: 0; gap: var(--space-2); grid-area: hero; }
+.later { grid-area: later; }
+.week { grid-area: week; min-width: 0; }
+.blend { grid-area: blend; }
+.lately { grid-area: lately; }
+
+.note { display: flex; align-items: center; gap: var(--space-2); margin: 0; }
+.note a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.warning { color: var(--warning); font-weight: 500; }
+.dismissible { justify-content: space-between; }
+.dismiss {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.dismiss svg { width: 18px; height: 18px; stroke-width: 1.75; }
+.dismiss:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.lately { margin: 0; color: var(--ink-muted); font-size: 14px; line-height: 1.7; }
+.lately b { margin-right: var(--space-2); color: var(--ink); font-weight: 500; }
+
+.later { display: grid; gap: 10px; }
+.laterList { display: grid; gap: var(--space-2); }
+.laterRow { border-radius: var(--radius-md); padding: 12px; background: var(--surface-sunken); }
+
+.blend {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+  color: var(--ink);
+  text-decoration: none;
+}
+.blend:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-xs); }
+.blend:hover b { text-decoration: underline; text-underline-offset: 4px; }
+.blendMark {
+  position: relative;
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 50%;
+  transform: rotate(45deg);
+}
+.blendMark i { flex: 1; background: var(--af); }
+.blendText { display: grid; min-width: 0; gap: 2px; }
+.blendText b { font-weight: 500; }
+.blendGo { margin-left: auto; white-space: nowrap; }
+
+.empty { display: grid; justify-items: start; gap: var(--space-3); padding: var(--space-8) 0; }
+.empty p { margin: 0; color: var(--ink-muted); }
+
+.skeletonLine { width: 220px; height: 14px; margin-bottom: var(--space-3); }
+.skeletonRow { display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--line); padding: 11px 0; }
+
+@media (min-width: 700px) {
+  .layout {
+    grid-template-areas: "hero hero" "lately lately" "later blend" "week week";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: var(--space-6);
+  }
+  .lately { margin-top: calc(var(--space-7) * -1 + var(--space-3)); }
+  .blend { align-self: end; }
+}
+@media (min-width: 1100px) {
+  .layout { grid-template-areas: none; grid-template-columns: minmax(0, 1fr) 360px; column-gap: var(--space-7); }
+  .main, .side { display: grid; min-width: 0; align-content: start; gap: var(--space-6); }
+  .main { gap: var(--space-3); }
+  .heroSlot, .later, .week, .blend, .lately { grid-area: auto; }
+  .lately { margin-top: 0; }
+  .blend { align-self: auto; }
+}

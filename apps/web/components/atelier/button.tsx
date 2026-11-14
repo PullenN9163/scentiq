@@ -1,5 +1,5 @@
 import { Slot } from "@radix-ui/react-slot";
-import type { ButtonHTMLAttributes } from "react";
+import type { ComponentProps } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -8,7 +8,7 @@ import styles from "./button.module.css";
 export type ButtonVariant = "primary" | "soft" | "outline" | "text" | "danger";
 export type ButtonSize = "default" | "sm";
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+type ButtonProps = ComponentProps<"button"> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
   asChild?: boolean;
