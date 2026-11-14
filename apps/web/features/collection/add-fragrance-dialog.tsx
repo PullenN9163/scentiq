@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { Field, FormMessage } from "@/components/shared/form-field";
 import { CatalogImage } from "@/components/catalog-image";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Sheet } from "@/components/atelier/sheet";
 import { Input } from "@/components/ui/input";
 import { NumericSlider } from "@/components/ui/numeric-slider";
 import { idleState, type ActionState } from "@/lib/action-state";
@@ -25,12 +26,16 @@ export function AddFragranceDialog({
   onOpenChange,
   catalog,
   ownedFragranceIds,
+  variant = "dialog",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   catalog: FragranceSummary[];
   ownedFragranceIds: string[];
+  /** "sheet" renders the same form in the Atelier sheet. */
+  variant?: "dialog" | "sheet";
 }) {
+  const Surface = variant === "sheet" ? SheetSurface : DialogSurface;
   const [mode, setMode] = useState<"catalog" | "custom">("catalog");
   const [wasOpen, setWasOpen] = useState(open);
   const [query, setQuery] = useState("");
@@ -94,8 +99,7 @@ export function AddFragranceDialog({
   }, [open, query]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Add fragrance" eyebrow="Collection">
+    <Surface open={open} onOpenChange={onOpenChange}>
         {/* Toggle buttons rather than an ARIA tab pattern: a real tablist needs
             arrow-key navigation, and a half-implemented one misleads screen
             reader users about how to move between the panels. */}
@@ -279,8 +283,7 @@ export function AddFragranceDialog({
             ) : null}
           </form>
         )}
-      </DialogContent>
-    </Dialog>
+    </Surface>
   );
 }
 
@@ -288,4 +291,22 @@ function formatConcentration(value: string | null): string {
   if (!value) return "Concentration not recorded";
   const words = value.replaceAll("_", " ").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+type SurfaceProps = { open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode };
+
+function DialogSurface({ open, onOpenChange, children }: SurfaceProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title="Add fragrance" eyebrow="Collection">{children}</DialogContent>
+    </Dialog>
+  );
+}
+
+function SheetSurface({ open, onOpenChange, children }: SurfaceProps) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title="Add fragrance">
+      <div className="atelier-legacy-form">{children}</div>
+    </Sheet>
+  );
 }

@@ -9,14 +9,15 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/atelier/button";
 import { Chip } from "@/components/atelier/chip";
-import { Field, Select, TextArea, TextInput } from "@/components/atelier/field";
+import { Field, Select, TextInput } from "@/components/atelier/field";
 import { centerOf, playMist } from "@/components/atelier/mist";
 import { Sheet } from "@/components/atelier/sheet";
 import { idleState, type ActionState } from "@/lib/action-state";
-import { addToCollection, addToWishlist, logWear, updateCollectionItem } from "@/lib/server/actions";
+import { addToCollection, addToWishlist, updateCollectionItem } from "@/lib/server/actions";
 import type { CollectionItem, CollectionStatus, FragranceDetail } from "@/types/api";
 
 import styles from "./fragrance.module.css";
+import { WearLogSheet } from "./wear-log-sheet";
 
 export type Ownership = "owned" | "wishlist" | "retired" | "none";
 export type PrimaryAction = "wear" | "own" | "wishlist";
@@ -46,14 +47,7 @@ export function actionsFor(ownership: Ownership): { primary: PrimaryAction | nul
   }
 }
 
-const OCCASIONS = [["work", "Work"], ["casual", "Casual"], ["date", "Date"], ["dinner", "Dinner"], ["party", "Party"], ["formal", "Formal"], ["gym", "Gym"], ["travel", "Travel"], ["other", "Other"]] as const;
 
-/** A datetime-local value for "now", which the input requires unzoned. */
-function nowForInput(): string {
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-}
 
 /** The item's current values, so a partial update does not clear other fields. */
 function currentValues(item: CollectionItem, overrides: Partial<Record<string, string>> = {}): FormData {
@@ -87,20 +81,6 @@ export function FragranceActions({ fragrance, item, compact = false }: { fragran
   const [retry, setRetry] = useState<(() => void) | null>(null);
   const wearButton = useRef<HTMLButtonElement>(null);
 
-  const [wearState, wearAction, wearPending] = useActionState(async (previous: ActionState, form: FormData) => {
-    const localTime = String(form.get("worn_at") ?? "");
-    const instant = new Date(localTime);
-    // Resolve datetime-local in the member's browser, as the existing view does.
-    form.set("worn_at", Number.isNaN(instant.getTime()) ? "" : instant.toISOString());
-    const result = await logWear(previous, form);
-    if (result.status === "success") {
-      setWearOpen(false);
-      toast.success(result.message ?? "Wear logged.");
-      router.refresh();
-      if (wearButton.current) void playMist({ from: centerOf(wearButton.current), color: getComputedStyle(wearButton.current).getPropertyValue("--ac").trim() || "#8a5a3c" });
-    }
-    return result.values ? { ...result, values: { ...result.values, worn_at: localTime } } : result;
-  }, idleState);
 
   const [editState, editAction, editPending] = useActionState(async (previous: ActionState, form: FormData) => {
     const result = await updateCollectionItem(previous, form);
@@ -162,7 +142,7 @@ export function FragranceActions({ fragrance, item, compact = false }: { fragran
     run("save your rating", () => updateCollectionItem(idleState, currentValues(item, { user_rating: String(rating), status: status ?? item.status })), () => { setRateOpen(false); toast.success("Rating saved"); });
   }
 
-  const busy = pending || wearPending || editPending;
+  const busy = pending || editPending;
   const ownLabel = pending ? "Saving…" : "I own this";
   const layerLink = <Button asChild variant="soft"><Link href={`/layering?a=${fragrance.id}`}>Layer it</Link></Button>;
 
@@ -199,35 +179,7 @@ export function FragranceActions({ fragrance, item, compact = false }: { fragran
 
       {item ? (
         <>
-          <Sheet
-            open={wearOpen}
-            onOpenChange={setWearOpen}
-            title={`Wear ${fragrance.name}`}
-            footer={<div className={styles.sheetActions}><Button type="submit" form={`${id}-wear`} disabled={wearPending}>{wearPending ? "Saving…" : "Log wear"}</Button><Button variant="text" onClick={() => setWearOpen(false)}>Cancel</Button></div>}
-          >
-            <form id={`${id}-wear`} action={wearAction} className={styles.form} noValidate>
-              {wearState.status === "error" && wearState.message ? <p className={styles.error} role="alert">{wearState.message}</p> : null}
-              <input type="hidden" name="collection_item_id" value={item.id} />
-              <Field label="When" htmlFor={`${id}-worn`} error={wearState.fieldErrors?.worn_at}>
-                <TextInput id={`${id}-worn`} name="worn_at" type="datetime-local" defaultValue={valueOf(wearState, "worn_at", nowForInput())} />
-              </Field>
-              <Field label="Sprays" htmlFor={`${id}-sprays`} error={wearState.fieldErrors?.sprays}>
-                <TextInput id={`${id}-sprays`} name="sprays" type="number" inputMode="numeric" min={1} max={30} defaultValue={valueOf(wearState, "sprays", "")} />
-              </Field>
-              <Field label="Occasion" htmlFor={`${id}-occasion`} error={wearState.fieldErrors?.occasion}>
-                <Select id={`${id}-occasion`} name="occasion" defaultValue={valueOf(wearState, "occasion", "")}>
-                  <option value="">No occasion</option>
-                  {OCCASIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </Select>
-              </Field>
-              <Field label="Setting" htmlFor={`${id}-setting`} error={wearState.fieldErrors?.setting}>
-                <TextInput id={`${id}-setting`} name="setting" maxLength={40} defaultValue={valueOf(wearState, "setting", "")} />
-              </Field>
-              <Field label="Notes" htmlFor={`${id}-notes`} error={wearState.fieldErrors?.notes}>
-                <TextArea id={`${id}-notes`} name="notes" rows={3} defaultValue={valueOf(wearState, "notes", "")} />
-              </Field>
-            </form>
-          </Sheet>
+          <WearLogSheet itemId={item.id} fragranceName={fragrance.name} open={wearOpen} onOpenChange={setWearOpen} onLogged={() => { if (wearButton.current) void playMist({ from: centerOf(wearButton.current), color: getComputedStyle(wearButton.current).getPropertyValue("--ac").trim() || "#8a5a3c" }); }} />
 
           <Sheet
             open={editOpen}

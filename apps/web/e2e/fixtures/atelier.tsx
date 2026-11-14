@@ -11,6 +11,8 @@ import {FragranceListProvider} from "@/features/fragrance/fragrance-list-context
 import {LayersWellWith} from "@/features/fragrance/layers-well-with";
 import {AskPage} from "@/features/ask/ask-page";
 import {useAsk} from "@/features/ask/ask-provider";
+import {CollectionAtelier} from "@/features/collection-atelier/collection-atelier";
+import type {SavedLayeringStack} from "@/types/layering";
 import type {WearPlan, WearRecommendation} from "@/types/wear-intelligence";
 import type {WeatherResult} from "@/lib/weather";
 import type {CalendarResult} from "@/lib/calendar";
@@ -22,7 +24,7 @@ import {WeekGlance} from "@/features/today/week-glance";
 export const ATELIER_VIEWS = new Set(["primitives"]);
 
 /** Page views rendered inside the Atelier shell. */
-export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier"]);
+export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier", "collection-atelier", "blends"]);
 
 /** A stand-in product photo: a bottle on a white studio background. */
 export function bottlePhoto(glass = "#e9e2d8", cap = "#2b2622") {
@@ -91,6 +93,8 @@ export function atelierView(view: string, fragrances: FragranceSummary[], params
     case "fragrance": return <div className="at-page">{fragranceFixture(shelf, params, "page")}</div>;
     case "ask": stubAdvisor(shelf); return <>{todayFixture(shelf, params)}<OpenAskOnMount/></>;
     case "agent-atelier": stubAdvisor(shelf); return <AskPage/>;
+    case "collection-atelier": return collectionFixture(shelf, params, "shelf");
+    case "blends": return collectionFixture(shelf, params, "blends");
     default: return null;
   }
 }
@@ -159,4 +163,12 @@ function stubAdvisor(shelf: FragranceSummary[]) {
     }
     return original(input, init);
   };
+}
+
+function collectionFixture(shelf: FragranceSummary[], params: URLSearchParams, segment: "shelf" | "blends") {
+  const many = [...shelf, ...shelf.map((fragrance, index) => ({...fragrance, id: `${fragrance.id.slice(0, -2)}9${index}`, name: `${fragrance.name} Intense`}))];
+  const items: CollectionItem[] = params.has("empty") ? [] : many.map((fragrance, index) => ({id: `c-${index}`, fragrance, ownership_type: index % 4 === 3 ? "sample" : "bottle", status: index === 9 ? "finished" : index >= 11 ? "wishlist" : "owned", bottle_size_ml: 100, remaining_ml: index === 2 ? 6 : 70, user_rating: index % 3 === 0 ? null : 5 - (index % 5), purchase_price: null, purchase_date: null, custom_longevity: null, custom_projection: null}));
+  const stack = (id: string, name: string, picks: number[], sprays: number[], wears: number, rating: number | null) => ({id, name, notes: null, wear_count: wears, average_rating: rating, last_worn_at: null, created_at: "2026-11-01T00:00:00Z", suggestion: {items: picks.map((pick, index) => ({fragrance: shelf[pick], role: index ? "accent" : "anchor", application_order: index + 1, suggested_sprays: sprays[index]})), mode: "balanced"}}) as unknown as SavedLayeringStack;
+  const saved = params.has("empty") ? [] : [stack("aaaaaaaa-0000-4000-8000-000000000001", "Amber Dusk", [0, 1], [2, 1], 3, 4.5), stack("aaaaaaaa-0000-4000-8000-000000000002", "Green Rain", [2, 6, 3], [1, 2, 1], 1, null), stack("aaaaaaaa-0000-4000-8000-000000000003", "Velvet Noon", [3, 4], [1, 1], 0, null)];
+  return <CollectionAtelier items={items} catalog={shelf} tasteAccords={[{label: "Woody", count: 18, share: .375}, {label: "Fresh", count: 12, share: .25}, {label: "Amber", count: 8, share: .167}, {label: "Floral", count: 6, share: .125}, {label: "Spicy", count: 4, share: .083}]} saved={saved} initialSegment={segment}/>;
 }
