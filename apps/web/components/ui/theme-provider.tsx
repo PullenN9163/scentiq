@@ -24,6 +24,11 @@ export function ThemeProvider({children,initialPreference="system"}: {children:R
   return <ThemeContext value={{preference,setPreference:choose}}>{children}</ThemeContext>;
 }
 
+/** The saved appearance and a setter that also writes the cookie. */
+export function useThemePreference() {
+  return useContext(ThemeContext);
+}
+
 export function AppearanceControl({expanded=false}: {expanded?:boolean}) {
   const {preference,setPreference} = useContext(ThemeContext);
   const id = useId();

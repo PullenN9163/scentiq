@@ -8,6 +8,9 @@ import type {FragranceSummary} from "@/types/api";
 /** Views that render with the Atelier tokens (data-atelier on the root). */
 export const ATELIER_VIEWS = new Set(["primitives"]);
 
+/** Page views rendered inside the Atelier shell. */
+export const ATELIER_PAGE_VIEWS = new Set<string>([]);
+
 /** A stand-in product photo: a bottle on a white studio background. */
 export function bottlePhoto(glass = "#e9e2d8", cap = "#2b2622") {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 375 500"><rect width="375" height="500" fill="#ffffff"/><rect x="157" y="92" width="61" height="58" rx="6" fill="${cap}"/><rect x="171" y="146" width="33" height="22" fill="#b9b1a6"/><rect x="112" y="166" width="151" height="250" rx="18" fill="${glass}" stroke="#b9b1a6" stroke-width="3"/><rect x="134" y="250" width="107" height="70" rx="4" fill="#ffffff" opacity=".85"/></svg>`;

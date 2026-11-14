@@ -5,3 +5,4 @@ export const SignedIn = ({children}:{children:ReactNode}) => {void children; ret
 export const SignedOut = ({children}:{children:ReactNode}) => children;
 export const SignIn = () => <div className="card auth-card"><div className="card__content"><h2>Sign in to ScentIQ</h2><label className="label" htmlFor="email">Email address</label><input id="email" className="input" type="email"/><button className="button button--primary">Continue</button></div></div>;
 export const SignUp = SignIn;
+export const useClerk = () => ({signOut:async()=>{},openUserProfile:()=>{}});

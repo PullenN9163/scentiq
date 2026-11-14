@@ -1,5 +1,6 @@
 import {createRoot} from "react-dom/client";
 import {AppShell} from "@/components/app-shell/app-shell";
+import {AtelierShell} from "@/components/atelier-shell/atelier-shell";
 import {ThemeProvider} from "@/components/ui/theme-provider";
 import {themeInitScript,type ThemePreference} from "@/lib/theme";
 import {MotionProvider} from "@/components/ui/motion-provider";
@@ -21,7 +22,7 @@ import {fragranceDetail,fragranceSummary,collectionInsights,discoveryResult} fro
 import type {CollectionItem,Me} from "@/types/api";
 import type {LayeringStackSuggestion} from "@/types/layering";
 import type {WearPlan,WearRecommendation} from "@/types/wear-intelligence";
-import {ATELIER_VIEWS,atelierView,enableAtelier} from "./atelier";
+import {ATELIER_PAGE_VIEWS,ATELIER_VIEWS,atelierView,enableAtelier} from "./atelier";
 import "@/app/globals.css";
 
 const params=new URLSearchParams(location.search);
@@ -58,6 +59,7 @@ switch(view) {
   default:content=<DashboardView me={me} insights={collectionInsights({total_items:26,owned_items:22,total_wears:42})} recentWears={[]} weather={{status:"location_required"}} calendar={{status:"not_connected"}} timeZone="America/New_York" plan={plan}/>;
 }
 const publicPage=["landing","sign-in","sign-up"].includes(view);
-const atelier=ATELIER_VIEWS.has(view);
+const atelierShell=params.get("shell")==="atelier"||ATELIER_PAGE_VIEWS.has(view);
+const atelier=ATELIER_VIEWS.has(view)||atelierShell;
 if(atelier) enableAtelier();
-createRoot(document.getElementById("root")!).render(<ThemeProvider initialPreference={preference}><MotionProvider atelier={atelier}>{publicPage||atelier?content:<AppShell>{content}</AppShell>}</MotionProvider></ThemeProvider>);
+createRoot(document.getElementById("root")!).render(<ThemeProvider initialPreference={preference}><MotionProvider atelier={atelier}>{publicPage?content:atelierShell?<AtelierShell>{content}</AtelierShell>:atelier?content:<AppShell>{content}</AppShell>}</MotionProvider></ThemeProvider>);
