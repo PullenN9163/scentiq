@@ -15,6 +15,7 @@ import {CollectionAtelier} from "@/features/collection-atelier/collection-atelie
 import {WeekView} from "@/features/week-atelier/week-view";
 import {DiscoverAtelier, DiscoverSkeleton} from "@/features/discover-atelier/discover-atelier";
 import {TasteView} from "@/features/taste/taste-view";
+import {SettingsAtelier} from "@/features/settings-atelier/settings-atelier";
 import type {SavedLayeringStack} from "@/types/layering";
 import type {WearPlan, WearRecommendation} from "@/types/wear-intelligence";
 import type {WeatherResult} from "@/lib/weather";
@@ -27,7 +28,7 @@ import {WeekGlance} from "@/features/today/week-glance";
 export const ATELIER_VIEWS = new Set(["primitives"]);
 
 /** Page views rendered inside the Atelier shell. */
-export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier", "collection-atelier", "blends", "week-atelier", "discover-atelier", "discover-atelier-error", "discover-loading", "insights-atelier"]);
+export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier", "collection-atelier", "blends", "week-atelier", "discover-atelier", "discover-atelier-error", "discover-loading", "insights-atelier", "settings-atelier"]);
 
 /** A stand-in product photo: a bottle on a white studio background. */
 export function bottlePhoto(glass = "#e9e2d8", cap = "#2b2622") {
@@ -103,6 +104,7 @@ export function atelierView(view: string, fragrances: FragranceSummary[], params
     case "discover-atelier-error": return <DiscoverAtelier results={[]} recommendationError="Your recommendations could not be loaded. You can still search the catalog or retry."/>;
     case "discover-loading": return <DiscoverSkeleton/>;
     case "insights-atelier": return tasteFixture(shelf, params);
+    case "settings-atelier": return <SettingsAtelier me={{id: "fixture-member", display_name: "Alex", email: "alex@example.com", created_at: "2026-10-13T12:00:00Z", lifecycle_state: "active", preferences: {liked_notes: ["Cedar", "Bergamot"], disliked_notes: ["Oud"], liked_accords: ["Woody"], liked_families: ["Fresh"], variety_preference: "balanced", calendar_ai_titles_enabled: false, location: "Philadelphia", location_label: "Philadelphia, PA", maximum_sprays: 4, temperature_unit: "fahrenheit", timezone: "America/New_York", preferred_season: null, preferred_occasion: "work", preferred_projection: null, preferred_longevity: null}}} calendarProviders={[{provider: "google", available: true}, {provider: "microsoft", available: true}]} calendarConnections={[]} initialSection={(params.get("section") as "taste" | null) ?? null}/>;
     default: return null;
   }
 }

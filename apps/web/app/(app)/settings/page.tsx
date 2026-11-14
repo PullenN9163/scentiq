@@ -2,6 +2,9 @@ import { Suspense } from "react";
 
 import { ErrorState, LoadingState, UnavailableState } from "@/components/shared/states";
 import { SettingsView } from "@/features/settings/settings-view";
+import { SettingsAtelier, SettingsSkeleton, sectionFrom } from "@/features/settings-atelier/settings-atelier";
+import { AtelierError, AtelierUnavailable } from "@/components/atelier/states";
+import { isAtelierEnabled } from "@/lib/atelier-flag";
 import { ApiError } from "@/lib/server/api-client";
 import { getCalendarConnections, getCalendarProviders, getMe } from "@/lib/server/queries";
 import type { CalendarConnection, CalendarProviderStatus, Me } from "@/types/api";
@@ -39,14 +42,18 @@ async function SettingsBoundary({ searchParams }: { searchParams: SearchParams }
     [me, calendar] = await Promise.all([getMe(), loadCalendar()]);
   } catch (error) {
     if (error instanceof ApiError && error.kind === "unavailable") {
-      return <UnavailableState />;
+      return isAtelierEnabled() ? <AtelierUnavailable /> : <UnavailableState />;
     }
     if (error instanceof ApiError) {
-      return <ErrorState message={error.message} />;
+      return isAtelierEnabled() ? <div className="at-page"><AtelierError message={error.message} /></div> : <ErrorState message={error.message} />;
     }
     throw error;
   }
 
+  if (isAtelierEnabled()) {
+    const sectionParameter = single(parameters.section);
+    return <SettingsAtelier me={me} calendarProviders={calendar.providers} calendarConnections={calendar.connections} calendarNotice={calendarNotice} initialSection={sectionFrom(sectionParameter ? `?section=${sectionParameter}` : calendarNotice ? "?section=calendar" : null, null)} />;
+  }
   return (
     <SettingsView
       me={me}
@@ -59,7 +66,7 @@ async function SettingsBoundary({ searchParams }: { searchParams: SearchParams }
 
 export default function SettingsPage({ searchParams }: { searchParams: SearchParams }) {
   return (
-    <Suspense fallback={<LoadingState rows={4} label="Loading your settings" />}>
+    <Suspense fallback={isAtelierEnabled() ? <SettingsSkeleton /> : <LoadingState rows={4} label="Loading your settings" />}>
       <SettingsBoundary searchParams={searchParams} />
     </Suspense>
   );

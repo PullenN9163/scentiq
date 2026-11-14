@@ -155,3 +155,5 @@ html[data-atelier] :focus-visible { outline: 2px solid var(--accent); outline-of
 .atelier-legacy-form .card { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .atelier-legacy-form .card__content { padding: 0; }
 .atelier-legacy-form .numeric-slider input[type="range"] { accent-color: var(--action); }
+.atelier-legacy-form .settings-title { display: none; }
+.atelier-legacy-form .connection-row { display: flex; min-height: 56px; align-items: center; justify-content: space-between; gap: var(--space-3); border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
