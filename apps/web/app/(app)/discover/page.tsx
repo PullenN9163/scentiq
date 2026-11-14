@@ -1,4 +1,6 @@
 import { DiscoverExperience } from "@/features/discover/discover-experience";
+import { DiscoverAtelier } from "@/features/discover-atelier/discover-atelier";
+import { isAtelierEnabled } from "@/lib/atelier-flag";
 import { getCollection, searchFragrances } from "@/lib/server/queries";
 import { getDiscoveryIntelligence } from "@/lib/server/layering-actions";
 import { redirect } from "next/navigation";
@@ -16,6 +18,7 @@ export default async function DiscoverPage({
   const mode = ["balance", "taste", "explore", "seasonal"].includes(filters.mode ?? "")
     ? filters.mode ?? "balance"
     : "balance";
+  const View = isAtelierEnabled() ? DiscoverAtelier : DiscoverExperience;
   if (!fastDiscoveryEnabled) {
     const [collection, results, catalogResults] = await Promise.all([
         getCollection(),
@@ -36,7 +39,7 @@ export default async function DiscoverPage({
       throw error;
       });
     return (
-      <DiscoverExperience
+      <View
         results={results}
         catalogResults={catalogResults}
         wishlistIds={collection.map((item) => item.fragrance.id)}
@@ -51,7 +54,7 @@ export default async function DiscoverPage({
     );
   }
   return (
-    <DiscoverExperience
+    <View
       results={[]}
       query={query}
       liveMode

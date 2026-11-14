@@ -16,6 +16,7 @@ import type { FragrancePageData } from "@/types/api";
 
 import { Button } from "@/components/atelier/button";
 import { useAsk } from "@/features/ask/ask-provider";
+import { suitsFor } from "@/features/discover-atelier/suits-memory";
 
 import { FragranceActions, ownershipOf } from "./fragrance-actions";
 import { notesByStage, personalLine, weeklyWears } from "./fragrance-copy";
@@ -66,6 +67,7 @@ export function FragranceContent({
           <p className="at-overline">{fragrance.brand.name}</p>
           <Name className={cn(variant === "page" ? "at-display-lg" : "at-display-md", styles.name)}>{fragrance.name}</Name>
           {line ? <p className={styles.line}>{line}</p> : null}
+          <SuitsLine id={fragrance.id} />
           <FragranceActions fragrance={fragrance} item={item} compact={variant === "sheet"} />
           <AskAboutThis id={fragrance.id} name={fragrance.name} brand={fragrance.brand.name} />
         </div>
@@ -152,4 +154,11 @@ export function FragranceSkeleton() {
 function AskAboutThis({ id, name, brand }: { id: string; name: string; brand: string }) {
   const ask = useAsk();
   return <Button size="sm" variant="text" className={styles.askAbout} onClick={() => ask({ fragranceId: id, name, brand })}>Ask about this</Button>;
+}
+
+/** Discovery scores as words, when the sheet was opened from Discover. */
+function SuitsLine({ id }: { id: string }) {
+  const words = suitsFor(id);
+  if (words.length === 0) return null;
+  return <p className={styles.suits}><span className="at-label">Why it suits you</span> {words.join(" · ")}</p>;
 }

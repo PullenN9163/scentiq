@@ -13,6 +13,7 @@ import {AskPage} from "@/features/ask/ask-page";
 import {useAsk} from "@/features/ask/ask-provider";
 import {CollectionAtelier} from "@/features/collection-atelier/collection-atelier";
 import {WeekView} from "@/features/week-atelier/week-view";
+import {DiscoverAtelier, DiscoverSkeleton} from "@/features/discover-atelier/discover-atelier";
 import type {SavedLayeringStack} from "@/types/layering";
 import type {WearPlan, WearRecommendation} from "@/types/wear-intelligence";
 import type {WeatherResult} from "@/lib/weather";
@@ -25,7 +26,7 @@ import {WeekGlance} from "@/features/today/week-glance";
 export const ATELIER_VIEWS = new Set(["primitives"]);
 
 /** Page views rendered inside the Atelier shell. */
-export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier", "collection-atelier", "blends", "week-atelier"]);
+export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier", "collection-atelier", "blends", "week-atelier", "discover-atelier", "discover-atelier-error", "discover-loading"]);
 
 /** A stand-in product photo: a bottle on a white studio background. */
 export function bottlePhoto(glass = "#e9e2d8", cap = "#2b2622") {
@@ -97,6 +98,9 @@ export function atelierView(view: string, fragrances: FragranceSummary[], params
     case "collection-atelier": return collectionFixture(shelf, params, "shelf");
     case "blends": return collectionFixture(shelf, params, "blends");
     case "week-atelier": return weekFixture(shelf, params);
+    case "discover-atelier": return <DiscoverAtelier results={params.has("empty") ? [] : shelf.map((fragrance, index) => ({fragrance, taste_match: .8 - index * .1, collection_expansion: .5 + index * .05, redundancy_risk: .2, score: .8, reasons: index === 0 ? ["Adds a fresh, airy side to your woody shelf"] : []}))} wishlistIds={[shelf[2].id]} query={params.get("q") ?? ""} catalogResults={params.get("q") ? shelf.slice(2) : []}/>;
+    case "discover-atelier-error": return <DiscoverAtelier results={[]} recommendationError="Your recommendations could not be loaded. You can still search the catalog or retry."/>;
+    case "discover-loading": return <DiscoverSkeleton/>;
     default: return null;
   }
 }

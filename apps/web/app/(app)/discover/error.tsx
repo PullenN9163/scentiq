@@ -6,6 +6,12 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DiscoverSearch } from "@/features/discover/discover-search";
+import { Button as AtelierButton } from "@/components/atelier/button";
+import { AtelierError } from "@/components/atelier/states";
+
+function atelierActive(): boolean {
+  return typeof document !== "undefined" && document.documentElement.dataset.atelier === "true";
+}
 
 export default function DiscoverError({
   reset,
@@ -13,6 +19,13 @@ export default function DiscoverError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  if (atelierActive()) {
+    return (
+      <div className="at-page">
+        <AtelierError title="Recommendations are taking a moment" message="Your collection is safe. Try loading its recommendations again." retry={<AtelierButton variant="outline" onClick={reset}>Try again</AtelierButton>} />
+      </div>
+    );
+  }
   return (
     <section className="page">
       <PageHeader
