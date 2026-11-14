@@ -1,5 +1,6 @@
 /* Light: the accord field with ink-on-field; dark: the deep tone with ink-on-deep. */
 .hero {
+  isolation: isolate;
   --hero-bg: var(--af);
   --hero-ink: var(--ink-on-field);
   --hero-soft: #f7f4efcc;
@@ -125,4 +126,29 @@
   .compact { grid-template-columns: minmax(0, 1fr) 190px; padding: var(--space-6); }
   .compact .plateArea { min-height: 260px; }
   .compact .name { font-size: 56px; line-height: 1; }
+}
+
+/* New-pick bloom: the hero color opens outward from the bottle. The hero is transparent while it runs, so the page ground shows around the growing circle. */
+.hero[data-blooming="true"] {
+  background-color: transparent;
+  transition: none;
+}
+
+.bloom {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--hero-bg);
+  pointer-events: none;
+  animation: heroBloom 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes heroBloom {
+  from {
+    clip-path: circle(0px at var(--bx) var(--by));
+  }
+  to {
+    clip-path: circle(var(--br) at var(--bx) var(--by));
+  }
 }

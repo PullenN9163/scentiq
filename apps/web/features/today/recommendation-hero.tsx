@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition, type CSSProperties } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/atelier/button";
 import { Chip } from "@/components/atelier/chip";
 import { Field, Select, Stepper, TextInput } from "@/components/atelier/field";
-import { centerOf, playMist, resolveColor } from "@/components/atelier/mist";
+import { centerOf, effectsReduced, playMist, resolveColor } from "@/components/atelier/mist";
 import { Plate, plateFragrance } from "@/components/atelier/plate";
 import { Sheet } from "@/components/atelier/sheet";
 import { WearFeedbackDialog } from "@/features/collection/wear-feedback-dialog";
@@ -21,6 +21,7 @@ import { decideRecommendation, nextRecommendation, recommendationFeedback, wearR
 import type { Occasion } from "@/types/api";
 import type { WearCandidate, WearRecommendation } from "@/types/wear-intelligence";
 
+import { claimDailyBloom, localDayKey } from "./bloom";
 import { accordWords, componentLabel, selectedCandidate, splitReasons } from "./today-copy";
 import styles from "./recommendation-hero.module.css";
 
@@ -28,6 +29,20 @@ const OCCASIONS: Occasion[] = ["work", "casual", "date", "dinner", "party", "for
 const OCCASION_NAMES: Record<Occasion, string> = { work: "Work", casual: "Casual", date: "Date", dinner: "Dinner", party: "Party", formal: "Formal", gym: "Gym", travel: "Travel", other: "Other" };
 /** With no answer to "Too strong?", the dislike is recorded after this long. */
 const FOLLOW_UP_MS = 10_000;
+
+type BloomOrigin = { x: number; y: number; radius: number; id: number };
+let bloomSeq = 0;
+
+/** Where the bloom starts (the bottle) and how far it must reach to cover the hero. */
+function bloomFrom(hero: HTMLElement, origin: HTMLElement | null): BloomOrigin {
+  const box = hero.getBoundingClientRect();
+  const from = (origin ?? hero).getBoundingClientRect();
+  const x = from.left - box.left + from.width / 2;
+  const y = from.top - box.top + from.height / 2;
+  const radius = Math.hypot(Math.max(x, box.width - x), Math.max(y, box.height - y));
+  bloomSeq += 1;
+  return { x, y, radius, id: bloomSeq };
+}
 
 export type ContextChip = { label: string; href?: string };
 
@@ -44,6 +59,7 @@ export function RecommendationHero({
   wornAt,
   headingLevel = 1,
   compact = false,
+  bloom = false,
 }: {
   recommendation: WearRecommendation;
   /** Weather and occasion chips, in order; the personal fact chip is added here. */
@@ -56,6 +72,8 @@ export function RecommendationHero({
   headingLevel?: 1 | 2;
   /** Smaller name and plate, for the Week planner. */
   compact?: boolean;
+  /** Blooms the hero color when a pick first shows (Today). */
+  bloom?: boolean;
 }) {
   const router = useRouter();
   const [feedbackWear, setFeedbackWear] = useState<string | null>(null);
@@ -72,6 +90,7 @@ export function RecommendationHero({
         wornAt={wornAt}
         headingLevel={headingLevel}
         compact={compact}
+        bloom={bloom}
       />
     </>
   );
@@ -86,6 +105,7 @@ function HeroContent({
   wornAt,
   headingLevel,
   compact,
+  bloom,
 }: {
   recommendation: WearRecommendation;
   chips: ContextChip[];
@@ -95,6 +115,7 @@ function HeroContent({
   wornAt?: string;
   headingLevel: 1 | 2;
   compact: boolean;
+  bloom: boolean;
 }) {
   const router = useRouter();
   const formId = useId();
@@ -114,6 +135,7 @@ function HeroContent({
   const wearButton = useRef<HTMLButtonElement>(null);
   const plate = useRef<HTMLDivElement>(null);
   const followUpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [bloomOrigin, setBloomOrigin] = useState<BloomOrigin | null>(null);
 
   const fragrance = selected.fragrance;
   const accord = accordFor(fragrance);
@@ -124,6 +146,13 @@ function HeroContent({
 
   useEffect(() => () => { if (followUpTimer.current) clearTimeout(followUpTimer.current); }, []);
 
+  // The first pick of the day blooms once on load; later picks bloom in show().
+  useEffect(() => {
+    if (!bloom || effectsReduced() || !hero.current) return;
+    if (!claimDailyBloom(localDayKey())) return;
+    setBloomOrigin(bloomFrom(hero.current, plate.current));
+  }, [bloom]);
+
   function show(next: WearRecommendation) {
     const candidate = selectedCandidate(next);
     setRecommendation(next);
@@ -132,6 +161,7 @@ function HeroContent({
     setOccasion(next.context.occasion ?? "");
     setSetting(next.context.setting ?? "");
     onPickChange?.(candidate);
+    if (bloom && hero.current && !effectsReduced()) setBloomOrigin(bloomFrom(hero.current, plate.current));
   }
 
   /** Ask for the next option. Must run inside a transition. */
@@ -202,7 +232,16 @@ function HeroContent({
   const allChips: ContextChip[] = [...chips, ...(fact ? [{ label: fact }] : [])];
 
   return (
-    <section ref={hero} className={cn(styles.hero, compact && styles.compact)} style={accordVars(accord)} aria-labelledby={`${formId}-name`} data-testid="recommendation-hero" data-accord={accord}>
+    <section ref={hero} className={cn(styles.hero, compact && styles.compact)} style={accordVars(accord)} aria-labelledby={`${formId}-name`} data-testid="recommendation-hero" data-accord={accord} data-blooming={bloomOrigin ? "true" : undefined}>
+      {bloomOrigin ? (
+        <div
+          key={bloomOrigin.id}
+          className={styles.bloom}
+          aria-hidden="true"
+          style={{ "--bx": `${bloomOrigin.x}px`, "--by": `${bloomOrigin.y}px`, "--br": `${bloomOrigin.radius}px` } as CSSProperties}
+          onAnimationEnd={() => setBloomOrigin(null)}
+        />
+      ) : null}
       {allChips.length > 0 ? (
         <div className={styles.chips}>
           {allChips.map((chip) => chip.href ? (

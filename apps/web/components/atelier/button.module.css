@@ -34,7 +34,7 @@
 }
 .danger { background: var(--danger); color: var(--ground); }
 
-.sm { min-height: 36px; padding: 0 16px; font-size: 14px; }
+.sm { min-height: 44px; padding: 0 16px; font-size: 14px; }
 .text.sm { padding: 0 4px; }
 
 /* Small buttons still offer a 44px touch target on coarse pointers. */

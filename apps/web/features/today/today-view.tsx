@@ -96,7 +96,7 @@ export function TodayView({
         <div className={styles.main}>
           <div className={styles.heroSlot}>
           {first && pick ? (
-            <RecommendationHero recommendation={first} chips={chips} onPickChange={setPick} />
+            <RecommendationHero recommendation={first} chips={chips} onPickChange={setPick} bloom />
           ) : (
             <section className={styles.empty}>
               <h1 className="at-title">Add an owned fragrance to receive recommendations.</h1>
