@@ -12,6 +12,7 @@ import {LayersWellWith} from "@/features/fragrance/layers-well-with";
 import {AskPage} from "@/features/ask/ask-page";
 import {useAsk} from "@/features/ask/ask-provider";
 import {CollectionAtelier} from "@/features/collection-atelier/collection-atelier";
+import {WeekView} from "@/features/week-atelier/week-view";
 import type {SavedLayeringStack} from "@/types/layering";
 import type {WearPlan, WearRecommendation} from "@/types/wear-intelligence";
 import type {WeatherResult} from "@/lib/weather";
@@ -24,7 +25,7 @@ import {WeekGlance} from "@/features/today/week-glance";
 export const ATELIER_VIEWS = new Set(["primitives"]);
 
 /** Page views rendered inside the Atelier shell. */
-export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier", "collection-atelier", "blends"]);
+export const ATELIER_PAGE_VIEWS = new Set<string>(["today-atelier", "today-loading", "sheet", "fragrance", "ask", "agent-atelier", "collection-atelier", "blends", "week-atelier"]);
 
 /** A stand-in product photo: a bottle on a white studio background. */
 export function bottlePhoto(glass = "#e9e2d8", cap = "#2b2622") {
@@ -95,6 +96,7 @@ export function atelierView(view: string, fragrances: FragranceSummary[], params
     case "agent-atelier": stubAdvisor(shelf); return <AskPage/>;
     case "collection-atelier": return collectionFixture(shelf, params, "shelf");
     case "blends": return collectionFixture(shelf, params, "blends");
+    case "week-atelier": return weekFixture(shelf, params);
     default: return null;
   }
 }
@@ -171,4 +173,14 @@ function collectionFixture(shelf: FragranceSummary[], params: URLSearchParams, s
   const stack = (id: string, name: string, picks: number[], sprays: number[], wears: number, rating: number | null) => ({id, name, notes: null, wear_count: wears, average_rating: rating, last_worn_at: null, created_at: "2026-11-01T00:00:00Z", suggestion: {items: picks.map((pick, index) => ({fragrance: shelf[pick], role: index ? "accent" : "anchor", application_order: index + 1, suggested_sprays: sprays[index]})), mode: "balanced"}}) as unknown as SavedLayeringStack;
   const saved = params.has("empty") ? [] : [stack("aaaaaaaa-0000-4000-8000-000000000001", "Amber Dusk", [0, 1], [2, 1], 3, 4.5), stack("aaaaaaaa-0000-4000-8000-000000000002", "Green Rain", [2, 6, 3], [1, 2, 1], 1, null), stack("aaaaaaaa-0000-4000-8000-000000000003", "Velvet Noon", [3, 4], [1, 1], 0, null)];
   return <CollectionAtelier items={items} catalog={shelf} tasteAccords={[{label: "Woody", count: 18, share: .375}, {label: "Fresh", count: 12, share: .25}, {label: "Amber", count: 8, share: .167}, {label: "Floral", count: 6, share: .125}, {label: "Spicy", count: 4, share: .083}]} saved={saved} initialSegment={segment}/>;
+}
+
+function weekFixture(shelf: FragranceSummary[], params: URLSearchParams) {
+  const conditions = ["cloudy", "clear", "rain", "partly_cloudy", "clear", "cloudy", "rain"] as const;
+  const recs = Array.from({length: 5}, (_, index) => fixtureRecommendation(shelf[[0, 2, 1, 3, 6][index]], {date: addDays(FIXTURE_DAY, index), occasion: index === 1 ? null : "work", alternatives: index === 0 ? [{fragrance: shelf[1], score: 74, evidence_coverage: .6, recommended_sprays: 2, score_components: {}, reasons: ["Warmer for the evening"], warnings: []}, {fragrance: shelf[6], score: 70, evidence_coverage: .5, recommended_sprays: 3, score_components: {}, reasons: ["Fresh and green"], warnings: []}] : []}));
+  const plan: WearPlan = {local_date: FIXTURE_DAY, timezone: "America/New_York", gaps: [], recommendations: recs};
+  const forecast = conditions.map((condition, index) => ({date: addDays(FIXTURE_DAY, index), condition, high_celsius: [7, 9, 5, 6.5, 10, 8, 6][index], low_celsius: 2, precipitation_probability: .2, humidity: null}));
+  const event = (id: string, title: string, hour: number, occasion: Occasion, day = 0) => ({id, title, starts_at: `${addDays(FIXTURE_DAY, day)}T${String(hour + 5).padStart(2, "0")}:00:00Z`, ends_at: `${addDays(FIXTURE_DAY, day)}T${String(hour + 6).padStart(2, "0")}:00:00Z`, is_all_day: false, location_label: null, occasion, formality: null, is_hidden: false, calendar_name: "Work", provider: "google" as const});
+  const calendar: CalendarResult = params.has("nocal") ? {status: "not_connected"} : {status: "ok", needsReconnect: params.has("reconnect"), events: [event("e1", "Team standup", 9, "work"), event("e2", "Lunch with Priya", 12, "casual"), event("e3", "Dinner at Zahav", 19, "dinner"), event("e4", "Office", 9, "work", 2), event("e5", "Client review", 14, "work", 2)]};
+  return <WeekView plan={plan} calendar={calendar} forecast={forecast} location="Philadelphia" timeZone="America/New_York" unit="fahrenheit" emptyCollection={params.has("empty")}/>;
 }

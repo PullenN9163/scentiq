@@ -82,11 +82,19 @@ function EventsBody({ calendar, timeZone }: { calendar: CalendarResult; timeZone
 }
 
 function EventDetails({ event }: { event: CalendarEvent }) {
-  const [state, action, pending] = useActionState(updateCalendarEvent, idleState);
   return (
     <details>
       <summary>Correct event details</summary>
-      <form action={action} className="form-grid">
+      <EventCorrectionForm event={event} />
+    </details>
+  );
+}
+
+/** The member correction form for one calendar event (occasion, formality, setting). */
+export function EventCorrectionForm({ event }: { event: CalendarEvent }) {
+  const [state, action, pending] = useActionState(updateCalendarEvent, idleState);
+  return (
+    <form action={action} className="form-grid">
         <input type="hidden" name="event_id" value={event.id} />
         <label htmlFor={`occasion-${event.id}`}>Occasion</label>
         <select id={`occasion-${event.id}`} name="occasion" defaultValue={event.occasion}>
@@ -119,7 +127,6 @@ function EventDetails({ event }: { event: CalendarEvent }) {
         </Button>
         {event.classification_corrected ? <p className="muted">Your event details are saved through calendar sync.</p> : null}
         {state.message ? <p role={state.status === "error" ? "alert" : "status"}>{state.message}</p> : null}
-      </form>
-    </details>
+    </form>
   );
 }

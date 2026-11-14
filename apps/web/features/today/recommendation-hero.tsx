@@ -43,6 +43,7 @@ export function RecommendationHero({
   mode = "wear",
   wornAt,
   headingLevel = 1,
+  compact = false,
 }: {
   recommendation: WearRecommendation;
   /** Weather and occasion chips, in order; the personal fact chip is added here. */
@@ -53,6 +54,8 @@ export function RecommendationHero({
   /** Logs the wear on another day (the Week planner). */
   wornAt?: string;
   headingLevel?: 1 | 2;
+  /** Smaller name and plate, for the Week planner. */
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [feedbackWear, setFeedbackWear] = useState<string | null>(null);
@@ -68,6 +71,7 @@ export function RecommendationHero({
         mode={mode}
         wornAt={wornAt}
         headingLevel={headingLevel}
+        compact={compact}
       />
     </>
   );
@@ -81,6 +85,7 @@ function HeroContent({
   mode,
   wornAt,
   headingLevel,
+  compact,
 }: {
   recommendation: WearRecommendation;
   chips: ContextChip[];
@@ -89,6 +94,7 @@ function HeroContent({
   mode: "wear" | "plan";
   wornAt?: string;
   headingLevel: 1 | 2;
+  compact: boolean;
 }) {
   const router = useRouter();
   const formId = useId();
@@ -196,7 +202,7 @@ function HeroContent({
   const allChips: ContextChip[] = [...chips, ...(fact ? [{ label: fact }] : [])];
 
   return (
-    <section ref={hero} className={styles.hero} style={accordVars(accord)} aria-labelledby={`${formId}-name`} data-testid="recommendation-hero" data-accord={accord}>
+    <section ref={hero} className={cn(styles.hero, compact && styles.compact)} style={accordVars(accord)} aria-labelledby={`${formId}-name`} data-testid="recommendation-hero" data-accord={accord}>
       {allChips.length > 0 ? (
         <div className={styles.chips}>
           {allChips.map((chip) => chip.href ? (

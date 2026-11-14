@@ -118,3 +118,11 @@
 @media (prefers-reduced-motion: reduce) {
   .hero { transition: none; }
 }
+
+/* Week planner: display-lg name and a smaller plate. */
+.compact .name { font-size: 36px; line-height: 1.05; }
+@media (min-width: 700px) {
+  .compact { grid-template-columns: minmax(0, 1fr) 190px; padding: var(--space-6); }
+  .compact .plateArea { min-height: 260px; }
+  .compact .name { font-size: 56px; line-height: 1; }
+}
