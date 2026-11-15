@@ -752,7 +752,6 @@ output applicationInsightsResourceId string = monitoring.outputs.applicationInsi
 @secure()
 output applicationInsightsConnectionString string = monitoring.outputs.applicationInsightsConnectionString
 output availabilityTestIds array = [
-  availabilityTests.outputs.rootTestId
   availabilityTests.outputs.apiStatusTestId
 ]
 output observabilityWorkbookId string = observabilityWorkbook.outputs.workbookId

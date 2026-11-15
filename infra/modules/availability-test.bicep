@@ -10,40 +10,7 @@ param locationId string = 'us-tx-sn1-azr'
 
 var testLocations = [ { Id: locationId } ]
 
-var rootTestName = 'scentiq-web-root-${environmentName}'
 var apiStatusTestName = 'scentiq-web-api-status-${environmentName}'
-
-resource rootTest 'Microsoft.Insights/webtests@2022-06-15' = {
-  name: rootTestName
-  location: location
-  kind: 'standard'
-  tags: union(commonTags, {
-    'hidden-link:${applicationInsightsResourceId}': 'Resource'
-  })
-  properties: {
-    Description: 'ScentIQ public root availability. Runbook: docs/runbooks/azure-deployment.md#monitoring-alerts'
-    Enabled: true
-    Frequency: frequencySeconds
-    Kind: 'standard'
-    Locations: testLocations
-    Name: rootTestName
-    Request: {
-      FollowRedirects: false
-      Headers: []
-      HttpVerb: 'GET'
-      ParseDependentRequests: false
-      RequestUrl: 'https://${webFqdn}/'
-    }
-    RetryEnabled: true
-    SyntheticMonitorId: rootTestName
-    Timeout: 30
-    ValidationRules: {
-      ExpectedHttpStatusCode: 200
-      SSLCertRemainingLifetimeCheck: 7
-      SSLCheck: true
-    }
-  }
-}
 
 resource apiStatusTest 'Microsoft.Insights/webtests@2022-06-15' = {
   name: apiStatusTestName
@@ -77,5 +44,4 @@ resource apiStatusTest 'Microsoft.Insights/webtests@2022-06-15' = {
   }
 }
 
-output rootTestId string = rootTest.id
 output apiStatusTestId string = apiStatusTest.id
