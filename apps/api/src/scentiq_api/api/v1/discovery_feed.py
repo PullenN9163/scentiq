@@ -12,6 +12,7 @@ from scentiq_api.models import Fragrance
 from scentiq_api.repositories import DiscoveryRepository, HybridJobRepository
 from scentiq_api.schemas.discovery import DiscoveryFeedResponse, DiscoveryMode, DiscoveryResult
 from scentiq_api.services import DiscoveryService, HybridJobService
+from scentiq_api.services.discovery_pool import PoolFilters, pool_rows
 from scentiq_api.services.taste_profile import TasteProfileService
 from scentiq_api.services.ttl_cache import TtlLruCache
 
@@ -119,7 +120,13 @@ def _safe_snapshot_page(
     shared_ids: set[UUID],
     offset: int,
     limit: int,
+    allow_short: bool = False,
 ) -> list[DiscoveryResult] | None:
+    """Page the rows that are still safe to show, or ``None`` when they run short.
+
+    ``allow_short`` accepts a short or empty page; it is only for a ranking known to be
+    complete, where fewer rows than requested is the true answer rather than a gap.
+    """
     current = [
         item
         for item in rows
@@ -127,7 +134,7 @@ def _safe_snapshot_page(
         and item.fragrance.id not in owned_ids
         and item.fragrance.id not in excluded_ids
     ]
-    if len(current) < offset + limit:
+    if len(current) < offset + limit and not allow_short:
         return None
     return current[offset : offset + limit]
 
@@ -188,8 +195,7 @@ def create_discovery_feed_router(
             refresh_required = stale
             metadata = _snapshot_profile_metadata(payload)
             if (
-                not filtered
-                and mode != "seasonal"
+                mode != "seasonal"
                 and snapshot.input_version == input_version
                 and hard_versions_match
                 and not stale
@@ -268,6 +274,78 @@ def create_discovery_feed_router(
                         page = None
                 generated_at = snapshot.created_at
                 results = page
+        if (
+            results is None
+            and snapshot is not None
+            and filtered
+            and compatible_profile
+            and hard_versions_match
+            and not stale
+        ):
+            selected_season = None
+            if mode == "seasonal":
+                if season is not None:
+                    selected_season = season
+                else:
+                    from scentiq_api.services.personalized_ranking import surface_context
+
+                    if profile is None:
+                        profile = TasteProfileService(session).for_user(user_id)
+                    selected_season = str(
+                        surface_context(session, user_id, profile).get("season", "spring")
+                    )
+            pooled = pool_rows(
+                payload,
+                mode=mode,
+                season=selected_season,
+                filters=PoolFilters(
+                    gender=gender,
+                    family=family,
+                    # The live path also restricts seasonal discovery to the chosen season.
+                    season=selected_season if mode == "seasonal" else season,
+                    accord=accord,
+                    minimum_value=minimum_value,
+                ),
+            )
+            if pooled is not None:
+                rows, complete = pooled
+                owned_ids = {item.id for item in DiscoveryRepository(session).owned(user_id)}
+                candidate_ids = {item.fragrance.id for item in rows}
+                shared_ids = (
+                    set(
+                        session.scalars(
+                            select(Fragrance.id).where(
+                                Fragrance.id.in_(candidate_ids),
+                                Fragrance.owner_user_id.is_(None),
+                            )
+                        )
+                    )
+                    if candidate_ids
+                    else set()
+                )
+                page = _safe_snapshot_page(
+                    rows,
+                    owned_ids=owned_ids,
+                    excluded_ids=trusted_excluded_ids
+                    if trusted_excluded_ids is not None
+                    else set(profile.excluded_ids if profile is not None else ()),
+                    shared_ids=shared_ids,
+                    offset=offset,
+                    limit=limit,
+                    allow_short=complete,
+                )
+                if page is not None:
+                    latest_input_version = jobs.current_input_version(user_id)
+                    if latest_input_version != input_version:
+                        # A taste-affecting write committed while the pool was being
+                        # read; let the live path recompute against the new version.
+                        input_version = latest_input_version
+                        stale = True
+                        refresh_required = True
+                        page = None
+                    else:
+                        generated_at = snapshot.created_at
+                        results = page
         if results is None:
             if refresh_required:
                 jobs.ensure_recommendation_job(

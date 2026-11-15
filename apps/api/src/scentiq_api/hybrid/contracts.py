@@ -37,6 +37,10 @@ class HybridFragrance(BaseModel):
     seasons: dict[str, float] = Field(default_factory=dict)
     family: str | None = None
     similarities: dict[UUID, float] = Field(default_factory=dict)
+    # Full accord display names (filters match on the name, not the slug) and the
+    # community price-value average, so a snapshot can apply catalog filters itself.
+    accord_names: list[str] = Field(default_factory=list)
+    price_value: float | None = None
 
 
 class RecommendationJobInput(BaseModel):
@@ -55,6 +59,9 @@ class RecommendationJobInput(BaseModel):
     preferences: HybridPreferences | None = None
     owned: list[HybridFragrance] = Field(default_factory=list)
     candidates: list[HybridFragrance] = Field(default_factory=list)
+    # Per-facet counts over the whole eligible catalog (shared, not owned), used to
+    # tell when the candidate pool already holds every match for a filter value.
+    catalog_facets: dict[str, dict[str, int]] | None = None
 
 
 class RecommendationJobResult(BaseModel):
