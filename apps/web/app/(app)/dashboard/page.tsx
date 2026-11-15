@@ -8,7 +8,7 @@ import { WeekGlance, WeekGlanceSkeleton } from "@/features/today/week-glance";
 import { ApiError } from "@/lib/server/api-client";
 import { isAtelierEnabled } from "@/lib/atelier-flag";
 import { eventsOn, localDate, safeTimeZone, type CalendarResult } from "@/lib/calendar";
-import { getCalendarAround, getDashboardPage, getWeather } from "@/lib/server/queries";
+import { getCalendarAround, getDashboardLite, getDashboardPage, getWeather } from "@/lib/server/queries";
 import type { WeatherResult } from "@/lib/weather";
 import { apiClient } from "@/lib/server/api-client";
 import type { WearPlan } from "@/types/wear-intelligence";
@@ -30,9 +30,16 @@ async function DashboardBoundary({ atelier }: { atelier: boolean }) {
   let page: DashboardPageData;
   let weather: WeatherResult;
   let calendar: CalendarResult;
+  // Started with the others so the pick never waits behind them. A failure here
+  // degrades the pick, not the whole page.
+  const planRequest = apiClient.get<WearPlan>("/api/v1/recommendations/today").then(
+    (value): { plan?: WearPlan; failure?: unknown } => ({ plan: value }),
+    (error: unknown): { plan?: WearPlan; failure?: unknown } => ({ failure: error }),
+  );
   try {
     [page, weather, calendar] = await Promise.all([
-      getDashboardPage(),
+      // Atelier's Today needs only the headline counts.
+      atelier ? getDashboardLite() : getDashboardPage(),
       getWeather(),
       getCalendarAround(),
     ]);
@@ -46,7 +53,10 @@ async function DashboardBoundary({ atelier }: { atelier: boolean }) {
     throw error;
   }
 
-  const plan = await apiClient.get<WearPlan>("/api/v1/recommendations/today");
+  const { plan, failure } = await planRequest;
+  if (failure !== undefined && !(failure instanceof ApiError)) throw failure;
+  if (failure instanceof ApiError && failure.kind === "unauthorized") throw failure;
+  const planFailed = failure !== undefined;
   const timeZone = safeTimeZone(page.me.preferences.timezone);
   const today = localDate(new Date(), timeZone);
   if (atelier) {
@@ -54,6 +64,7 @@ async function DashboardBoundary({ atelier }: { atelier: boolean }) {
     return (
       <TodayView
         plan={plan}
+        planFailed={planFailed}
         me={page.me}
         insights={page.insights}
         recentWears={page.recent_wears}
@@ -62,7 +73,7 @@ async function DashboardBoundary({ atelier }: { atelier: boolean }) {
         timeZone={timeZone}
         week={page.insights.total_items > 0 ? (
           <Suspense fallback={<WeekGlanceSkeleton />}>
-            <TodayWeek today={plan.local_date ?? today} unit={unit} />
+            <TodayWeek today={plan?.local_date ?? today} unit={unit} />
           </Suspense>
         ) : null}
       />

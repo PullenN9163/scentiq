@@ -107,7 +107,22 @@ async function readErrorBody(response: Response): Promise<ApiErrorBody> {
   };
 }
 
+/** A read that failed because the service was briefly unreachable is worth one more try. */
+function isTransient(error: unknown): boolean {
+  return error instanceof ApiError && error.kind === "unavailable" && error.code === "service_unreachable";
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  try {
+    return await requestOnce<T>(path, options);
+  } catch (error) {
+    if ((options.method ?? "GET") !== "GET" || !isTransient(error)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return requestOnce<T>(path, options);
+  }
+}
+
+async function requestOnce<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, signal, timeoutMs = 10_000 } = options;
 
   const { getToken } = await auth();

@@ -39,6 +39,11 @@ export function getDashboardPage(): Promise<DashboardPageData> {
   return apiClient.get<DashboardPageData>("/api/v1/page-data/dashboard");
 }
 
+/** Today needs only the headline counts, so it skips the full insights breakdown. */
+export function getDashboardLite(): Promise<DashboardPageData> {
+  return apiClient.get<DashboardPageData>("/api/v1/page-data/dashboard?lite=true");
+}
+
 export function getLayeringPage(): Promise<LayeringPageData> {
   return apiClient.get<LayeringPageData>("/api/v1/page-data/layering");
 }

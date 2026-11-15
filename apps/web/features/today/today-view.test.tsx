@@ -45,9 +45,9 @@ const nextPick = recommendation({ id: "rec1", fragrance: fragranceDetail({ id: "
 const okWeather: WeatherResult = { status: "ok", forecast: { location_label: "Philadelphia, PA", timezone: "America/New_York", temperature_unit: "fahrenheit", fetched_at: "", stale: false, days: [{ date: "2026-11-14", condition: "cloudy", high_celsius: 7.2, low_celsius: 2, precipitation_probability: 0.1, humidity: null }] } };
 const connected: CalendarResult = { status: "ok", events: [], needsReconnect: false };
 
-function renderToday({ plan = { local_date: "2026-11-14", timezone: "America/New_York", gaps: [], recommendations: [recommendation()] } as WearPlan, weather = okWeather, calendar = connected, totalItems = 12 }: { plan?: WearPlan; weather?: WeatherResult; calendar?: CalendarResult; totalItems?: number } = {}) {
+function renderToday({ plan = { local_date: "2026-11-14", timezone: "America/New_York", gaps: [], recommendations: [recommendation()] } as WearPlan, weather = okWeather, calendar = connected, totalItems = 12, planFailed = false }: { planFailed?: boolean; plan?: WearPlan; weather?: WeatherResult; calendar?: CalendarResult; totalItems?: number } = {}) {
   return render(
-    <TodayView plan={plan} me={me} insights={collectionInsights({ total_items: totalItems })} recentWears={[]} weather={weather} calendar={calendar} timeZone="America/New_York" />,
+    <TodayView plan={plan} planFailed={planFailed} me={me} insights={collectionInsights({ total_items: totalItems })} recentWears={[]} weather={weather} calendar={calendar} timeZone="America/New_York" />,
   );
 }
 
@@ -61,6 +61,13 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("TodayView responses", () => {
+  it("keeps the page and offers a retry when the pick could not be loaded", () => {
+    renderToday({ plan: { local_date: "2026-11-14", timezone: "America/New_York", gaps: [], recommendations: [] } as WearPlan, planFailed: true });
+    expect(screen.getByRole("heading", { name: /could not load today.s pick/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.queryByText(/Add an owned fragrance/)).not.toBeInTheDocument();
+  });
+
   it("shows the pick with its chips, reason and score", () => {
     renderToday();
     const hero = screen.getByTestId("recommendation-hero");

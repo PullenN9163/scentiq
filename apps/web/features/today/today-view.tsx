@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { motion } from "motion/react";
@@ -32,6 +33,7 @@ const noSubscription = () => () => {};
 /** The Atelier Today page: one hero pick, later today, the week ahead, a blend idea. */
 export function TodayView({
   plan,
+  planFailed = false,
   me,
   insights,
   recentWears,
@@ -41,6 +43,8 @@ export function TodayView({
   week,
 }: {
   plan?: WearPlan;
+  /** The pick could not be loaded; the rest of the page still renders. */
+  planFailed?: boolean;
   me: Me;
   insights: CollectionInsights;
   recentWears: WearLogEntry[];
@@ -51,6 +55,7 @@ export function TodayView({
   /** The "This week" section, streamed separately so it never delays the hero. */
   week?: ReactNode;
 }) {
+  const router = useRouter();
   const recommendations = (plan?.recommendations ?? []) as WearRecommendation[];
   const [first, ...later] = recommendations;
   const [pick, setPick] = useState<WearCandidate | null>(first ? selectedCandidate(first) : null);
@@ -97,6 +102,12 @@ export function TodayView({
           <div className={styles.heroSlot}>
           {first && pick ? (
             <RecommendationHero recommendation={first} chips={chips} onPickChange={setPick} bloom />
+          ) : planFailed ? (
+            <section className={styles.empty}>
+              <h1 className="at-title">We could not load today&apos;s pick.</h1>
+              <p className="at-caption">Your weather and calendar are still here. This is usually a short delay.</p>
+              <Button variant="outline" onClick={() => router.refresh()}>Try again</Button>
+            </section>
           ) : (
             <section className={styles.empty}>
               <h1 className="at-title">Add an owned fragrance to receive recommendations.</h1>

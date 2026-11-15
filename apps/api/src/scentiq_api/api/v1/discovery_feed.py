@@ -13,6 +13,54 @@ from scentiq_api.repositories import DiscoveryRepository, HybridJobRepository
 from scentiq_api.schemas.discovery import DiscoveryFeedResponse, DiscoveryMode, DiscoveryResult
 from scentiq_api.services import DiscoveryService, HybridJobService
 from scentiq_api.services.taste_profile import TasteProfileService
+from scentiq_api.services.ttl_cache import TtlLruCache
+
+# Live (filtered or cold) discovery scores up to two thousand candidates, so the
+# ranked head is kept briefly. The key carries the member's input version, so any
+# taste-affecting write makes the old entry unreachable instead of stale. This also
+# means "show more" and repeat filter clicks do not score the catalog again.
+_LIVE_DEPTH = 200
+_LIVE_CACHE: TtlLruCache[list[DiscoveryResult]] = TtlLruCache(max_entries=32, ttl_seconds=300)
+
+
+def _live_discovery(
+    session: Session,
+    user_id: UUID,
+    input_version: object,
+    *,
+    limit: int,
+    offset: int,
+    mode: DiscoveryMode,
+    gender: str | None,
+    family: str | None,
+    season: str | None,
+    accord: str | None,
+    minimum_value: float | None,
+) -> list[DiscoveryResult]:
+    service = DiscoveryService(DiscoveryRepository(session))
+
+    def score(page_limit: int, page_offset: int) -> list[DiscoveryResult]:
+        return service.discover(
+            user_id,
+            limit=page_limit,
+            offset=page_offset,
+            gender=gender,
+            family=family,
+            season=season,
+            accord=accord,
+            minimum_value=minimum_value,
+            mode=mode,
+            rank_with_ai=False,
+        )
+
+    if offset + limit > _LIVE_DEPTH:
+        return score(limit, offset)
+    key = (user_id, input_version, mode, gender, family, season, accord, minimum_value)
+    ranked = _LIVE_CACHE.get(key)
+    if ranked is None:
+        ranked = score(_LIVE_DEPTH, 0)
+        _LIVE_CACHE.put(key, ranked)
+    return ranked[offset : offset + limit]
 
 
 def _snapshot_rows(
@@ -228,17 +276,18 @@ def create_discovery_feed_router(
                     reason="invalid_snapshot" if snapshot is not None else "cache_miss",
                     force_refresh=snapshot is not None and snapshot.input_version == input_version,
                 )
-            results = DiscoveryService(DiscoveryRepository(session)).discover(
+            results = _live_discovery(
+                session,
                 user_id,
+                input_version,
                 limit=limit,
                 offset=offset,
+                mode=mode,
                 gender=gender,
                 family=family,
                 season=season,
                 accord=accord,
                 minimum_value=minimum_value,
-                mode=mode,
-                rank_with_ai=False,
             )
             session.commit()
             return DiscoveryFeedResponse(
