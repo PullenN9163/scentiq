@@ -273,9 +273,11 @@ class WearRecommendationService:
         contexts_at = timer.monotonic()
         recommendations = []
         planned: dict[UUID, int] = {}
-        for context in contexts if owned else []:
-            # Accepted selections are stable even when context inputs are refreshed.
-            accepted = self.session.scalar(
+        # Accepted selections are stable even when context inputs are refreshed. One query
+        # finds them for every context at once; the newest per context wins.
+        accepted_by_key: dict[str, Recommendation] = {}
+        if owned and contexts:
+            for row in self.session.scalars(
                 select(Recommendation)
                 .join(
                     RecommendationDecision,
@@ -283,7 +285,7 @@ class WearRecommendationService:
                 )
                 .where(
                     Recommendation.user_id == user_id,
-                    Recommendation.context_key == context.context_key,
+                    Recommendation.context_key.in_([context.context_key for context in contexts]),
                     ~select(WearLog.id)
                     .where(WearLog.recommendation_id == Recommendation.id)
                     .exists(),
@@ -293,8 +295,11 @@ class WearRecommendationService:
                     ),
                 )
                 .order_by(Recommendation.created_at.desc())
-                .limit(1)
-            )
+            ):
+                if row.context_key is not None:
+                    accepted_by_key.setdefault(row.context_key, row)
+        for context in contexts if owned else []:
+            accepted = accepted_by_key.get(context.context_key)
             if accepted:
                 response = self._response(user_id, accepted)
             if not accepted:

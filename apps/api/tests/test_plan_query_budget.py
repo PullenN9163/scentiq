@@ -93,9 +93,28 @@ def test_today_and_week_plans_stay_within_a_statement_budget(session: Session) -
         session.commit()
     _report("week (repeat, reused)", week_repeat)
 
-    # Budgets sit a little above today's measured counts (32, 25, 109 and 85). Raising one should
+    # Budgets sit a little above today's measured counts (32, 25, 103 and 79). Raising one should
     # be a deliberate decision: each statement is a round trip to a database a region away.
     assert sum(today_counts.values()) <= 36
     assert sum(repeat_counts.values()) <= 29
-    assert sum(week_counts.values()) <= 120
-    assert sum(week_repeat.values()) <= 95
+    assert sum(week_counts.values()) <= 108
+    assert sum(week_repeat.values()) <= 84
+
+
+def test_warming_after_today_leaves_the_week_plan_ready(session: Session) -> None:
+    from collections.abc import Generator
+
+    from scentiq_api.api.v1 import wear_recommendations as router
+    from scentiq_api.repositories import HybridJobRepository
+    from scentiq_api.services import HybridJobService
+
+    user = _build_member(session)
+
+    def sessions() -> Generator[Session]:
+        yield session
+
+    router._warm_week(sessions, user.id)  # type: ignore[attr-defined]
+
+    version = HybridJobService(HybridJobRepository(session)).current_input_version(user.id)  # type: ignore[attr-defined]
+    assert router._WEEK_CACHE.get(router._week_key(user.id, version)) is not None  # type: ignore[attr-defined]
+    assert user.id not in router._WARMING  # type: ignore[attr-defined]

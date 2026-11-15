@@ -1,12 +1,12 @@
 """Authenticated wear intelligence, separate from discovery/layering snapshots."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from datetime import UTC, datetime
 from threading import Lock
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
 from scentiq_api.auth import AuthenticatedUser, CurrentUserDependency
@@ -34,6 +34,7 @@ from scentiq_api.services.wear_recommendations import WearRecommendationService
 _WEEK_CACHE: TtlLruCache[WearRecommendationPlan] = TtlLruCache(max_entries=64, ttl_seconds=120)
 _EPOCHS: dict[UUID, int] = {}
 _EPOCH_LOCK = Lock()
+_WARMING: set[UUID] = set()
 
 
 def _epoch(user_id: UUID) -> int:
@@ -48,6 +49,35 @@ def _bump_epoch(user_id: UUID) -> None:
         _EPOCHS[user_id] = _EPOCHS.get(user_id, 0) + 1
 
 
+def _week_key(user_id: UUID, version: object) -> tuple[object, ...]:
+    return (user_id, _epoch(user_id), datetime.now(UTC).strftime("%Y-%m-%dT%H"), version)
+
+
+def _warm_week(get_session: Callable[[], Generator[Session]], user_id: UUID) -> None:
+    """Build the week plan after Today has answered, so opening Week finds it ready."""
+    with _EPOCH_LOCK:
+        if user_id in _WARMING:
+            return
+        _WARMING.add(user_id)
+    try:
+        sessions = get_session()
+        session = next(sessions)
+        try:
+            version = HybridJobService(HybridJobRepository(session)).current_input_version(user_id)
+            key = _week_key(user_id, version)
+            if _WEEK_CACHE.get(key) is None:
+                result = WearRecommendationService(session).week(user_id)
+                session.commit()
+                _WEEK_CACHE.put(key, result)
+        finally:
+            sessions.close()
+    except Exception:  # warming is best effort; the Week page computes it itself if this fails
+        return
+    finally:
+        with _EPOCH_LOCK:
+            _WARMING.discard(user_id)
+
+
 def create_wear_recommendations_router(
     get_session: object,
     current_user: CurrentUserDependency,
@@ -59,11 +89,13 @@ def create_wear_recommendations_router(
     def today(
         session: Annotated[Session, Depends(get_session)],
         user: Annotated[AuthenticatedUser, Depends(current_user)],
+        background: BackgroundTasks,
     ) -> WearRecommendationPlan:
         if refresh_context:
             refresh_context(session, user.user_id)
         result = WearRecommendationService(session).today(user.user_id)
         session.commit()
+        background.add_task(_warm_week, get_session, user.user_id)  # type: ignore[arg-type]
         return result
 
     @router.get("/week", response_model=WearRecommendationPlan)
@@ -72,12 +104,7 @@ def create_wear_recommendations_router(
         user: Annotated[AuthenticatedUser, Depends(current_user)],
     ) -> WearRecommendationPlan:
         version = HybridJobService(HybridJobRepository(session)).current_input_version(user.user_id)
-        key = (
-            user.user_id,
-            _epoch(user.user_id),
-            datetime.now(UTC).strftime("%Y-%m-%dT%H"),
-            version,
-        )
+        key = _week_key(user.user_id, version)
         cached = _WEEK_CACHE.get(key)
         if cached is not None:
             return cached
