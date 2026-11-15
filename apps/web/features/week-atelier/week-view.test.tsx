@@ -89,15 +89,16 @@ describe("WeekView", () => {
     expect(screen.getAllByTestId("day-cell")[1]).toHaveAttribute("aria-selected", "true");
   });
 
-  it("logs a wear on another day with that day's date", async () => {
+  it("plans a future day instead of logging a wear", async () => {
     const user = userEvent.setup();
     renderWeek();
     await user.click(screen.getAllByTestId("day-cell")[1]);
     expect(await screen.findByRole("heading", { name: "Silver Mountain Water" })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "Wear it" })).toHaveLength(1));
-    await user.click(screen.getByRole("button", { name: "Wear it" }));
-    await user.click(await screen.findByRole("button", { name: "Log wear" }));
-    await waitFor(() => expect(actions.wear).toHaveBeenCalledWith("r1", expect.objectContaining({ selected_fragrance_id: "f-r1", worn_at: "2026-11-15T12:00:00.000Z" })));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Plan it" })).toHaveLength(1));
+    expect(screen.queryByRole("button", { name: "Wear it" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Plan it" }));
+    await waitFor(() => expect(actions.decide).toHaveBeenCalled());
+    expect(actions.wear).not.toHaveBeenCalled();
   });
 
   it("logs today's wear without a date and sends Not today", async () => {

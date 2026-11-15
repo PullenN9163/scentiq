@@ -74,6 +74,8 @@ param aiMonthlyBudgetUsd int = 5
 param fastDiscoveryEnabled bool = true
 @description('Emergency rollback switch for premium signed-in interface styling.')
 param premiumUiEnabled bool = true
+@description('Switch for the Atelier interface. Set to false to return to the previous interface without a code change.')
+param atelierUiEnabled bool = true
 @description('Frequency in seconds for each synthetic availability check.')
 @allowed([900])
 param availabilityFrequencySeconds int = 900
@@ -641,6 +643,7 @@ module web 'modules/container-app.bicep' = if (deployApplications) {
       { name: 'NEXT_PUBLIC_CATALOG_REMOTE_IMAGES', value: 'true' }
       { name: 'SCENTIQ_FAST_DISCOVERY_ENABLED', value: string(fastDiscoveryEnabled) }
       { name: 'SCENTIQ_PREMIUM_UI_ENABLED', value: string(premiumUiEnabled) }
+      { name: 'SCENTIQ_ATELIER_UI_ENABLED', value: string(atelierUiEnabled) }
       { name: 'NEXT_PUBLIC_CLERK_SIGN_IN_URL', value: '/sign-in' }
       { name: 'NEXT_PUBLIC_CLERK_SIGN_UP_URL', value: '/sign-up' }
     ]

@@ -24,7 +24,7 @@ import { decideRecommendation } from "@/lib/server/recommendation-actions";
 import type { CalendarEvent, ForecastDay, TemperatureUnit } from "@/types/api";
 import type { WearCandidate, WearPlan, WearRecommendation } from "@/types/wear-intelligence";
 
-import { buildWeek, eventSummary, noonOf, rangeLabel, type WeekDay } from "./week-copy";
+import { buildWeek, eventSummary, rangeLabel, type WeekDay } from "./week-copy";
 import styles from "./week-view.module.css";
 
 const NOTE_KEY = "scentiq-week-calendar-note";
@@ -128,7 +128,7 @@ export function WeekView({
                     recommendation={first}
                     compact
                     headingLevel={2}
-                    wornAt={selected.isToday ? undefined : noonOf(selected.date, timeZone)}
+                    mode={selected.isToday ? undefined : "plan"}
                     chips={[
                       { label: new Date(`${selected.date}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) },
                       ...(selected.forecast ? [{ label: `${selected.forecastLabel?.split(" ")[0] ?? ""} ${selected.forecast.condition === "unknown" ? "" : conditionLabel(selected.forecast.condition).toLowerCase()}`.trim() }] : []),

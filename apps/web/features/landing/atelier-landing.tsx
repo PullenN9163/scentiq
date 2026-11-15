@@ -31,7 +31,7 @@ export function AtelierLanding() {
           </SignedIn>
           <SignedOut>
             <Button asChild variant="text"><Link href="/sign-in">Sign in</Link></Button>
-            <Button asChild><Link href="/sign-up">Get started</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link href="/sign-up">Get started</Link></Button>
           </SignedOut>
         </div>
       </header>

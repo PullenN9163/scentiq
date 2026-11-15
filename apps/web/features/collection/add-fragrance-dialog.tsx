@@ -146,7 +146,7 @@ export function AddFragranceDialog({
                     <span>
                       <strong>{item.name}</strong>
                       <small>{item.brand.name}</small>
-                      <small>{formatConcentration(item.concentration)}</small>
+                      {item.concentration ? <small>{formatConcentration(item.concentration)}</small> : null}
                     </span>
                     <small>{isOwned ? "Already in collection" : "Select"}</small>
                   </label>
@@ -288,7 +288,7 @@ export function AddFragranceDialog({
 }
 
 function formatConcentration(value: string | null): string {
-  if (!value) return "Concentration not recorded";
+  if (!value) return "";
   const words = value.replaceAll("_", " ").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
