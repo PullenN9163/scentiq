@@ -1,7 +1,7 @@
 import { AtelierError, AtelierUnavailable } from "@/components/atelier/states";
 import { ApiError } from "@/lib/server/api-client";
 import { getLayeringIntelligence } from "@/lib/server/layering-actions";
-import { getCollection, getInsights, searchFragrances } from "@/lib/server/queries";
+import { getCollection, getInsightsSummary, searchFragrances } from "@/lib/server/queries";
 import type { CollectionItem, FragranceSummary, WeightedSlice } from "@/types/api";
 import type { SavedLayeringStack } from "@/types/layering";
 
@@ -27,7 +27,7 @@ export async function CollectionAtelierBoundary({ segment }: { segment: Segment 
     const [collection, catalogPage, insights, intelligence] = await Promise.all([
       getCollection(),
       searchFragrances(undefined, 50),
-      optional(getInsights()),
+      optional(getInsightsSummary()),
       optional(getLayeringIntelligence()),
     ]);
     items = collection;

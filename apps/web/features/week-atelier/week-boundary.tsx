@@ -2,7 +2,7 @@ import { AtelierError, AtelierUnavailable } from "@/components/atelier/states";
 import { RetryButton } from "@/features/fragrance/retry-button";
 import { ApiError, apiClient } from "@/lib/server/api-client";
 import { safeTimeZone } from "@/lib/calendar";
-import { getCalendarRange, getInsights, getMe, getWeather } from "@/lib/server/queries";
+import { getCalendarRange, getInsightsSummary, getMe, getWeather } from "@/lib/server/queries";
 import { spanOf } from "@/lib/week";
 import type { CalendarResult } from "@/lib/calendar";
 import type { WeatherResult } from "@/lib/weather";
@@ -23,7 +23,7 @@ export async function WeekBoundary() {
       apiClient.get<WearPlan>("/api/v1/recommendations/week"),
       getMe(),
       getWeather(),
-      getInsights().catch((error: unknown) => { if (error instanceof ApiError && error.kind === "unauthorized") throw error; return null; }),
+      getInsightsSummary().catch((error: unknown) => { if (error instanceof ApiError && error.kind === "unauthorized") throw error; return null; }),
     ]);
   } catch (error) {
     if (error instanceof ApiError && error.kind === "unavailable") return <AtelierUnavailable retry={<RetryButton />} />;

@@ -38,7 +38,7 @@ class InsightsService:
         self._repository = repository
 
     def totals_for_user(
-        self, user_id: UUID, *, now: datetime | None = None
+        self, user_id: UUID, *, now: datetime | None = None, with_accords: bool = False
     ) -> CollectionInsightsResponse:
         """Headline counts only, from a handful of aggregate queries.
 
@@ -76,7 +76,7 @@ class InsightsService:
             wears_last_30_days=recent_wears,
             distinct_fragrances_worn=distinct_worn,
             most_worn=[],
-            accords=[],
+            accords=_weighted(self._repository.accord_breakdown(user_id)) if with_accords else [],
             seasons=[],
             occasions=[],
             ownership_types=[],

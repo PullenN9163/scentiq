@@ -5,7 +5,6 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from scentiq_api.models import UserPreference
@@ -39,9 +38,9 @@ class RecommendationContextBuilder:
             raise ValueError("Recommendation time must include a timezone")
         if duration_minutes is not None and not 1 <= duration_minutes <= 31 * 24 * 60:
             raise ValueError("Event duration must be between one minute and 31 days")
-        preferences = self.session.scalar(
-            select(UserPreference).where(UserPreference.user_id == user_id)
-        )
+        # By primary key, so a plan that builds several contexts reads it from the session
+        # after the first one instead of querying again for each.
+        preferences = self.session.get(UserPreference, user_id)
         zone = zone_for(preferences.timezone if preferences else None)
         local = when.astimezone(zone)
         weather = WeatherRepository(self.session).get_day(user_id, local.date())

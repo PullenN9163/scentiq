@@ -64,6 +64,11 @@ export function getCollection(): Promise<CollectionItem[]> {
   return apiClient.get<CollectionItem[]>("/api/v1/collection");
 }
 
+/** Totals and accord shares only: for pages that draw a summary rather than the full report. */
+export function getInsightsSummary(): Promise<CollectionInsights> {
+  return apiClient.get<CollectionInsights>("/api/v1/insights/collection?lite=true");
+}
+
 export function getInsights(): Promise<CollectionInsights> {
   return apiClient.get<CollectionInsights>("/api/v1/insights/collection");
 }

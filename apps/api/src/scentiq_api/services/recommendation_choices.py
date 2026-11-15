@@ -27,18 +27,32 @@ class RecommendationChoiceService:
         self.session = session
 
     def current(
-        self, user_id: UUID, response: WearRecommendationResponse
+        self,
+        user_id: UUID,
+        response: WearRecommendationResponse,
+        *,
+        owned_ids: set[UUID] | None = None,
+        excluded_ids: frozenset[UUID] | set[UUID] | None = None,
     ) -> WearRecommendationResponse:
-        owned = set(
-            self.session.scalars(
-                select(UserCollectionItem.fragrance_id).where(
-                    UserCollectionItem.user_id == user_id, UserCollectionItem.status == "owned"
+        # A caller that already holds the member's owned and excluded sets (a plan builds many
+        # responses in one request) passes them in, so each response costs no extra queries.
+        owned = (
+            set(owned_ids)
+            if owned_ids is not None
+            else set(
+                self.session.scalars(
+                    select(UserCollectionItem.fragrance_id).where(
+                        UserCollectionItem.user_id == user_id,
+                        UserCollectionItem.status == "owned",
+                    )
                 )
             )
         )
-        from scentiq_api.services.taste_profile import TasteProfileService
+        if excluded_ids is None:
+            from scentiq_api.services.taste_profile import TasteProfileService
 
-        owned -= TasteProfileService(self.session).for_user(user_id).excluded_ids
+            excluded_ids = TasteProfileService(self.session).for_user(user_id).excluded_ids
+        owned -= set(excluded_ids)
         candidates = {
             candidate.fragrance.id: candidate
             for candidate in [response, *response.alternatives]

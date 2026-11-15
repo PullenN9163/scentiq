@@ -44,7 +44,7 @@ from scentiq_api.services.ai_ranking import ranking_configuration_version
 from scentiq_api.services.fragrances import to_fragrance_summary
 from scentiq_api.services.personalized_ranking import rerank
 from scentiq_api.services.recommendation_choices import RecommendationChoiceService
-from scentiq_api.services.taste_profile import TasteProfileService
+from scentiq_api.services.taste_profile import TasteProfile, TasteProfileService
 from scentiq_api.services.wear_scoring import (
     WEAR_ALGORITHM_VERSION,
     CandidateInput,
@@ -73,9 +73,38 @@ class WearRecommendationService:
         self.clock = clock
         # Milliseconds spent building candidate inputs during the current plan (diagnostics only).
         self._inputs_ms = 0.0
+        self._profiles: dict[UUID, TasteProfile] = {}
+        self._owned_ids: dict[UUID, set[UUID]] = {}
 
     def _preferences(self, user_id: UUID) -> UserPreference | None:
         return self.session.get(UserPreference, user_id)
+
+    def _owned_fragrance_ids(self, user_id: UUID) -> set[UUID]:
+        """Ids of the fragrances the member owns, queried once per request."""
+        owned = self._owned_ids.get(user_id)
+        if owned is None:
+            owned = set(
+                self.session.scalars(
+                    select(UserCollectionItem.fragrance_id).where(
+                        UserCollectionItem.user_id == user_id,
+                        UserCollectionItem.status == "owned",
+                    )
+                )
+            )
+            self._owned_ids[user_id] = owned
+        return owned
+
+    def _taste_profile(self, user_id: UUID) -> TasteProfile:
+        """The member's taste profile, built once per request.
+
+        Building it takes several database round trips, and a plan asks for it once for itself
+        and once per context it generates, so a week of plans rebuilt it eight times.
+        """
+        profile = self._profiles.get(user_id)
+        if profile is None:
+            profile = TasteProfileService(self.session).for_user(user_id)
+            self._profiles[user_id] = profile
+        return profile
 
     def _zone(self, preferences: UserPreference | None) -> ZoneInfo:
         try:
@@ -126,7 +155,7 @@ class WearRecommendationService:
         zone = self._zone(preferences)
         today = self.clock().astimezone(zone).date()
         owned = self._owned(user_id)
-        profile = TasteProfileService(self.session).for_user(user_id)
+        profile = self._taste_profile(user_id)
         owned = [item for item in owned if item.fragrance_id not in profile.excluded_ids]
         loaded_at = timer.monotonic()
         gaps = []
@@ -302,16 +331,24 @@ class WearRecommendationService:
             timezone=str(zone), local_date=today, recommendations=recommendations, gaps=gaps
         )
 
+    def _forget_request_state(self) -> None:
+        """Drop per-request memoized reads so a reused service never sees stale data."""
+        self._profiles.clear()
+        self._owned_ids.clear()
+
     def today(self, user_id: UUID) -> WearRecommendationPlan:
+        self._forget_request_state()
         return self._plan(user_id, 1)
 
     def week(self, user_id: UUID) -> WearRecommendationPlan:
+        self._forget_request_state()
         return self._plan(user_id, 7)
 
     def preview(
         self, user_id: UUID, request: RecommendationPreviewRequest
     ) -> WearRecommendationResponse:
-        profile = TasteProfileService(self.session).for_user(user_id)
+        self._forget_request_state()
+        profile = self._taste_profile(user_id)
         owned = [
             item for item in self._owned(user_id) if item.fragrance_id not in profile.excluded_ids
         ]
@@ -441,7 +478,7 @@ class WearRecommendationService:
     ) -> WearRecommendationResponse:
         started = timer.monotonic()
         preferences = self._preferences(user_id)
-        profile = TasteProfileService(self.session).for_user(user_id)
+        profile = self._taste_profile(user_id)
         inputs_started = timer.monotonic()
         inputs = self._inputs(user_id, context, owned)
         self._inputs_ms += (timer.monotonic() - inputs_started) * 1000
@@ -697,11 +734,17 @@ class WearRecommendationService:
             if decision
             else None,
         )
-        return RecommendationChoiceService(self.session).current(user_id, response)
+        return RecommendationChoiceService(self.session).current(
+            user_id,
+            response,
+            owned_ids=self._owned_fragrance_ids(user_id),
+            excluded_ids=self._taste_profile(user_id).excluded_ids,
+        )
 
     def decide(
         self, user_id: UUID, recommendation_id: UUID, request: RecommendationDecisionRequest
     ) -> RecommendationDecisionResponse:
+        self._forget_request_state()
         record = self.get(user_id, recommendation_id, lock=True)
         selected = request.selected_fragrance_id
         if request.action == "replaced" and selected is None:
@@ -760,6 +803,7 @@ class WearRecommendationService:
     def wear(
         self, user_id: UUID, recommendation_id: UUID, request: RecommendationWearRequest
     ) -> WearLogResponse:
+        self._forget_request_state()
         record = self.get(user_id, recommendation_id)
         selected = request.selected_fragrance_id or record.fragrance_id
         item = next((item for item in self._owned(user_id) if item.fragrance_id == selected), None)
