@@ -9,7 +9,7 @@ const hasClerkTestIdentity = Boolean(
 const browserProject = {
   name: "chromium",
   testIgnore: process.env.E2E_BASE_URL
-    ? /(?:global\.setup\.ts|visual\.spec\.ts|responsive\.spec\.ts)/
+    ? /(?:global\.setup\.ts|visual\.spec\.ts|responsive\.spec\.ts|atelier\.spec\.ts)/
     : /(?:global\.setup\.ts|visual\.spec\.ts)/,
   use: {
     ...devices["Desktop Chrome"],

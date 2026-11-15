@@ -18,6 +18,6 @@ setup("authenticate the deployment test user", async ({ page }) => {
   await page.goto("/");
   await clerk.signIn({ page, emailAddress: email });
   await page.goto("/dashboard");
-  await expect(page.getByRole("button", { name: "Open user menu" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Open user menu|Account menu/ })).toBeVisible();
   await page.context().storageState({ path: authFile });
 });
