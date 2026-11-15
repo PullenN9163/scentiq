@@ -9,7 +9,8 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/atelier/button";
 import { FragranceRow } from "@/components/atelier/fragrance-row";
-import { Plate, plateFragrance } from "@/components/atelier/plate";
+import { Plate } from "@/components/atelier/plate";
+import { plateFragrance } from "@/components/atelier/plate-fragrance";
 import { Sheet } from "@/components/atelier/sheet";
 import { AtelierEmpty } from "@/components/atelier/states";
 import { EventCorrectionForm } from "@/features/dashboard/events-card";

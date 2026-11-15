@@ -8,24 +8,11 @@ import { useRemoteImagesEnabled } from "@/components/catalog-image";
 import { accordVars, type AccordKey } from "@/lib/accord";
 import { cn } from "@/lib/utils";
 
+import type { PlateFragrance } from "./plate-fragrance";
+
 import styles from "./plate.module.css";
 
-export type PlateFragrance = {
-  id: string;
-  name: string;
-  brand: string;
-  imageUrl: string | null;
-};
-
-/** Shape a catalog fragrance for a plate. */
-export function plateFragrance(fragrance: {
-  id: string;
-  name: string;
-  brand: { name: string };
-  image_url?: string | null;
-}): PlateFragrance {
-  return { id: fragrance.id, name: fragrance.name, brand: fragrance.brand.name, imageUrl: fragrance.image_url ?? null };
-}
+export type { PlateFragrance };
 
 /**
  * The tinted plate a bottle sits on. The photo is blended with multiply so its

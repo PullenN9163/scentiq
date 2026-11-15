@@ -8,7 +8,8 @@ import { readReduceEffects, setReduceEffects } from "@/lib/effects";
 import type { Me } from "@/types/api";
 
 import { preferenceValues } from "./preference-values";
-import { SettingsAtelier, sectionFrom } from "./settings-atelier";
+import { SettingsAtelier } from "./settings-atelier";
+import { sectionFrom } from "./sections";
 
 const server = vi.hoisted(() => ({
   updateProfile: vi.fn(),

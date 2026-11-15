@@ -2,7 +2,8 @@ import { Suspense } from "react";
 
 import { ErrorState, LoadingState, UnavailableState } from "@/components/shared/states";
 import { SettingsView } from "@/features/settings/settings-view";
-import { SettingsAtelier, SettingsSkeleton, sectionFrom } from "@/features/settings-atelier/settings-atelier";
+import { SettingsAtelier, SettingsSkeleton } from "@/features/settings-atelier/settings-atelier";
+import { sectionFrom } from "@/features/settings-atelier/sections";
 import { AtelierError, AtelierUnavailable } from "@/components/atelier/states";
 import { isAtelierEnabled } from "@/lib/atelier-flag";
 import { ApiError } from "@/lib/server/api-client";

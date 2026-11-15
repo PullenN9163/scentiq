@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import { FragranceRow } from "@/components/atelier/fragrance-row";
-import { Plate, plateFragrance } from "@/components/atelier/plate";
+import { Plate } from "@/components/atelier/plate";
+import { plateFragrance } from "@/components/atelier/plate-fragrance";
 import { accordFor } from "@/lib/accord";
 import { cn } from "@/lib/utils";
 import type { TemperatureUnit } from "@/types/api";

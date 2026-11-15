@@ -12,7 +12,7 @@ import { AccordStrip } from "@/components/atelier/accord-strip";
 import { Button } from "@/components/atelier/button";
 import { Chip } from "@/components/atelier/chip";
 import { FragranceCard, type QuickAction } from "@/components/atelier/fragrance-card";
-import { plateFragrance } from "@/components/atelier/plate";
+import { plateFragrance } from "@/components/atelier/plate-fragrance";
 import { SegmentedControl } from "@/components/atelier/segmented-control";
 import { Sheet } from "@/components/atelier/sheet";
 import { AtelierEmpty } from "@/components/atelier/states";

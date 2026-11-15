@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/atelier/button";
 import { FragranceRow } from "@/components/atelier/fragrance-row";
-import { plateFragrance } from "@/components/atelier/plate";
+import { plateFragrance } from "@/components/atelier/plate-fragrance";
 import { Vial } from "@/components/atelier/vial";
 import type { AgentCard } from "@/features/agent/stream";
 import { accordFor } from "@/lib/accord";

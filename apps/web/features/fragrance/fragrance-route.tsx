@@ -69,7 +69,8 @@ async function AtelierDetail({ fragranceId, variant, back }: { fragranceId: stri
       data={data}
       variant={variant}
       back={back}
-      layersWell={<Suspense fallback={<LayersWellWithSkeleton />}><LayersFor anchorId={data.fragrance.id} /></Suspense>}
+      // Only a fragrance you own can anchor a blend, so asking about any other one is a wasted request.
+      layersWell={data.collection_item?.status === "owned" ? <Suspense fallback={<LayersWellWithSkeleton />}><LayersFor anchorId={data.fragrance.id} /></Suspense> : undefined}
     />
   );
 }

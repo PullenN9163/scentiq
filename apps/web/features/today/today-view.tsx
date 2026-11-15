@@ -9,7 +9,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/atelier/button";
 import { FragranceRow } from "@/components/atelier/fragrance-row";
-import { plateFragrance } from "@/components/atelier/plate";
+import { plateFragrance } from "@/components/atelier/plate-fragrance";
 import { accordFor, accordVars } from "@/lib/accord";
 import { localDate, occasionLabel, type CalendarResult } from "@/lib/calendar";
 import { motionTokens } from "@/lib/motion";

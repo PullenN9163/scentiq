@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { Plate, plateFragrance } from "@/components/atelier/plate";
+import { Plate } from "@/components/atelier/plate";
+import { plateFragrance } from "@/components/atelier/plate-fragrance";
 import { accordFor } from "@/lib/accord";
 import type { LayeringStackSuggestion } from "@/types/layering";
 

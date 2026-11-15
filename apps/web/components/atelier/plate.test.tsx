@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { RemoteImagesProvider } from "@/components/catalog-image";
 
-import { Plate, plateFragrance } from "./plate";
+import { Plate } from "./plate";
+import { plateFragrance } from "./plate-fragrance";
 
 const fragrance = {
   id: "11111111-1111-4111-8111-111111111111",

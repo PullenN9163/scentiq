@@ -23,24 +23,7 @@ import type { CalendarConnection, CalendarProviderStatus, Me } from "@/types/api
 
 import { PREFERENCE_FIELDS, preferenceValues, type PreferenceField } from "./preference-values";
 import styles from "./settings-atelier.module.css";
-
-export const SECTIONS = [
-  { id: "profile", label: "Profile" },
-  { id: "taste", label: "Taste" },
-  { id: "place", label: "Place and weather" },
-  { id: "calendar", label: "Calendars" },
-  { id: "appearance", label: "Appearance" },
-  { id: "account", label: "Account" },
-] as const;
-export type SectionId = (typeof SECTIONS)[number]["id"];
-
-/** `?section=` wins, then the hash (existing links use /settings#calendar). */
-export function sectionFrom(search: string | null | undefined, hash: string | null | undefined): SectionId | null {
-  const known = (value: string | null | undefined) => SECTIONS.find((section) => section.id === value)?.id ?? null;
-  const param = search ? new URLSearchParams(search).get("section") : null;
-  const fromHash = hash ? hash.replace(/^#/, "") : null;
-  return known(param) ?? known(fromHash === "calendars" ? "calendar" : fromHash);
-}
+import { SECTIONS, sectionFrom, type SectionId } from "./sections";
 
 const FAMILIES = ACCORD_KEYS.filter((key) => key !== "neutral").map((key) => ACCORD_LABELS[key]);
 const noSubscription = () => () => {};
