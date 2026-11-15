@@ -71,6 +71,8 @@ class WearRecommendationService:
     ) -> None:
         self.session = session
         self.clock = clock
+        # Milliseconds spent building candidate inputs during the current plan (diagnostics only).
+        self._inputs_ms = 0.0
 
     def _preferences(self, user_id: UUID) -> UserPreference | None:
         return self.session.get(UserPreference, user_id)
@@ -118,12 +120,15 @@ class WearRecommendationService:
         )
 
     def _plan(self, user_id: UUID, days: int) -> WearRecommendationPlan:
+        plan_started = timer.monotonic()
+        self._inputs_ms = 0.0
         preferences = self._preferences(user_id)
         zone = self._zone(preferences)
         today = self.clock().astimezone(zone).date()
         owned = self._owned(user_id)
         profile = TasteProfileService(self.session).for_user(user_id)
         owned = [item for item in owned if item.fragrance_id not in profile.excluded_ids]
+        loaded_at = timer.monotonic()
         gaps = []
         if not owned:
             gaps.append("Add an owned fragrance to receive recommendations.")
@@ -134,6 +139,7 @@ class WearRecommendationService:
         events = CalendarRepository(self.session).list_events(
             user_id, start, end, include_hidden=False
         )
+        events_at = timer.monotonic()
         contexts = []
         for offset in range(days):
             day = today + timedelta(days=offset)
@@ -235,6 +241,7 @@ class WearRecommendationService:
                 if signature not in signatures:
                     contexts.append(event_context)
                     signatures.add(signature)
+        contexts_at = timer.monotonic()
         recommendations = []
         planned: dict[UUID, int] = {}
         for context in contexts if owned else []:
@@ -275,6 +282,22 @@ class WearRecommendationService:
             gaps.append(
                 "Some fragrances repeat to balance your collection size and contextual fit."
             )
+        finished_at = timer.monotonic()
+        diagnostic_logger.info(
+            format_runtime_event(
+                "wear_plan_timing",
+                "INFO",
+                days=days,
+                owned_count=len(owned),
+                context_count=len(contexts),
+                load_ms=round((loaded_at - plan_started) * 1000),
+                events_ms=round((events_at - loaded_at) * 1000),
+                contexts_ms=round((contexts_at - events_at) * 1000),
+                generate_ms=round((finished_at - contexts_at) * 1000),
+                inputs_ms=round(self._inputs_ms),
+                total_ms=round((finished_at - plan_started) * 1000),
+            )
+        )
         return WearRecommendationPlan(
             timezone=str(zone), local_date=today, recommendations=recommendations, gaps=gaps
         )
@@ -419,7 +442,9 @@ class WearRecommendationService:
         started = timer.monotonic()
         preferences = self._preferences(user_id)
         profile = TasteProfileService(self.session).for_user(user_id)
+        inputs_started = timer.monotonic()
         inputs = self._inputs(user_id, context, owned)
+        self._inputs_ms += (timer.monotonic() - inputs_started) * 1000
         pref = {
             key: getattr(preferences, key) if preferences else None
             for key in (
