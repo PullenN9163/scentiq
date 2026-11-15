@@ -20,13 +20,13 @@ async function optional<T>(read: Promise<T>): Promise<T | null> {
 
 export async function CollectionAtelierBoundary({ segment }: { segment: Segment }) {
   let items: CollectionItem[];
-  let catalog: FragranceSummary[];
+  let catalog: FragranceSummary[] | null;
   let accords: WeightedSlice[] | null;
   let saved: SavedLayeringStack[] | null;
   try {
     const [collection, catalogPage, insights, intelligence] = await Promise.all([
       getCollection(),
-      searchFragrances(undefined, 50),
+      optional(searchFragrances(undefined, 50)),
       optional(getInsightsSummary()),
       optional(getLayeringIntelligence()),
     ]);
@@ -39,5 +39,5 @@ export async function CollectionAtelierBoundary({ segment }: { segment: Segment 
     if (error instanceof ApiError) return <div className="at-page"><AtelierError title="Your collection did not load" message={error.message} /></div>;
     throw error;
   }
-  return <CollectionAtelier items={items} catalog={catalog} tasteAccords={accords} saved={saved} initialSegment={segment} />;
+  return <CollectionAtelier items={items} catalog={catalog ?? []} tasteAccords={accords} saved={saved} initialSegment={segment} />;
 }
