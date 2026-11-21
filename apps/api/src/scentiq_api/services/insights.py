@@ -37,6 +37,52 @@ class InsightsService:
     def __init__(self, repository: InsightsRepository) -> None:
         self._repository = repository
 
+    def totals_for_user(
+        self, user_id: UUID, *, now: datetime | None = None, with_accords: bool = False
+    ) -> CollectionInsightsResponse:
+        """Headline counts only, from a handful of aggregate queries.
+
+        Screens that need just the totals (Today) use this instead of the full
+        breakdown, which loads every owned fragrance with its notes, accords and
+        seasons and compares them pairwise.
+        """
+        reference = now or datetime.now(UTC)
+        since = reference - RECENT_WINDOW
+        (
+            total_items,
+            owned_items,
+            wishlist_items,
+            retired_items,
+            price_total,
+            priced_items,
+        ) = self._repository.collection_totals(user_id)
+        average_rating, rated_items = self._repository.rating_summary(user_id)
+        total_wears, recent_wears, distinct_worn = self._repository.wear_totals(user_id, since)
+        return CollectionInsightsResponse(
+            total_items=total_items,
+            owned_items=owned_items,
+            wishlist_items=wishlist_items,
+            retired_items=retired_items,
+            custom_items=self._repository.custom_item_count(user_id),
+            total_purchase_value=(
+                format(Decimal(price_total).quantize(Decimal("0.01")), "f")
+                if price_total is not None
+                else None
+            ),
+            priced_items=priced_items,
+            average_rating=round(float(average_rating), 2) if average_rating is not None else None,
+            rated_items=rated_items,
+            total_wears=total_wears,
+            wears_last_30_days=recent_wears,
+            distinct_fragrances_worn=distinct_worn,
+            most_worn=[],
+            accords=_weighted(self._repository.accord_breakdown(user_id)) if with_accords else [],
+            seasons=[],
+            occasions=[],
+            ownership_types=[],
+            unclassified_items=0,
+        )
+
     def for_user(self, user_id: UUID, *, now: datetime | None = None) -> CollectionInsightsResponse:
         reference = now or datetime.now(UTC)
         since = reference - RECENT_WINDOW

@@ -64,6 +64,19 @@ def test_invalidation_creates_state_and_job_in_the_same_transaction(session: Ses
     assert job.idempotency_key == f"recommendation_bundle:{user.id}:1"
 
 
+def test_current_input_version_reads_zero_without_creating_missing_state(
+    session: Session,
+) -> None:
+    user = make_user(session, email="member@example.com")
+    repository = HybridJobRepository(session)
+
+    assert repository.current_input_version(user.id) == 0
+    assert session.get(RecommendationState, user.id) is None
+
+    _service(session).invalidate_recommendations(user.id, reason="collection_changed")
+    assert repository.current_input_version(user.id) == 1
+
+
 def test_ensure_job_coalesces_duplicate_version(session: Session) -> None:
     user = make_user(session, email="member@example.com")
     service = _service(session)
@@ -233,12 +246,14 @@ def test_snapshot_version_and_age_mismatch_trigger_refresh(session: Session) -> 
         catalog_version="catalog-a",
     )
     assert snapshot is not None
-    snapshot.created_at = now - timedelta(hours=7)
+    snapshot.created_at = now - timedelta(hours=24)
 
     response = _recommendations(session, clock=lambda: now).get(user.id)
 
     assert response.is_stale is True
     assert response.refresh_status == "pending"
+    assert response.generated_at == snapshot.created_at
+    # An offline worker leaves the refresh queued while reads serve the saved snapshot.
     assert job.status == "pending"
 
 

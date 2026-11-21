@@ -1,0 +1,38 @@
+.toast {
+  display: flex;
+  width: 100%;
+  max-width: 420px;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-float);
+  font: 500 15px/1.4 var(--font-sans);
+}
+.title { font-weight: 500; }
+.description { color: var(--ink-muted); font-size: 13px; font-weight: 400; }
+.icon { display: none; }
+/* A small mark in the status color; the words carry the meaning. */
+.success::before,
+.error::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--success);
+}
+.error::before { background: var(--danger); }
+.action {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: 500 15px/1.2 var(--font-sans);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.close { display: none; }

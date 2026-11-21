@@ -96,3 +96,26 @@ def test_discovery_loads_season_evidence_in_a_single_bounded_read(session: Sessi
         assert len(season_reads) == 1
     finally:
         event.remove(engine, "before_cursor_execute", capture)
+
+
+def test_discovery_disliked_owned_scent_is_not_positive_taste_evidence(session: Session) -> None:
+    from decimal import Decimal
+
+    from scentiq_api.models import Accord, FragranceAccord
+
+    user = make_user(session, email="disliked-discovery@example.test")
+    brand = make_brand(session, name="Disliked Discovery")
+    owned = make_fragrance(session, brand=brand, name="Disliked owned")
+    related = make_fragrance(session, brand=brand, name="Related to disliked")
+    accord = Accord(name="Smoky", slug="smoky")
+    session.add(accord)
+    session.flush()
+    for scent in (owned, related):
+        session.add(
+            FragranceAccord(fragrance_id=scent.id, accord_id=accord.id, weight=Decimal("1"))
+        )
+    make_collection_item(session, user=user, fragrance=owned, user_rating=1)
+    session.flush()
+    results = DiscoveryService(DiscoveryRepository(session)).discover(user.id, mode="taste")
+    assert results[0].taste_match == 0
+    assert any("conflict" in reason for reason in results[0].reasons)

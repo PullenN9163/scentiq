@@ -1,4 +1,8 @@
+import { Suspense } from "react";
+
 import { LayeringLab } from "@/features/layering/layering-lab";
+import { BlendRoute, BlendSkeleton } from "@/features/blend/blend-route";
+import { isAtelierEnabled } from "@/lib/atelier-flag";
 import { getCollection } from "@/lib/server/queries";
 import {
   evaluateLayerStack,
@@ -12,11 +16,19 @@ export default async function LayeringPage({
   searchParams: Promise<{
     a?: string;
     stack?: string;
+    saved?: string;
     mode?: string;
     goal?: string;
   }>;
 }) {
   const parameters = await searchParams;
+  if (isAtelierEnabled()) {
+    return (
+      <Suspense fallback={<BlendSkeleton />}>
+        <BlendRoute query={parameters} />
+      </Suspense>
+    );
+  }
   const collection = await getCollection();
   const owned = collection
     .filter((item) => item.status === "owned")

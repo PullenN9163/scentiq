@@ -1,0 +1,159 @@
+/*
+ * Atelier base styles. Everything here is scoped to html[data-atelier], which
+ * the root layout sets only when SCENTIQ_ATELIER_UI_ENABLED is on, so the
+ * existing interface is untouched when the flag is off. Token values live in
+ * atelier.css.
+ */
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-action: var(--action);
+  --color-on-action: var(--on-action);
+  --color-atelier-accent: var(--accent);
+  --color-atelier-success: var(--success);
+  --color-atelier-warning: var(--warning);
+  --color-atelier-danger: var(--danger);
+  --color-ink-on-field: var(--ink-on-field);
+  --color-ink-on-deep: var(--ink-on-deep);
+  --font-atelier-serif: var(--font-serif);
+  --font-atelier-sans: var(--font-sans);
+  --radius-atelier-xs: var(--radius-xs);
+  --radius-atelier-sm: var(--radius-sm);
+  --radius-atelier-md: var(--radius-md);
+  --radius-atelier-lg: var(--radius-lg);
+  --shadow-atelier-raised: var(--shadow-raised);
+  --shadow-atelier-float: var(--shadow-float);
+  --shadow-atelier-sheet: var(--shadow-sheet);
+}
+
+html[data-atelier] {
+  --page-gutter: var(--space-4);
+  --dock-clearance: 0px;
+  background: var(--ground);
+  scroll-padding-top: var(--space-10);
+}
+html[data-atelier] body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+/* The legacy ambient glow is a decorative gradient; Atelier has none. */
+html[data-atelier] body::before,
+html[data-atelier] body::after { content: none; display: none; animation: none; }
+html[data-atelier] ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+html[data-atelier] :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (min-width: 700px) { html[data-atelier] { --page-gutter: var(--space-6); } }
+@media (min-width: 1100px) { html[data-atelier] { --page-gutter: var(--space-8); } }
+
+/* Type scale (reference/tokens.json, type.groups). */
+:where(html[data-atelier]) :is(.at-display-xl, .at-display-lg, .at-display-md, .at-title, .at-subtitle, .at-card-title, .at-numeral) {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: 400;
+  text-wrap: balance;
+}
+:where(html[data-atelier]) .at-display-xl { font-size: 40px; line-height: 0.98; letter-spacing: -0.035em; }
+@media (min-width: 700px) { :where(html[data-atelier]) .at-display-xl { font-size: 60px; } }
+@media (min-width: 1100px) { :where(html[data-atelier]) .at-display-xl { font-size: 84px; } }
+:where(html[data-atelier]) .at-display-lg { font-size: 56px; line-height: 1; letter-spacing: -0.03em; }
+:where(html[data-atelier]) .at-display-md { font-size: 36px; line-height: 1.05; letter-spacing: -0.03em; }
+:where(html[data-atelier]) .at-title { font-size: 26px; line-height: 1.15; letter-spacing: -0.02em; }
+:where(html[data-atelier]) .at-subtitle { font-size: 18px; line-height: 1.2; }
+:where(html[data-atelier]) .at-card-title { font-size: 17px; line-height: 1.2; font-weight: 500; }
+:where(html[data-atelier]) .at-numeral { font-size: 44px; line-height: 1; font-variant-numeric: tabular-nums; }
+:where(html[data-atelier]) .at-body-lg { font-size: 17px; line-height: 1.5; font-weight: 400; }
+:where(html[data-atelier]) .at-body { font-size: 15px; line-height: 1.5; font-weight: 400; }
+:where(html[data-atelier]) .at-button { font-size: 15px; line-height: 1.2; font-weight: 600; }
+:where(html[data-atelier]) .at-label { font-size: 14px; line-height: 1.3; font-weight: 500; }
+:where(html[data-atelier]) .at-caption { font-size: 13px; line-height: 1.4; font-weight: 400; color: var(--ink-muted); }
+/* Only for the house name above a fragrance name. */
+:where(html[data-atelier]) .at-overline { font-size: 12px; line-height: 1.3; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+:where(html[data-atelier]) .at-tabular { font-variant-numeric: tabular-nums; }
+
+/* Page frame: gutters 16 / 24 / 40px, content capped at 1280px. */
+:where(html[data-atelier]) .at-page {
+  width: 100%;
+  max-width: calc(1280px + 2 * var(--page-gutter));
+  margin-inline: auto;
+  padding: var(--space-6) max(var(--page-gutter), env(safe-area-inset-right)) var(--space-8) max(var(--page-gutter), env(safe-area-inset-left));
+}
+
+/* Skeletons take the shape of what is coming; slow shimmer, none when reduced. */
+:where(html[data-atelier]) .at-skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  background-image: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--surface) 55%, transparent) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: at-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes at-shimmer { from { background-position: 120% 0; } to { background-position: -80% 0; } }
+
+:where(html[data-atelier]) .at-error { color: var(--danger); font-weight: 500; }
+:where(html[data-atelier]) .at-link { color: var(--accent); text-decoration: underline; text-underline-offset: 4px; font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) {
+  :where(html[data-atelier]) .at-skeleton { animation: none; background-image: none; }
+}
+:where(html[data-atelier][data-effects="reduced"]) .at-skeleton { animation: none; background-image: none; }
+
+/*
+ * Existing forms hosted inside an Atelier sheet (add fragrance, calendar
+ * connections, account deletion, event details). Their logic and markup are
+ * unchanged; these rules give their controls the Atelier look.
+ */
+.atelier-legacy-form { color: var(--ink); font-family: var(--font-sans); }
+.atelier-legacy-form .form-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+.atelier-legacy-form .field, .atelier-legacy-form .field--full { display: grid; min-width: 0; gap: 6px; grid-column: auto; }
+.atelier-legacy-form .label, .atelier-legacy-form label:not(.catalog-picker__result):not(.appearance-option) { color: var(--ink); font: 500 14px/1.3 var(--font-sans); }
+.atelier-legacy-form :is(.input, .select, .textarea) {
+  min-height: 48px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 0 14px;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font: 400 15px/1.4 var(--font-sans);
+}
+.atelier-legacy-form .textarea { padding: 12px 14px; }
+.atelier-legacy-form :is(.input, .select, .textarea)[aria-invalid="true"] { box-shadow: inset 0 0 0 1.5px var(--danger); }
+.atelier-legacy-form .field-error, .atelier-legacy-form [role="alert"] { color: var(--danger); font: 500 13px/1.4 var(--font-sans); }
+.atelier-legacy-form :is(.field-hint, .data-note, .muted, small) { color: var(--ink-muted); font-size: 13px; }
+.atelier-legacy-form .cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.atelier-legacy-form .button {
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 0 22px;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  box-shadow: none;
+  font: 600 15px/1.2 var(--font-sans);
+  transform: none;
+}
+.atelier-legacy-form .button:hover { transform: none; box-shadow: none; }
+.atelier-legacy-form .button:active:not(:disabled) { transform: scale(0.97); }
+.atelier-legacy-form .button--primary, .atelier-legacy-form .button[aria-pressed="true"] { background: var(--action); color: var(--on-action); }
+.atelier-legacy-form .button--ghost { background: transparent; text-decoration: underline; text-underline-offset: 4px; font-weight: 500; padding-inline: 6px; }
+.atelier-legacy-form .button--danger { background: var(--danger); color: var(--ground); }
+.atelier-legacy-form .button--sm { min-height: 36px; padding: 0 16px; font-size: 14px; }
+.atelier-legacy-form .catalog-picker { max-height: 22rem; border: 0; border-radius: var(--radius-sm); background: var(--surface-sunken); }
+.atelier-legacy-form .catalog-picker__result { border-top-color: var(--line); }
+.atelier-legacy-form .catalog-picker__result:has(input:checked) { background: color-mix(in srgb, var(--accent) 14%, var(--surface-sunken)); }
+.atelier-legacy-form .catalog-picker__image { border-radius: var(--radius-xs); background: var(--accord-neutral-field); color: var(--ink-on-field); }
+.atelier-legacy-form .catalog-picker__image img { object-fit: contain; mix-blend-mode: multiply; padding: 6%; }
+.atelier-legacy-form .card { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.atelier-legacy-form .card__content { padding: 0; }
+.atelier-legacy-form .numeric-slider input[type="range"] { accent-color: var(--action); }
+.atelier-legacy-form .settings-title { display: none; }
+.atelier-legacy-form .connection-row { display: flex; min-height: 56px; align-items: center; justify-content: space-between; gap: var(--space-3); border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }

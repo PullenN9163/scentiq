@@ -6,6 +6,7 @@ import time as timer
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from scentiq_api.errors import not_found, unprocessable
 from scentiq_api.logging import diagnostic_logger, format_runtime_event
 from scentiq_api.models import (
+    CalendarEvent,
     Fragrance,
     FragranceAccord,
     Recommendation,
@@ -26,8 +28,10 @@ from scentiq_api.models import (
     WearFeedback,
     WearLog,
 )
+from scentiq_api.models.recommendation_choices import RecommendationFeedback
 from scentiq_api.repositories.calendar import CalendarRepository
-from scentiq_api.repositories.weather import WeatherRepository
+from scentiq_api.repositories.layering import LayeringRepository
+from scentiq_api.schemas.layering import LayeringGoal
 from scentiq_api.schemas.wear import WearLogResponse
 from scentiq_api.schemas.wear_recommendations import (
     RecommendationContext,
@@ -39,12 +43,28 @@ from scentiq_api.schemas.wear_recommendations import (
     WearRecommendationPlan,
     WearRecommendationResponse,
 )
+from scentiq_api.services.ai_ranking import ranking_configuration_version
 from scentiq_api.services.fragrances import to_fragrance_summary
+from scentiq_api.services.layering import LayeringService
+from scentiq_api.services.personalized_ranking import rerank
+from scentiq_api.services.recommendation_choices import RecommendationChoiceService
+from scentiq_api.services.taste_profile import TasteProfile, TasteProfileService
 from scentiq_api.services.wear_scoring import (
     WEAR_ALGORITHM_VERSION,
     CandidateInput,
     score_candidate,
 )
+
+MIN_BLEND_PERCENT = 55
+
+
+def blend_goal(context: RecommendationContext) -> str:
+    """The layering goal that best fits the day's weather and daypart."""
+    if context.high_celsius is not None and context.high_celsius <= 10:
+        return "warmer"
+    if context.high_celsius is not None and context.high_celsius >= 26:
+        return "fresher"
+    return "evening" if context.daypart == "night" else "daytime"
 
 
 def aware(value: datetime) -> datetime:
@@ -66,9 +86,40 @@ class WearRecommendationService:
     ) -> None:
         self.session = session
         self.clock = clock
+        # Milliseconds spent building candidate inputs during the current plan (diagnostics only).
+        self._inputs_ms = 0.0
+        self._profiles: dict[UUID, TasteProfile] = {}
+        self._owned_ids: dict[UUID, set[UUID]] = {}
 
     def _preferences(self, user_id: UUID) -> UserPreference | None:
         return self.session.get(UserPreference, user_id)
+
+    def _owned_fragrance_ids(self, user_id: UUID) -> set[UUID]:
+        """Ids of the fragrances the member owns, queried once per request."""
+        owned = self._owned_ids.get(user_id)
+        if owned is None:
+            owned = set(
+                self.session.scalars(
+                    select(UserCollectionItem.fragrance_id).where(
+                        UserCollectionItem.user_id == user_id,
+                        UserCollectionItem.status == "owned",
+                    )
+                )
+            )
+            self._owned_ids[user_id] = owned
+        return owned
+
+    def _taste_profile(self, user_id: UUID) -> TasteProfile:
+        """The member's taste profile, built once per request.
+
+        Building it takes several database round trips, and a plan asks for it once for itself
+        and once per context it generates, so a week of plans rebuilt it eight times.
+        """
+        profile = self._profiles.get(user_id)
+        if profile is None:
+            profile = TasteProfileService(self.session).for_user(user_id)
+            self._profiles[user_id] = profile
+        return profile
 
     def _zone(self, preferences: UserPreference | None) -> ZoneInfo:
         try:
@@ -86,6 +137,7 @@ class WearRecommendationService:
                     joinedload(UserCollectionItem.fragrance).selectinload(Fragrance.seasons),
                     joinedload(UserCollectionItem.fragrance).selectinload(Fragrance.occasions),
                     joinedload(UserCollectionItem.fragrance).joinedload(Fragrance.community),
+                    joinedload(UserCollectionItem.fragrance).selectinload(Fragrance.note_links),
                     joinedload(UserCollectionItem.fragrance)
                     .selectinload(Fragrance.accord_links)
                     .joinedload(FragranceAccord.accord),
@@ -95,46 +147,32 @@ class WearRecommendationService:
         )
 
     def _context(
-        self, user_id: UUID, when: datetime, *, source: str, key: str
+        self,
+        user_id: UUID,
+        when: datetime,
+        *,
+        source: str,
+        key: str,
+        duration_minutes: int | None = None,
     ) -> RecommendationContext:
-        preferences = self._preferences(user_id)
-        zone = self._zone(preferences)
-        local = when.astimezone(zone)
-        weather = WeatherRepository(self.session).get_day(user_id, local.date())
-        # A changed location must not re-use a snapshot for the old place.
-        if weather and (not preferences or weather.location_label != preferences.location_label):
-            weather = None
+        from scentiq_api.services.recommendation_context import RecommendationContextBuilder
+
         return RecommendationContext.model_validate(
-            {
-                "context_key": key,
-                "recommended_for": when,
-                "local_date": local.date(),
-                "timezone": str(zone),
-                "daypart": "night" if local.hour >= 18 or local.hour < 6 else "day",
-                "season": season_for(
-                    local.date(),
-                    float(preferences.latitude)
-                    if preferences and preferences.latitude is not None
-                    else None,
-                ),
-                "source": source,
-                "high_celsius": float(weather.temperature_celsius) if weather else None,
-                "low_celsius": float(weather.temperature_min_celsius)
-                if weather and weather.temperature_min_celsius is not None
-                else None,
-                "humidity": weather.humidity if weather else None,
-                "precipitation_probability": float(weather.precipitation_probability)
-                if weather and weather.precipitation_probability is not None
-                else None,
-                "condition": weather.condition if weather else None,
-            }
+            RecommendationContextBuilder(self.session, clock=self.clock).build(
+                user_id, when, source=source, key=key, duration_minutes=duration_minutes
+            )
         )
 
     def _plan(self, user_id: UUID, days: int) -> WearRecommendationPlan:
+        plan_started = timer.monotonic()
+        self._inputs_ms = 0.0
         preferences = self._preferences(user_id)
         zone = self._zone(preferences)
         today = self.clock().astimezone(zone).date()
         owned = self._owned(user_id)
+        profile = self._taste_profile(user_id)
+        owned = [item for item in owned if item.fragrance_id not in profile.excluded_ids]
+        loaded_at = timer.monotonic()
         gaps = []
         if not owned:
             gaps.append("Add an owned fragrance to receive recommendations.")
@@ -145,11 +183,71 @@ class WearRecommendationService:
         events = CalendarRepository(self.session).list_events(
             user_id, start, end, include_hidden=False
         )
+        events_at = timer.monotonic()
         contexts = []
         for offset in range(days):
             day = today + timedelta(days=offset)
-            when = datetime.combine(day, time(9), zone)
+            # Stable hour buckets refresh Today without changing every reload.
+            when = (
+                self.clock().astimezone(zone).replace(minute=0, second=0, microsecond=0)
+                if offset == 0
+                else datetime.combine(day, time(9), zone)
+            )
             context = self._context(user_id, when, source="day", key=f"day:{day}")
+            day_start = datetime.combine(day, time.min, zone)
+            day_end = datetime.combine(day + timedelta(days=1), time.min, zone)
+
+            def overlaps_day(
+                event: CalendarEvent,
+                day: date = day,
+                day_start: datetime = day_start,
+                day_end: datetime = day_end,
+            ) -> bool:
+                if event.is_all_day:
+                    return aware(event.starts_at).date() <= day < aware(event.ends_at).date()
+                return aware(event.starts_at) < day_end and aware(event.ends_at) > day_start
+
+            def event_window(
+                event: CalendarEvent,
+                when: datetime = when,
+                day_end: datetime = day_end,
+                day_start: datetime = day_start,
+                offset: int = offset,
+            ) -> tuple[datetime, int]:
+                if event.is_all_day:
+                    target = when
+                    ending = day_end
+                else:
+                    target = max(aware(event.starts_at), self.clock() if offset == 0 else day_start)
+                    target = target.replace(second=0, microsecond=0)
+                    ending = aware(event.ends_at)
+                return target, min(
+                    31 * 24 * 60, max(1, int((ending - target).total_seconds() / 60))
+                )
+
+            relevant_events = sorted(
+                [
+                    event
+                    for event, _, _ in events
+                    if overlaps_day(event)
+                    and (event.is_all_day or offset > 0 or aware(event.ends_at) > self.clock())
+                ],
+                key=lambda event: aware(event.starts_at),
+            )
+            if relevant_events:
+                primary_event = relevant_events[0]
+                target, duration = event_window(primary_event)
+                context = self._context(
+                    user_id, target, source="day", key=f"day:{day}", duration_minutes=duration
+                )
+                context = context.model_copy(
+                    update={
+                        "occasion": primary_event.event_type,
+                        "formality": primary_event.formality,
+                        "setting": primary_event.setting,
+                        "calendar_event_id": primary_event.id,
+                    }
+                )
             if (
                 context.high_celsius is None
                 and "Weather unavailable; weather scoring is neutral." not in gaps
@@ -158,20 +256,20 @@ class WearRecommendationService:
             contexts.append(context)
             signatures: set[tuple[str, str | None, str | None, str]] = set()
             for event, _, _ in events:
-                event_day = (
-                    aware(event.starts_at).date()
-                    if event.is_all_day
-                    else aware(event.starts_at).astimezone(zone).date()
-                )
-                if event_day != day:
+                if not overlaps_day(event) or (
+                    offset == 0 and not event.is_all_day and aware(event.ends_at) <= self.clock()
+                ):
                     continue
-                event_when = when if event.is_all_day else aware(event.starts_at)
+                event_when, duration = event_window(event)
                 event_context = self._context(
-                    user_id, event_when, source="event", key=f"event:{event.id}"
+                    user_id,
+                    event_when,
+                    source="event",
+                    key=f"event:{event.id}:{day}",
+                    duration_minutes=duration,
                 )
-                event_context = RecommendationContext.model_validate(
-                    {
-                        **event_context.model_dump(),
+                event_context = event_context.model_copy(
+                    update={
                         "calendar_event_id": event.id,
                         "occasion": event.event_type,
                         "formality": event.formality,
@@ -187,23 +285,128 @@ class WearRecommendationService:
                 if signature not in signatures:
                     contexts.append(event_context)
                     signatures.add(signature)
-        recommendations = (
-            [self._generate(user_id, context, owned) for context in contexts] if owned else []
+        contexts_at = timer.monotonic()
+        recommendations = []
+        planned: dict[UUID, int] = {}
+        # Accepted selections are stable even when context inputs are refreshed. One query
+        # finds them for every context at once; the newest per context wins.
+        accepted_by_key: dict[str, Recommendation] = {}
+        if owned and contexts:
+            for row in self.session.scalars(
+                select(Recommendation)
+                .join(
+                    RecommendationDecision,
+                    RecommendationDecision.recommendation_id == Recommendation.id,
+                )
+                .where(
+                    Recommendation.user_id == user_id,
+                    Recommendation.context_key.in_([context.context_key for context in contexts]),
+                    ~select(WearLog.id)
+                    .where(WearLog.recommendation_id == Recommendation.id)
+                    .exists(),
+                    RecommendationDecision.action.in_(("accepted", "replaced")),
+                    RecommendationDecision.selected_fragrance_id.in_(
+                        [item.fragrance_id for item in owned]
+                    ),
+                )
+                .order_by(Recommendation.created_at.desc())
+            ):
+                if row.context_key is not None:
+                    accepted_by_key.setdefault(row.context_key, row)
+        for context in contexts if owned else []:
+            accepted = accepted_by_key.get(context.context_key)
+            if accepted:
+                response = self._response(user_id, accepted)
+            if not accepted:
+                response = self._generate(
+                    user_id, context, owned, planned=planned if days > 1 else None
+                )
+            recommendations.append(response)
+            planned[response.fragrance.id] = planned.get(response.fragrance.id, 0) + 1
+        if (
+            days > 1
+            and recommendations
+            and len({row.fragrance.id for row in recommendations}) < len(recommendations)
+        ):
+            gaps.append(
+                "Some fragrances repeat to balance your collection size and contextual fit."
+            )
+        if owned and recommendations:
+            self._attach_blends(user_id, recommendations)
+        finished_at = timer.monotonic()
+        diagnostic_logger.info(
+            format_runtime_event(
+                "wear_plan_timing",
+                "INFO",
+                days=days,
+                owned_count=len(owned),
+                context_count=len(contexts),
+                load_ms=round((loaded_at - plan_started) * 1000),
+                events_ms=round((events_at - loaded_at) * 1000),
+                contexts_ms=round((contexts_at - events_at) * 1000),
+                generate_ms=round((finished_at - contexts_at) * 1000),
+                inputs_ms=round(self._inputs_ms),
+                total_ms=round((finished_at - plan_started) * 1000),
+            )
         )
         return WearRecommendationPlan(
             timezone=str(zone), local_date=today, recommendations=recommendations, gaps=gaps
         )
 
+    def _attach_blends(
+        self, user_id: UUID, recommendations: list[WearRecommendationResponse]
+    ) -> None:
+        """Offer each pick a researched blend, varied across the plan.
+
+        The blend is anchored on the pick, steered by the day's weather and daypart, and
+        scored with the same pairing knowledge as the Blend Studio. Each blend appears once
+        per plan when an alternative exists, so the week rotates blends as well as scents.
+        Weak blends are left out rather than pushed.
+        """
+        layering = LayeringService(LayeringRepository(self.session))
+        preloaded = layering.preload(user_id, self._taste_profile(user_id))
+        used: set[tuple[str, ...]] = set()
+        for response in recommendations:
+            suggestions = layering.stack_suggestions(
+                user_id,
+                anchor_id=response.fragrance.id,
+                goal=cast(LayeringGoal, blend_goal(response.context)),
+                limit=6,
+                preloaded=preloaded,
+            )
+            fresh = [
+                stack
+                for stack in suggestions
+                if tuple(sorted(str(item.fragrance.id) for item in stack.items)) not in used
+            ]
+            candidates = fresh or suggestions
+            pick = candidates[0] if candidates else None
+            if pick is None or pick.score_percent < MIN_BLEND_PERCENT:
+                continue
+            used.add(tuple(sorted(str(item.fragrance.id) for item in pick.items)))
+            response.blend = pick
+
+    def _forget_request_state(self) -> None:
+        """Drop per-request memoized reads so a reused service never sees stale data."""
+        self._profiles.clear()
+        self._owned_ids.clear()
+
     def today(self, user_id: UUID) -> WearRecommendationPlan:
+        self._forget_request_state()
         return self._plan(user_id, 1)
 
     def week(self, user_id: UUID) -> WearRecommendationPlan:
+        self._forget_request_state()
         return self._plan(user_id, 7)
 
     def preview(
         self, user_id: UUID, request: RecommendationPreviewRequest
     ) -> WearRecommendationResponse:
-        owned = self._owned(user_id)
+        self._forget_request_state()
+        profile = self._taste_profile(user_id)
+        owned = [
+            item for item in self._owned(user_id) if item.fragrance_id not in profile.excluded_ids
+        ]
         if not owned:
             raise unprocessable("collection_required", "Add an owned fragrance first")
         when = request.recommended_for or self.clock().replace(second=0, microsecond=0)
@@ -251,6 +454,14 @@ class WearRecommendationService:
             )
         )
         inputs = []
+        strong_feedback = set(
+            self.session.scalars(
+                select(RecommendationFeedback.fragrance_id).where(
+                    RecommendationFeedback.user_id == user_id,
+                    RecommendationFeedback.reason == "too_strong",
+                )
+            )
+        )
         for item in owned:
             fragrance = item.fragrance
             rows = [(wear, feedback) for wear, feedback, fid in histories if fid == fragrance.id]
@@ -271,6 +482,7 @@ class WearRecommendationService:
                     item,
                     CandidateInput(
                         fragrance_id=fragrance.id,
+                        too_strong_count=int(fragrance.id in strong_feedback),
                         projection=item.custom_projection or fragrance.projection_level,
                         longevity=float(
                             item.custom_longevity
@@ -312,11 +524,19 @@ class WearRecommendationService:
         return inputs
 
     def _generate(
-        self, user_id: UUID, context: RecommendationContext, owned: list[UserCollectionItem]
+        self,
+        user_id: UUID,
+        context: RecommendationContext,
+        owned: list[UserCollectionItem],
+        *,
+        planned: dict[UUID, int] | None = None,
     ) -> WearRecommendationResponse:
         started = timer.monotonic()
         preferences = self._preferences(user_id)
+        profile = self._taste_profile(user_id)
+        inputs_started = timer.monotonic()
         inputs = self._inputs(user_id, context, owned)
+        self._inputs_ms += (timer.monotonic() - inputs_started) * 1000
         pref = {
             key: getattr(preferences, key) if preferences else None
             for key in (
@@ -327,12 +547,22 @@ class WearRecommendationService:
                 "preferred_season",
             )
         }
+        surface = "week" if planned is not None else "today"
+        fingerprint_context = context.model_dump(mode="json")
+        fingerprint_context["recommended_for"] = context.recommended_for.replace(
+            minute=0, second=0, microsecond=0
+        ).isoformat()
+        if context.duration_minutes:
+            fingerprint_context["duration_minutes"] = ((context.duration_minutes + 59) // 60) * 60
         fingerprint = hashlib.sha256(
             json.dumps(
                 {
-                    "context": context.model_dump(mode="json"),
+                    "context": fingerprint_context,
                     "preferences": pref,
                     "algorithm": WEAR_ALGORITHM_VERSION,
+                    "taste_version": profile.version,
+                    "ranking_config": ranking_configuration_version(surface),
+                    "planned": {str(key): value for key, value in (planned or {}).items()},
                     "candidates": [
                         {
                             "item": str(item.id),
@@ -372,6 +602,24 @@ class WearRecommendationService:
             )
             for item, candidate in inputs
         ]
+        for item, score in scores:
+            taste = round(8 * profile.affinity(item.fragrance), 2)
+            diversity = -(
+                0
+                if profile.variety == "familiar"
+                else 18
+                if profile.variety == "adventurous"
+                else 12
+            ) * (planned or {}).get(item.fragrance_id, 0)
+            score.components.update(taste_affinity=taste, planned_rotation=float(diversity))
+            score.score = round(max(0, min(100, score.score + taste + diversity)), 2)
+            if taste > 0:
+                score.reasons = [
+                    "Fits your explicit preferences and rated scent profile",
+                    *score.reasons,
+                ][:3]
+            elif taste < 0:
+                score.warnings.append("Some profile signals conflict with your recorded taste.")
         scores.sort(
             key=lambda pair: (
                 -pair[1].score,
@@ -387,6 +635,34 @@ class WearRecommendationService:
             if pair[0].fragrance_id not in seen:
                 distinct.append(pair)
                 seen.add(pair[0].fragrance_id)
+        item, best = distinct[0]
+        ranking = rerank(
+            self.session,
+            user_id,
+            surface=surface,
+            candidates=[
+                {
+                    "candidate_id": str(item.fragrance_id),
+                    "baseline_score": score.score,
+                    "evidence": {
+                        "name": item.fragrance.name,
+                        "reasons": score.reasons,
+                        "warnings": score.warnings,
+                        "components": score.components,
+                        "taste_fit": profile.affinity(item.fragrance),
+                    },
+                }
+                for item, score in distinct
+            ],
+            context={
+                **context.model_dump(mode="json"),
+                "taste_features": profile.features,
+                "variety_preference": profile.variety,
+            },
+            version=profile.version,
+        )
+        by_id = {str(item.fragrance_id): (item, score) for item, score in distinct}
+        distinct = [by_id[key] for key in ranking.ordered_ids]
         item, best = distinct[0]
         record = Recommendation(
             user_id=user_id,
@@ -409,7 +685,7 @@ class WearRecommendationService:
             with self.session.begin_nested():
                 self.session.add(record)
                 self.session.flush()
-                for rank, (candidate_item, score) in enumerate(distinct[:6], 1):
+                for rank, (candidate_item, score) in enumerate(distinct, 1):
                     self.session.add(
                         RecommendationCandidate(
                             recommendation_id=record.id,
@@ -422,6 +698,12 @@ class WearRecommendationService:
                                 "evidence_coverage": score.evidence_coverage,
                                 "reasons": score.reasons,
                                 "warnings": score.warnings,
+                                "generation_mode": ranking.generation_mode,
+                                "model_version": ranking.model_version,
+                                "profile_version": profile.version,
+                                "ai_reasons": ranking.explanations.get(
+                                    str(candidate_item.fragrance_id), []
+                                ),
                             },
                         )
                     )
@@ -441,6 +723,8 @@ class WearRecommendationService:
                 selected_fragrance_id=str(record.fragrance_id),
                 score=float(record.score),
                 evidence_coverage=record.evidence_coverage,
+                generation_mode=ranking.generation_mode,
+                planned_repeat=bool((planned or {}).get(record.fragrance_id, 0)),
                 elapsed_ms=round((timer.monotonic() - started) * 1000),
             )
         )
@@ -487,9 +771,13 @@ class WearRecommendationService:
                 RecommendationDecision.recommendation_id == record.id,
             )
         )
-        return WearRecommendationResponse(
+        response = WearRecommendationResponse(
             **results[0].model_dump(),
             id=record.id,
+            canonical_fragrance_id=record.fragrance_id,
+            generation_mode=str(candidates[0][0].guidance.get("generation_mode", "baseline")),
+            model_version=candidates[0][0].guidance.get("model_version"),
+            profile_version=candidates[0][0].guidance.get("profile_version"),
             context_key=record.context_key or "legacy",
             recommended_for=aware(record.recommended_for),
             context=RecommendationContext.model_validate(record.context_data),
@@ -501,10 +789,17 @@ class WearRecommendationService:
             if decision
             else None,
         )
+        return RecommendationChoiceService(self.session).current(
+            user_id,
+            response,
+            owned_ids=self._owned_fragrance_ids(user_id),
+            excluded_ids=self._taste_profile(user_id).excluded_ids,
+        )
 
     def decide(
         self, user_id: UUID, recommendation_id: UUID, request: RecommendationDecisionRequest
     ) -> RecommendationDecisionResponse:
+        self._forget_request_state()
         record = self.get(user_id, recommendation_id, lock=True)
         selected = request.selected_fragrance_id
         if request.action == "replaced" and selected is None:
@@ -519,6 +814,18 @@ class WearRecommendationService:
             item.fragrance_id == selected for item in self._owned(user_id)
         ):
             raise not_found("Owned fragrance not found")
+        if selected is not None:
+            allowed = self.session.scalar(
+                select(RecommendationCandidate.id).where(
+                    RecommendationCandidate.recommendation_id == recommendation_id,
+                    RecommendationCandidate.fragrance_id == selected,
+                )
+            )
+            profile = TasteProfileService(self.session).for_user(user_id)
+            if allowed is None or selected in profile.excluded_ids:
+                raise unprocessable(
+                    "batch_changed", "Refresh recommendations before choosing this fragrance"
+                )
         statement = select(RecommendationDecision).where(
             RecommendationDecision.user_id == user_id,
             RecommendationDecision.recommendation_id == record.id,
@@ -531,12 +838,27 @@ class WearRecommendationService:
             self.session.add(decision)
         decision.action = request.action
         decision.selected_fragrance_id = selected
+        if selected is not None and request.action in {"accepted", "replaced"}:
+            from scentiq_api.models.recommendation_choices import RecommendationChoice
+
+            choice = self.session.get(RecommendationChoice, recommendation_id)
+            if choice is None:
+                choice = RecommendationChoice(
+                    recommendation_id=recommendation_id,
+                    selected_fragrance_id=selected,
+                    seen_ids=list(dict.fromkeys([str(record.fragrance_id), str(selected)])),
+                )
+                self.session.add(choice)
+            else:
+                choice.selected_fragrance_id = selected
+                choice.seen_ids = list(dict.fromkeys([*choice.seen_ids, str(selected)]))
         self.session.flush()
         return RecommendationDecisionResponse(action=request.action, selected_fragrance_id=selected)
 
     def wear(
         self, user_id: UUID, recommendation_id: UUID, request: RecommendationWearRequest
     ) -> WearLogResponse:
+        self._forget_request_state()
         record = self.get(user_id, recommendation_id)
         selected = request.selected_fragrance_id or record.fragrance_id
         item = next((item for item in self._owned(user_id) if item.fragrance_id == selected), None)

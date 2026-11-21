@@ -303,14 +303,15 @@ def test_wear_tool_shortlist_preserves_saved_alternative_and_seven_daily_context
     for index in range(6):
         scent = make_fragrance(session, brand=brand, name=f"Decision scent {index}")
         make_collection_item(session, user=user, fragrance=scent)
-    now = datetime.now(UTC)
+    event_day = datetime.now(UTC) + timedelta(days=1)
     for hour, occasion in ((10, "work"), (18, "dinner"), (20, "party")):
+        starts_at = event_day.replace(hour=hour, minute=0, second=0, microsecond=0)
         session.add(
             CalendarEvent(
                 user_id=user.id,
                 title="Private title",
-                starts_at=now.replace(hour=hour),
-                ends_at=now.replace(hour=hour) + timedelta(hours=1),
+                starts_at=starts_at,
+                ends_at=starts_at + timedelta(hours=1),
                 event_type=occasion,
                 is_hidden=False,
                 setting="indoor",
@@ -335,7 +336,7 @@ def test_wear_tool_shortlist_preserves_saved_alternative_and_seven_daily_context
         assert len(json.dumps(result, ensure_ascii=False)) <= 24000
         first = result["recommendations"][0]
         assert first["decision"]["selected_fragrance_id"] == str(selected)
-        assert first["alternatives"][0]["fragrance"]["id"] == str(selected)
+        assert first["fragrance"]["id"] == str(selected)
     week = tools.execute("get_week_plan", "{}")
     assert len({entry["context"]["local_date"] for entry in week["recommendations"]}) == 7
     assert all(entry["context"]["source"] == "day" for entry in week["recommendations"])

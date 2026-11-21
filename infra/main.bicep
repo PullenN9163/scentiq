@@ -42,6 +42,9 @@ param migrationJobName string
 @minLength(2)
 @maxLength(32)
 param hybridBridgeJobName string = 'scentiq-hybrid-bridge-${environmentName}'
+@description('Bounded 2-minute trial cadence for hybrid bridge dispatch and result consumption.')
+@allowed(['*/2 * * * *'])
+param hybridBridgeCronExpression string = '*/2 * * * *'
 @description('Optional Azure Arc managed identity principal for the home worker.')
 param hybridWorkerPrincipalId string = ''
 param hybridCatalogVersion string = 'catalog-v1'
@@ -58,6 +61,34 @@ param azureOpenAIEndpoint string = ''
 @description('Operator-created model deployment supporting Responses and function tools.')
 param azureOpenAIDeployment string = ''
 param agentEnabled bool = true
+param aiRankingShadowEnabled bool = false
+param aiRankingTodayEnabled bool = false
+param aiRankingWeekEnabled bool = false
+param aiRankingDiscoveryEnabled bool = false
+param aiRankingLayeringEnabled bool = false
+param aiRankingAdvisorEnabled bool = false
+@minValue(0)
+@maxValue(5)
+param aiMonthlyBudgetUsd int = 5
+@description('Emergency rollback switch for the faster discovery client experience.')
+param fastDiscoveryEnabled bool = true
+@description('Emergency rollback switch for premium signed-in interface styling.')
+param premiumUiEnabled bool = true
+@description('Switch for the Atelier interface. Set to false to return to the previous interface without a code change.')
+param atelierUiEnabled bool = true
+@description('Frequency in seconds for each synthetic availability check.')
+@allowed([900])
+param availabilityFrequencySeconds int = 900
+@description('One supported Azure region for synthetic availability checks.')
+@allowed(['us-tx-sn1-azr'])
+param availabilityTestLocation string = 'us-tx-sn1-azr'
+@description('Daily Log Analytics ingestion quota in GiB; a quota can cap usage but is not a guaranteed cost stop.')
+@allowed(['0.1', '0.5'])
+param logDailyQuotaGb string = '0.1'
+@description('Log Analytics retention in days.')
+@minValue(31)
+@maxValue(31)
+param logRetentionDays int = 31
 
 param apiImage string = 'scentiqacrdevus.azurecr.io/scentiq-api@sha256:63804207a705c4140ea2be122fc846a05a264beac35be55f29eac23f7d33ff7b'
 param webImage string = 'scentiqacrdevus.azurecr.io/scentiq-web@sha256:cd2bcadef061c1b9bf3933623a9de3aefd0b88868f1f6be09808296895ebb3d7'
@@ -133,6 +164,8 @@ module monitoring 'modules/monitoring.bicep' = {
     applicationInsightsName: applicationInsightsName
     workspaceExistingTags: workspaceExistingTags
     commonTags: commonTags
+    logDailyQuotaGb: logDailyQuotaGb
+    logRetentionDays: logRetentionDays
   }
 }
 
@@ -523,6 +556,13 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
       { name: 'HYBRID_ALGORITHM_VERSION', value: hybridAlgorithmVersion }
       { name: 'RECOMMENDATION_MAX_AGE_SECONDS', value: string(recommendationMaxAgeSeconds) }
       { name: 'AGENT_ENABLED', value: string(agentEnabled) }
+      { name: 'AI_RANKING_SHADOW_ENABLED', value: string(aiRankingShadowEnabled) }
+      { name: 'AI_RANKING_TODAY_ENABLED', value: string(aiRankingTodayEnabled) }
+      { name: 'AI_RANKING_WEEK_ENABLED', value: string(aiRankingWeekEnabled) }
+      { name: 'AI_RANKING_DISCOVERY_ENABLED', value: string(aiRankingDiscoveryEnabled) }
+      { name: 'AI_RANKING_LAYERING_ENABLED', value: string(aiRankingLayeringEnabled) }
+      { name: 'AI_RANKING_ADVISOR_ENABLED', value: string(aiRankingAdvisorEnabled) }
+      { name: 'AI_MONTHLY_BUDGET_USD', value: string(aiMonthlyBudgetUsd) }
       { name: 'AZURE_OPENAI_ENDPOINT', value: azureOpenAIEndpoint }
       { name: 'AZURE_OPENAI_DEPLOYMENT', value: azureOpenAIDeployment }
       { name: 'AGENT_PROMPT_VERSION', value: 'scentiq-agent-v1' }
@@ -546,7 +586,7 @@ module api 'modules/container-app.bicep' = if (deployApplications) {
   }
 }
 
-module agentAccess 'modules/agent-access.bicep' = if (agentEnabled && !empty(foundryAccountName)) {
+module agentAccess 'modules/agent-access.bicep' = if ((agentEnabled || aiRankingTodayEnabled || aiRankingWeekEnabled || aiRankingDiscoveryEnabled || aiRankingLayeringEnabled || aiRankingAdvisorEnabled) && !empty(foundryAccountName)) {
   name: 'agent-access-${environmentName}'
   scope: resourceGroup(foundryResourceGroupName)
   params: {
@@ -601,6 +641,9 @@ module web 'modules/container-app.bicep' = if (deployApplications) {
       { name: 'PUBLIC_APP_URL', value: 'https://${webAppName}.${containerEnvironment.outputs.defaultDomain}' }
       { name: 'API_INTERNAL_URL', value: 'https://${api!.outputs.fqdn}' }
       { name: 'NEXT_PUBLIC_CATALOG_REMOTE_IMAGES', value: 'true' }
+      { name: 'SCENTIQ_FAST_DISCOVERY_ENABLED', value: string(fastDiscoveryEnabled) }
+      { name: 'SCENTIQ_PREMIUM_UI_ENABLED', value: string(premiumUiEnabled) }
+      { name: 'SCENTIQ_ATELIER_UI_ENABLED', value: string(atelierUiEnabled) }
       { name: 'NEXT_PUBLIC_CLERK_SIGN_IN_URL', value: '/sign-in' }
       { name: 'NEXT_PUBLIC_CLERK_SIGN_UP_URL', value: '/sign-up' }
     ]
@@ -635,6 +678,7 @@ module hybridBridge 'modules/scheduled-hybrid-bridge.bicep' = if (deployApplicat
     image: apiImage
     environmentName: environmentName
     catalogVersion: hybridCatalogVersion
+    cronExpression: hybridBridgeCronExpression
     storageAccountUrl: storageBlobEndpoint
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
     databaseSecretUri: databaseSecretUri
@@ -658,6 +702,8 @@ module availabilityTests 'modules/availability-test.bicep' = {
     environmentName: environmentName
     webFqdn: availabilityWebFqdn
     applicationInsightsResourceId: monitoring.outputs.applicationInsightsResourceId
+    frequencySeconds: availabilityFrequencySeconds
+    locationId: availabilityTestLocation
     commonTags: commonTags
   }
 }
@@ -706,7 +752,6 @@ output applicationInsightsResourceId string = monitoring.outputs.applicationInsi
 @secure()
 output applicationInsightsConnectionString string = monitoring.outputs.applicationInsightsConnectionString
 output availabilityTestIds array = [
-  availabilityTests.outputs.rootTestId
   availabilityTests.outputs.apiStatusTestId
 ]
 output observabilityWorkbookId string = observabilityWorkbook.outputs.workbookId

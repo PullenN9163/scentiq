@@ -15,6 +15,8 @@ from scentiq_api.services.wear_recommendations import WearRecommendationService
 
 
 def test_conversion_decisions_feedback_and_isolation(session: Session) -> None:
+    from scentiq_api.repositories import HybridJobRepository
+
     user = make_user(session, email="conversion@example.test")
     other = make_user(session, email="foreignconversion@example.test")
     brand = make_brand(session, name="ConversionBrand")
@@ -38,13 +40,24 @@ def test_conversion_decisions_feedback_and_isolation(session: Session) -> None:
     assert entry.recommendation_id == recommendation.id
     assert entry.fragrance_id == selected
     feedback = WearFeedbackService(session)
+    jobs = HybridJobRepository(session)
+    assert jobs.current_input_version(user.id) == 0
     assert feedback.get(user.id, entry.id) is None
     saved = feedback.put(
         user.id, entry.id, WearFeedbackRequest(rating=5, longevity=8, projection="moderate")
     )
     assert saved.rating == 5
+    assert jobs.current_input_version(user.id) == 1
     updated = feedback.put(user.id, entry.id, WearFeedbackRequest(rating=4))
     assert updated.id == saved.id
+    assert jobs.current_input_version(user.id) == 2
+    edited = feedback.put(
+        user.id,
+        entry.id,
+        WearFeedbackRequest(rating=4, longevity=9, projection="strong", comments="More detail"),
+    )
+    assert edited.rating == 4
+    assert jobs.current_input_version(user.id) == 2
     with pytest.raises(ApiError):
         feedback.get(other.id, entry.id)
     with pytest.raises(ApiError):

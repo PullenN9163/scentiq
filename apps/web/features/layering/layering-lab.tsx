@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useTransition, type FormEvent } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { useCallback, useRef, useState, useTransition, type FormEvent } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Plus, Sparkles, X } from "lucide-react";
+import { SurfaceOptions } from "@/features/recommendations/surface-options";
 import { CatalogImage } from "@/components/catalog-image";
+import { ExperienceBackdrop } from "@/components/shared/experience";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +35,7 @@ import type {
   StackMode,
 } from "@/types/layering";
 import styles from "./layering-lab.module.css";
+import { LayeringStudioCanvas } from "./layering-studio-canvas";
 
 const modes: StackMode[] = ["safe", "balanced", "contrast", "experimental"];
 const goals: Record<LayeringGoal, string> = {
@@ -52,8 +55,24 @@ const goals: Record<LayeringGoal, string> = {
   winter: "Winter",
 };
 const percent = (value: number) => `${Math.round(value * 100)}%`;
+const scoreOutOf100 = (value: number) => `${Math.round(value * 100)} out of 100`;
+const roleLabel = (role: "anchor" | "bridge" | "accent") =>
+  role === "anchor"
+    ? "Your main scent"
+    : role === "bridge"
+      ? "Ties them together"
+      : "Adds a twist";
 const stackKey = (stack: LayeringStackSuggestion) =>
   stack.items.map((item) => item.fragrance.id).join(":");
+
+type StudioDraft = {
+  id: string;
+  stackIds: string[];
+  mode: StackMode;
+  goal: LayeringGoal | null;
+  evaluation: LayeringStackSuggestion;
+  source: "custom" | "saved";
+};
 
 export function LayeringLab({
   owned,
@@ -98,10 +117,49 @@ export function LayeringLab({
     wears: LayeringStackWear[];
   } | null>(null);
   const [detail, setDetail] = useState<LayeringStackSuggestion | null>(null);
+  const [collectionQuery, setCollectionQuery] = useState("");
   const [deleting, setDeleting] = useState<SavedLayeringStack | null>(null);
+  const [replacementCandidate, setReplacementCandidate] = useState<string | null>(null);
+  const [replacementTarget, setReplacementTarget] = useState<string | null>(null);
+  const [focusedBottleId, setFocusedBottleId] = useState<string | null>(null);
+  const draftSequence = useRef(initialStack ? 1 : 0);
+  const [drafts, setDrafts] = useState<StudioDraft[]>(() =>
+    initialStack
+      ? [{
+          id: "draft-1",
+          stackIds: initialStack.items.map((item) => item.fragrance.id),
+          mode: initialStack.mode,
+          goal: initialStack.goal ?? null,
+          evaluation: initialStack,
+          source: "custom",
+        }]
+      : [],
+  );
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(
+    initialStack ? "draft-1" : null,
+  );
+  const manualSelection = useRef(Boolean(initialStack));
   const requestVersion = useRef(0);
+  const selectSurprise = useCallback((choice: import("@/types/api").DiscoveryResult | LayeringStackSuggestion) => {
+    if (!("items" in choice))return;
+    requestVersion.current++;setStackIds([]);setEvaluation(null);setAnchor(choice.items[0].fragrance.id);
+    setReplacementCandidate(null);setReplacementTarget(null);setFocusedBottleId(null);
+    setIntelligence(previous=>({...previous,suggestions:[choice,...previous.suggestions.filter(item=>stackKey(item)!==stackKey(choice))]}));
+  },[]);
+  const selectRestoredSurprise = useCallback((choice: import("@/types/api").DiscoveryResult | LayeringStackSuggestion) => {
+    if (!manualSelection.current) selectSurprise(choice);
+  }, [selectSurprise]);
   const reducedMotion = useReducedMotion();
   const selectedAnchor = owned.find((item) => item.id === anchor);
+  const visibleOwned = owned.filter((item) =>
+    `${item.name} ${item.brand.name}`.toLowerCase().includes(collectionQuery.trim().toLowerCase()),
+  );
+  const currentEvaluation = evaluation && evaluation.mode === mode && (evaluation.goal ?? null) === goal && evaluation.items.map((item) => item.fragrance.id).join(":") === stackIds.join(":") ? evaluation : null;
+  const composition = !pending ? stackIds.length ? currentEvaluation : intelligence.suggestions.find((stack) => stack.items[0]?.fragrance.id === anchor && stack.mode === mode && (stack.goal ?? null) === goal) : undefined;
+  const compositionItems = composition?.items ?? (stackIds.length ? stackIds : [anchor]).flatMap((id, index) => {
+    const fragrance = owned.find((item) => item.id === id);
+    return fragrance ? [{ fragrance, role: index === 0 ? "anchor" : "accent", suggested_sprays: null }] : [];
+  });
 
   function run(action: () => Promise<void>) {
     setError("");
@@ -119,6 +177,9 @@ export function LayeringLab({
     nextMode: StackMode,
     nextGoal: LayeringGoal | null,
   ) {
+    setReplacementCandidate(null);
+    setReplacementTarget(null);
+    setFocusedBottleId(null);
     const version = ++requestVersion.current;
     run(async () => {
       const next = await getLayeringIntelligence({
@@ -129,26 +190,108 @@ export function LayeringLab({
       if (version === requestVersion.current) setIntelligence(next);
     });
   }
-  function updateStack(ids: string[]) {
-    setStackIds(ids);
+  function evaluateSelection(
+    ids: string[],
+    nextMode: StackMode = mode,
+    nextGoal: LayeringGoal | null = goal,
+  ) {
+    setEvaluation(null);
+    setReplacementCandidate(null);
+    setReplacementTarget(null);
     const version = ++requestVersion.current;
-    if (ids.length < 2) {
-      setEvaluation(null);
-      return;
-    }
+    if (ids.length < 2) return;
     run(async () => {
-      const result = await evaluateLayerStack(ids, mode, goal);
-      if (version === requestVersion.current) setEvaluation(result);
+      const result = await evaluateLayerStack(ids, nextMode, nextGoal);
+      if (version === requestVersion.current) {
+        setEvaluation(result);
+        retainEvaluatedDraft(ids, nextMode, nextGoal, result);
+      }
     });
   }
-  function edit(stack: LayeringStackSuggestion) {
-    setStackIds(stack.items.map((item) => item.fragrance.id));
+  function retainEvaluatedDraft(
+    ids: string[],
+    nextMode: StackMode,
+    nextGoal: LayeringGoal | null,
+    result: LayeringStackSuggestion,
+  ) {
+    const draftId = activeDraftId ?? `draft-${++draftSequence.current}`;
+    if (!activeDraftId) setActiveDraftId(draftId);
+    const existing = drafts.find((item) => item.id === draftId);
+    const nextDraft: StudioDraft = {
+      id: draftId,
+      stackIds: ids,
+      mode: nextMode,
+      goal: nextGoal,
+      evaluation: result,
+      source: existing?.source ?? "custom",
+    };
+    setDrafts((items) => [
+      ...items.filter((item) => item.id !== draftId),
+      nextDraft,
+    ]);
+  }
+  function startNewBlend() {
+    requestVersion.current++;
+    manualSelection.current = true;
+    setActiveDraftId(null);
+    setStackIds([]);
+    setEvaluation(null);
+    setReplacementCandidate(null);
+    setReplacementTarget(null);
+    setFocusedBottleId(null);
+  }
+  function openDraft(draft: StudioDraft) {
+    requestVersion.current++;
+    manualSelection.current = true;
+    setActiveDraftId(draft.id);
+    setStackIds(draft.stackIds);
+    setMode(draft.mode);
+    setGoal(draft.goal);
+    setEvaluation(draft.evaluation);
+    setAnchor(draft.stackIds[0] ?? anchor);
+    setReplacementCandidate(null);
+    setReplacementTarget(null);
+    setFocusedBottleId(null);
+  }
+  function updateStack(ids: string[]) {
+    manualSelection.current = true;
+    setStackIds(ids);
+    evaluateSelection(ids);
+  }
+  function adoptComposition(stack: LayeringStackSuggestion, source: StudioDraft["source"] = "custom", forceNew = false) {
+    requestVersion.current++;
+    manualSelection.current = true;
+    const ids = stack.items.map((item) => item.fragrance.id);
+    const active = drafts.find((item) => item.id === activeDraftId);
+    const sameActive = !forceNew && active && stackKey(active.evaluation) === stackKey(stack);
+    const draftId = sameActive ? active.id : `draft-${++draftSequence.current}`;
+    setDrafts((items) => [
+      ...items.filter((item) => item.id !== draftId),
+      {id:draftId, stackIds:ids, mode:stack.mode, goal:stack.goal ?? null, evaluation:stack, source},
+    ]);
+    setActiveDraftId(draftId);
+    setStackIds(ids);
     setEvaluation(stack);
     setMode(stack.mode);
     setGoal(stack.goal ?? null);
     setAnchor(stack.items[0].fragrance.id);
+    setReplacementCandidate(null);
+    setReplacementTarget(null);
+    setFocusedBottleId(null);
+  }
+  function edit(stack: LayeringStackSuggestion, source: StudioDraft["source"] = "custom") {
+    adoptComposition(stack, source, source === "saved");
+    focusBuilder();
+  }
+  function focusBuilder() {
+    requestAnimationFrame(() => {
+      const builder = document.getElementById("layer-stack-builder");
+      builder?.scrollIntoView?.({behavior: reducedMotion ? "instant" : "smooth", block:"start"});
+      builder?.focus({preventScroll:true});
+    });
   }
   function openSave(stack: LayeringStackSuggestion) {
+    adoptComposition(stack);
     setName("");
     setSaving(stack);
   }
@@ -169,6 +312,7 @@ export function LayeringLab({
           name,
         );
         setSaved((items) => [result, ...items]);
+        if (activeDraftId) setDrafts((items) => items.map((item) => item.id === activeDraftId ? {...item, source:"saved"} : item));
         setSaving(null);
       }
       setMessage("Combination saved");
@@ -236,35 +380,147 @@ export function LayeringLab({
     );
 
   return (
-    <section className="page">
-      <PageHeader
-        eyebrow="Layer with intention"
-        title="Layering Lab"
-        description="Choose an anchor. Explore what complements it, then make the combination your own."
-      />
-      <p className="data-note">
-        Olfactory guidance from recorded notes and your history. Spray plans are
-        starting points; combined performance is not guaranteed.
-      </p>
+    <section
+      className={`page experience-page ${styles.experience}`}
+      aria-label="Layering studio"
+    >
+      <ExperienceBackdrop tone="blend" />
+      <header className={styles.studioHeader}>
+        <div className={styles.studioBrand}>
+          <span className={styles.brandMark}>S</span>
+          <div><p>ScentIQ</p><h1>Layering Studio</h1></div>
+        </div>
+        <p className={styles.sessionMeta}>LIVE SESSION · {drafts.length} {drafts.length === 1 ? "BLEND" : "BLENDS"}</p>
+        <Button variant="secondary" onClick={() => document.getElementById("saved-blends")?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" })}>My blends</Button>
+      </header>
       {error ? <p role="alert">{error}</p> : null}
       {message ? <p role="status">{message}</p> : null}
-      <Card>
+      <section className={styles.composition} aria-label="Fragrance composition" aria-busy={pending}>
+        <div className={styles.compositionCopy} role="region" aria-label="ScentIQ read">
+          <p className="eyebrow">ScentIQ read</p>
+          <h2>{composition ? composition.verdict : <>A scent that is<br />uniquely yours.</>}</h2>
+          <p>{composition ? composition.explanation.why_they_fit[0] ?? "Explore the recorded notes behind this combination." : stackIds.length ? "Your composition is ready to explore. Adjust the ingredients in the stack builder to evaluate the recorded evidence." : "Choose your anchor and discover a new dimension in the fragrances you already own."}</p>
+          <div className={styles.compositionStats}>
+            <div><strong>{composition ? scoreOutOf100(composition.score) : "—"}</strong><span>Blend guidance</span></div>
+            <div><strong>{composition ? composition.total_sprays : "—"}</strong><span>Starting sprays</span></div>
+            <div><strong>{composition ? composition.evidence_summary : "—"}</strong><span>Information confidence</span></div>
+          </div>
+          <Button disabled={pending} onClick={() => { if (composition) edit(composition); else { if (!stackIds.length) { manualSelection.current = true; setStackIds([anchor]); setEvaluation(null); } focusBuilder(); } }}><Sparkles size={16} />{composition ? "Refine this blend" : stackIds.length ? "Continue composing" : "Compose a blend"}</Button>
+          <p className="data-note">{pending ? "Comparing your fragrances…" : composition ? `Guidance, not a guarantee · ${composition.items.length}-scent composition` : "Your collection is the palette."}</p>
+        </div>
+        <LayeringStudioCanvas
+          items={compositionItems}
+          composition={composition}
+          pending={pending}
+          reducedMotion={reducedMotion}
+          focusedId={focusedBottleId}
+          onFocus={(id) => {
+            if (!stackIds.length && composition) adoptComposition(composition);
+            setFocusedBottleId(id);
+          }}
+          onMove={(id, direction) => {
+            const index = stackIds.indexOf(id);
+            const target = index + direction;
+            if (index < 0 || target < 0 || target >= stackIds.length) return;
+            const next = [...stackIds];
+            [next[index], next[target]] = [next[target], next[index]];
+            setFocusedBottleId(id);
+            updateStack(next);
+          }}
+          onRemove={(id) => {
+            setFocusedBottleId(null);
+            updateStack(stackIds.filter((value) => value !== id));
+          }}
+          onReplace={(id) => {
+            if (!stackIds.includes(id)) return;
+            setReplacementCandidate(null);
+            setReplacementTarget(id);
+            document.getElementById("fragrance-shelf")?.scrollIntoView({behavior: reducedMotion ? "auto" : "smooth", block:"nearest"});
+          }}
+          onAdd={() => {
+            if (!stackIds.length && composition) adoptComposition(composition);
+            setFocusedBottleId(null);
+            document.getElementById("fragrance-shelf")?.scrollIntoView({behavior: reducedMotion ? "auto" : "smooth", block:"nearest"});
+          }}
+        />
+      </section>
+      <AnimatePresence mode="wait" initial={false}>
+      {composition ? (
+        <motion.section
+          key={`${stackKey(composition)}:${composition.mode}:${composition.goal ?? "balanced"}`}
+          className={styles.resultStory}
+          aria-label="Blend explanation"
+          initial={reducedMotion ? false : "hidden"}
+          animate="visible"
+          exit={reducedMotion ? undefined : "hidden"}
+          variants={{
+            hidden: { opacity: 0 },
+            visible: { opacity: 1, transition: reducedMotion ? { duration: 0 } : { staggerChildren: 0.07 } },
+          }}
+        >
+          {[
+            ["Why they fit", composition.explanation.why_they_fit],
+            ["What changes", composition.explanation.what_changes],
+            ["Watch out for", composition.explanation.watch_out_for],
+          ].map(([heading, lines]) => (
+            <motion.div
+              key={heading as string}
+              variants={reducedMotion ? undefined : { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: motionTokens.panel } }}
+            >
+              <h2>{heading}</h2>
+              {(lines as string[]).map((line) => <p key={line}>{line}</p>)}
+            </motion.div>
+          ))}
+        </motion.section>
+      ) : null}
+      </AnimatePresence>
+      <Card className={styles.directionPanel}>
         <CardContent>
-          <h2 className="serif">Build around this scent</h2>
-          <div className={styles.picker} aria-label="Choose your anchor">
-            {owned.map((item) => (
+          <p className="eyebrow">Blend direction</p>
+          <h2 className="serif">Build a scent with a point of view.</h2>
+          <p>Choose the feeling, set your appetite for contrast, then compose from your shelf.</p>
+          <section id="fragrance-shelf" aria-label="Your fragrance shelf" className={styles.shelfSection}>
+          <div className={styles.shelfHeading}><h3>Your fragrance shelf</h3><span>Tap to add · swipe to explore</span></div>
+          <label className={styles.searchLabel}>
+            Search your collection
+            <input
+              className="input"
+              type="search"
+              value={collectionQuery}
+              onChange={(event) => setCollectionQuery(event.target.value)}
+            />
+          </label>
+          <div className={styles.picker} aria-label="Choose fragrances">
+            {visibleOwned.map((item) => (
               <button
                 type="button"
                 key={item.id}
                 className={styles.scentChoice}
-                aria-label={`Choose anchor ${item.name}`}
-                aria-pressed={item.id === anchor}
+                aria-label={stackIds.includes(item.id)
+                  ? `${item.name} is in this blend`
+                  : replacementTarget
+                    ? `Replace ${owned.find((value) => value.id === replacementTarget)?.name ?? "selected fragrance"} with ${item.name}`
+                    : `Add ${item.name}`}
+                aria-pressed={stackIds.includes(item.id)}
                 disabled={pending}
                 onClick={() => {
-                  setAnchor(item.id);
-                  setStackIds([]);
-                  setEvaluation(null);
-                  suggest(item.id, mode, goal);
+                  manualSelection.current = true;
+                  if (replacementTarget) {
+                    if (stackIds.includes(item.id) || !stackIds.includes(replacementTarget)) return;
+                    const next = stackIds.map((value) => value === replacementTarget ? item.id : value);
+                    setReplacementTarget(null);
+                    setFocusedBottleId(item.id);
+                    updateStack(next);
+                    return;
+                  }
+                  if (stackIds.includes(item.id)) return;
+                  if (stackIds.length >= 3) {
+                    setReplacementCandidate(item.id);
+                    return;
+                  }
+                  const next = stackIds.length ? [...stackIds, item.id] : [item.id];
+                  setAnchor(next[0]);
+                  updateStack(next);
                 }}
               >
                 <CatalogImage
@@ -279,6 +535,27 @@ export function LayeringLab({
               </button>
             ))}
           </div>
+          {replacementCandidate ? (
+            <section className={styles.replaceTray} aria-label="Replace a fragrance">
+              <div><strong>Canvas full</strong><span>Choose what {owned.find((item) => item.id === replacementCandidate)?.name} should replace.</span></div>
+              {stackIds.map((id) => {
+                const item = owned.find((fragrance) => fragrance.id === id);
+                return item ? (
+                  <Button key={id} variant="secondary" aria-label={`Replace ${item.name}`} onClick={() => {
+                    if (!replacementCandidate || stackIds.includes(replacementCandidate) || !stackIds.includes(id)) {
+                      setReplacementCandidate(null);
+                      return;
+                    }
+                    const next = stackIds.map((value) => value === id ? replacementCandidate : value);
+                    setReplacementCandidate(null);
+                    updateStack(next);
+                  }}>{item.name}</Button>
+                ) : null;
+              })}
+              <Button variant="ghost" onClick={() => setReplacementCandidate(null)}>Cancel</Button>
+            </section>
+          ) : null}
+          </section>
           {selectedAnchor ? (
             <div className={styles.anchorSummary}>
               <Badge>Anchor</Badge>
@@ -296,10 +573,10 @@ export function LayeringLab({
           <div className={styles.controls} aria-label="Layer toward a goal">
             <Button
               variant={goal === null ? "primary" : "secondary"}
-              disabled={pending}
               onClick={() => {
                 setGoal(null);
-                suggest(anchor, mode, null);
+                if (stackIds.length >= 2) evaluateSelection(stackIds, mode, null);
+                else suggest(anchor, mode, null);
               }}
             >
               Keep it balanced
@@ -307,22 +584,19 @@ export function LayeringLab({
             {intelligence.supported_goals.map((item) => (
               <Button
                 key={item}
-                disabled={pending}
                 variant={goal === item ? "primary" : "secondary"}
                 onClick={() => {
                   setGoal(item);
-                  suggest(anchor, mode, item);
-                  if (stackIds.length >= 2) {
-                    setEvaluation(null);
-                    setStackIds([]);
-                  }
+                  if (stackIds.length >= 2) evaluateSelection(stackIds, mode, item);
+                  else suggest(anchor, mode, item);
                 }}
               >
                 {goals[item]}
               </Button>
             ))}
           </div>
-          <div className={styles.controls} aria-label="Layering style">
+          <h3>How adventurous?</h3>
+          <div className={styles.controls} aria-label="How adventurous">
             {modes.map((item) => (
               <Button
                 key={item}
@@ -330,31 +604,21 @@ export function LayeringLab({
                 disabled={pending}
                 onClick={() => {
                   setMode(item);
-                  setStackIds([]);
-                  setEvaluation(null);
-                  suggest(anchor, item, goal);
+                  if (stackIds.length >= 2) evaluateSelection(stackIds, item, goal);
+                  else suggest(anchor, item, goal);
                 }}
               >
                 {item}
               </Button>
             ))}
+            <SurfaceOptions key={`${mode}:${goal}`} surface="layering" parameters={{mode,goal}} onChoice={selectSurprise} onRestoreChoice={selectRestoredSurprise} restore={!initialA && !initialStack && stackIds.length === 0} enabled={owned.length >= 2} choiceVersion={requestVersion.current}/>
             <Button
               variant="secondary"
               disabled={pending}
               onClick={() => {
-                setStackIds([]);
-                setEvaluation(null);
-                suggest(undefined, mode, goal);
-              }}
-            >
-              <Sparkles size={16} />
-              Surprise me
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => {
                 setStackIds([anchor]);
                 setEvaluation(null);
+                focusBuilder();
               }}
             >
               Build a custom stack
@@ -365,6 +629,34 @@ export function LayeringLab({
       <div aria-live="polite">
         {pending ? <p>Comparing your owned fragrances…</p> : null}
       </div>
+      <section aria-label="Session blends">
+        <h2 className="serif">Session blends</h2>
+        <div className={`${styles.controls} ${styles.sessionList}`}>
+          <Button variant="secondary" onClick={startNewBlend}>New blend</Button>
+          <AnimatePresence initial={false}>
+          {drafts.map((draft) => (
+            <motion.div
+              key={draft.id}
+              layout={!reducedMotion}
+              className={styles.sessionEcho}
+              initial={reducedMotion ? false : { opacity: 0, scale: 0.88, x: -10 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={reducedMotion ? undefined : { opacity: 0, scale: 0.92 }}
+              transition={reducedMotion ? { duration: 0 } : motionTokens.panel}
+            >
+              <Button
+                variant={draft.id === activeDraftId ? "primary" : "ghost"}
+                aria-label={`${draft.evaluation.verdict} · ${Math.round(draft.evaluation.score * 100)}`}
+                aria-current={draft.id === activeDraftId ? "true" : undefined}
+                onClick={() => openDraft(draft)}
+              >
+                {draft.evaluation.verdict} · {Math.round(draft.evaluation.score * 100)}
+              </Button>
+            </motion.div>
+          ))}
+          </AnimatePresence>
+        </div>
+      </section>
       <section aria-label="Ranked layering suggestions">
         <h2 className="serif">Supporting scents, ranked for you</h2>
         <div className={styles.suggestions}>
@@ -381,16 +673,16 @@ export function LayeringLab({
                         imageUrl={item.fragrance.image_url ?? null}
                         className={styles.smallImage}
                       />
-                      <Badge>{item.role}</Badge>
+                      <Badge>{roleLabel(item.role)}</Badge>
                       <strong>{item.fragrance.name}</strong>
                     </div>
                   ))}
                 </div>
                 <p>
-                  <strong>{percent(stack.score)}</strong> stack score ·{" "}
+                  <strong>{stack.verdict}</strong> · {scoreOutOf100(stack.score)} ·{" "}
                   {stack.items.length === 3 ? "Three-scent stack" : "Pair"}
                 </p>
-                <p>{stack.reasons[0]}</p>
+                <p>{stack.explanation.why_they_fit[0]}</p>
                 <p>
                   {stack.total_sprays} sprays ·{" "}
                   {stack.items
@@ -401,11 +693,10 @@ export function LayeringLab({
                     .join(" + ")}
                 </p>
                 <p className="data-note">
-                  {percent(stack.evidence_coverage)} recorded evidence ·{" "}
-                  {stack.evidence_label}
+                  {stack.evidence_summary}
                 </p>
                 <div className={styles.controls}>
-                  <Button variant="secondary" onClick={() => edit(stack)}>
+                  <Button variant="secondary" disabled={pending} onClick={() => edit(stack)}>
                     Try / edit stack
                   </Button>
                   <Button disabled={pending} onClick={() => openSave(stack)}>
@@ -424,7 +715,7 @@ export function LayeringLab({
         ) : null}
       </section>
       {stackIds.length ? (
-        <section aria-label="Stack builder" className={styles.builder}>
+        <section id="layer-stack-builder" tabIndex={-1} aria-label="Stack builder" className={styles.builder}>
           <h2 className="serif">Smart stack builder</h2>
           <p>
             Move a fragrance earlier to make it the anchor. Add up to two
@@ -453,7 +744,7 @@ export function LayeringLab({
                     className={styles.smallImage}
                   />
                   <Badge>
-                    {index === 0 ? "anchor" : (scored?.role ?? "accent")}
+                    {roleLabel(index === 0 ? "anchor" : (scored?.role ?? "accent"))}
                   </Badge>
                   <strong>{item.name}</strong>
                   <div className={styles.controls}>
@@ -523,18 +814,16 @@ export function LayeringLab({
           {evaluation && stackIds.length >= 2 ? (
             <Card>
               <CardContent>
-                <h3>{percent(evaluation.score)} whole-stack score</h3>
+                <h3>{evaluation.verdict}</h3>
+                <p>{scoreOutOf100(evaluation.score)}</p>
                 <Progress
                   value={Math.round(evaluation.score * 100)}
                   label="Whole-stack score"
                 />
-                <h3>Why it works</h3>
-                <p>{evaluation.reasons[0]}</p>
-                <h3>What this adds</h3>
-                <p>
-                  {evaluation.complementary_signals.join(", ") ||
-                    "Closely related recorded profiles"}
-                </p>
+                <h3>Why they fit</h3>
+                {evaluation.explanation.why_they_fit.map((line) => <p key={line}>{line}</p>)}
+                <h3>What changes</h3>
+                {evaluation.explanation.what_changes.map((line) => <p key={line}>{line}</p>)}
                 <h3>How to apply it</h3>
                 <ol>
                   {[...evaluation.items]
@@ -544,7 +833,7 @@ export function LayeringLab({
                         <strong>{item.fragrance.name}</strong> ·{" "}
                         {item.suggested_sprays}{" "}
                         {item.suggested_sprays === 1 ? "spray" : "sprays"} ·{" "}
-                        {item.role}
+                        {roleLabel(item.role)}
                       </li>
                     ))}
                 </ol>
@@ -557,14 +846,8 @@ export function LayeringLab({
                   {evaluation.best_contexts.join(" · ") ||
                     "Not enough season/context evidence yet"}
                 </p>
-                <h3>Watch for</h3>
-                {evaluation.warnings.length ? (
-                  evaluation.warnings.map((warning) => (
-                    <p key={warning}>{warning}</p>
-                  ))
-                ) : (
-                  <p>No metadata-based overload warning.</p>
-                )}
+                <h3>Watch out for</h3>
+                {evaluation.explanation.watch_out_for.map((line) => <p key={line}>{line}</p>)}
                 <div className={styles.controls}>
                   <Button
                     variant="secondary"
@@ -599,7 +882,7 @@ export function LayeringLab({
           )}
         </section>
       ) : null}
-      <section aria-label="Saved combinations">
+      <section id="saved-blends" aria-label="Saved combinations">
         <h2 className="serif">Saved combinations</h2>
         <div className={styles.suggestions}>
           {saved.map((stack) => (
@@ -645,7 +928,7 @@ export function LayeringLab({
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={() => edit(stack.suggestion)}
+                    onClick={() => edit(stack.suggestion, "saved")}
                   >
                     Edit / duplicate
                   </Button>

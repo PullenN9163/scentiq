@@ -4,9 +4,9 @@ The hybrid worker moves CPU-heavy recommendation scoring off the live request pa
 
 ## Runtime shape
 
-- Azure Container Apps runs a scheduled `hybrid-bridge` job every minute. It dispatches pending database jobs to `hybrid-jobs` and promotes messages from `hybrid-results`.
+- Azure Container Apps runs one `hybrid-bridge` replica every two minutes during the bounded cadence trial. It dispatches pending database jobs to `hybrid-jobs` and promotes messages from `hybrid-results`. Each successful bridge run currently completes in roughly 30–50 seconds; verify online queue freshness remains within five minutes before retaining this cadence.
 - Azure Storage keeps job bodies in the private `system` container and pointers in `hybrid-jobs`, `hybrid-results`, and `hybrid-jobs-poison`. A lifecycle rule removes job bodies after two days.
-- The home server runs the worker continuously. Five failed deliveries move a job to the poison queue. Replayed results are idempotent, and results for an obsolete input version are rejected.
+- The home server runs one worker process continuously. Five failed deliveries move a job to the poison queue. Replayed results are idempotent, and results for an obsolete input version are rejected. Idle polling backs off from five seconds to at most one minute and resets when a job is processed.
 - A missing or offline worker does not break pages. The API returns the newest snapshot, or computes the existing synchronous fallback on a cache miss.
 
 ## Home server baseline
@@ -64,5 +64,7 @@ systemctl show scentiq-hybrid-worker -p ActiveState -p NRestarts
 ```
 
 Alert when the oldest queue message is over five minutes, poison messages are nonzero, the bridge job fails, or the worker is inactive. To pause home processing safely, stop the service; Azure pages continue using snapshots and fallback scoring. Do not purge queues during an outage.
+
+For an outage rehearsal, keep the API online while the worker is stopped for a supervised 24-hour period in nonproduction. Confirm reads continue with stale state clearly marked and bounded synchronous fallback, then restart one worker and verify current-version promotion and fresh status within five minutes. Capture timestamps, queue age, errors, and request latency for the rehearsal; this repository does not assert that a live 24-hour outage has already been completed. A unit regression uses a 24-hour-old stored snapshot but is not a soak test.
 
 For rollback, disable the service and scheduled bridge job. Existing synchronous endpoints remain available throughout rollout.

@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from scentiq_api.auth import AuthenticatedUser, CurrentUserDependency
@@ -21,7 +21,13 @@ def create_insights_router(
     def collection_insights(
         session: Annotated[Session, Depends(get_session)],
         user: Annotated[AuthenticatedUser, Depends(current_user)],
+        lite: Annotated[bool, Query()] = False,
     ) -> CollectionInsightsResponse:
-        return InsightsService(InsightsRepository(session)).for_user(user.user_id)
+        service = InsightsService(InsightsRepository(session))
+        # Pages that only draw a summary (the accord strip, an empty-collection check) ask for
+        # the totals and accord shares; the full breakdown loads every owned fragrance.
+        if lite:
+            return service.totals_for_user(user.user_id, with_accords=True)
+        return service.for_user(user.user_id)
 
     return router

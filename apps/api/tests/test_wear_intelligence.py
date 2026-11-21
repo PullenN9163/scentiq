@@ -178,7 +178,8 @@ def test_visible_materially_different_events_and_user_overrides(session: Session
     service = WearRecommendationService(session, clock=lambda: NOW)
     plan = service.today(user.id)
     assert len(plan.recommendations) == 3
-    assert {result.context.occasion for result in plan.recommendations} == {None, "work", "date"}
+    assert {result.context.occasion for result in plan.recommendations} == {"work", "date"}
+    assert plan.recommendations[0].context.occasion == "work"
     assert all(result.recommended_sprays <= 2 for result in plan.recommendations)
     assert not any(
         "Strong projection" in warning

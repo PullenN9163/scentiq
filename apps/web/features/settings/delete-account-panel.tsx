@@ -15,8 +15,8 @@ import { deleteAccount } from "@/lib/server/actions";
  * the pending mark back if that fails — so a failure leaves the account usable
  * rather than stranded.
  */
-export function DeleteAccountPanel() {
-  const [confirming, setConfirming] = useState(false);
+export function DeleteAccountPanel({ startConfirming = false, onCancel }: { startConfirming?: boolean; onCancel?: () => void } = {}) {
+  const [confirming, setConfirming] = useState(startConfirming);
   const [state, action, pending] = useActionState(deleteAccount, idleState);
 
   if (state.status === "success") {
@@ -54,7 +54,7 @@ export function DeleteAccountPanel() {
         <Button variant="danger" type="submit" disabled={pending}>
           {pending ? "Deleting…" : "Permanently delete"}
         </Button>
-        <Button type="button" variant="ghost" onClick={() => setConfirming(false)}>
+        <Button type="button" variant="ghost" onClick={() => { setConfirming(false); onCancel?.(); }}>
           Cancel
         </Button>
       </div>

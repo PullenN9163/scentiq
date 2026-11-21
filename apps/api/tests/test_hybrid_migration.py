@@ -11,5 +11,7 @@ def test_intelligence_migration_extends_the_hybrid_schema_head() -> None:
 
     scripts = ScriptDirectory.from_config(config)
 
-    assert scripts.get_heads() == ["20261007_0008_layer_stacks"]
+    assert scripts.get_heads() == ["20261121_0017"]
+    assert scripts.get_revision("20261115_0016").down_revision == "20261020_0015"
+    assert scripts.get_revision("20261020_0015").down_revision == "20261020_0014"
     assert scripts.get_revision("20261005_0007").down_revision == "20260928_0006"

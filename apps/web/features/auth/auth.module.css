@@ -1,0 +1,160 @@
+.frame {
+  display: grid;
+  grid-template-rows: 160px minmax(0, 1fr);
+  min-height: 100dvh;
+  background: var(--ground);
+  color: var(--ink);
+}
+
+@media (min-width: 900px) {
+  .frame {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: none;
+  }
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  background: var(--accord-amber-field);
+  color: var(--ink-on-field);
+}
+
+.wordmark {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: var(--space-3) var(--page-gutter) 0;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (min-width: 900px) {
+  .wordmark {
+    margin-top: var(--space-6);
+  }
+}
+
+.collage {
+  position: absolute;
+  inset: 0;
+}
+
+.plate {
+  position: absolute;
+  border-radius: var(--radius-lg);
+  background: var(--af);
+}
+
+.plateFresh {
+  left: 12%;
+  bottom: 12%;
+  width: 34%;
+  height: 56%;
+}
+
+.plateWoody {
+  left: 52%;
+  bottom: 0;
+  width: 44%;
+  height: 48%;
+}
+
+.column {
+  display: grid;
+  place-items: start center;
+  padding: var(--space-7) var(--page-gutter);
+}
+
+@media (min-width: 900px) {
+  .column {
+    place-items: center;
+  }
+}
+
+.form {
+  display: grid;
+  gap: var(--space-5);
+  width: min(100%, 400px);
+}
+
+.lede {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+/* Clerk elements. The hosted form keeps its own markup; these classes set the Atelier surfaces. */
+.clerkCard {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.clerkHidden {
+  display: none;
+}
+
+.clerkPrimary,
+.clerkSocial {
+  min-height: 48px;
+  border-radius: var(--radius-pill);
+  box-shadow: none;
+  font: 600 15px/1.2 var(--font-sans);
+}
+
+.clerkPrimary {
+  background: var(--action);
+  color: var(--on-action);
+  border: 0;
+}
+
+.clerkSocial {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+}
+
+.clerkInput {
+  min-height: 48px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font: 400 15px/1.4 var(--font-sans);
+  box-shadow: none;
+}
+
+.clerkDivider {
+  background: var(--line);
+}
+
+.clerkFooter {
+  background: transparent;
+  color: var(--ink-muted);
+}
+
+.clerkLink {
+  color: var(--ink);
+  font-weight: 500;
+  text-underline-offset: 4px;
+}
+
+:global(html[data-theme="dark"]) .clerkAppleIcon {
+  filter: invert(1);
+}
+
+.clerkPrimary:focus-visible,
+.clerkSocial:focus-visible,
+.clerkInput:focus-visible,
+.clerkLink:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

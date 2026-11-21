@@ -1,4 +1,5 @@
 import json
+from uuid import uuid4
 
 import pytest
 from domain_fixtures import make_brand, make_collection_item, make_fragrance, make_user
@@ -45,7 +46,7 @@ def test_dispatcher_uploads_minimal_member_input_and_enqueues_once(session: Sess
     payload_text = transport.blobs[job.input_blob]
     payload = json.loads(payload_text)
     assert "private@example.com" not in payload_text
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["job_id"] == str(job.id)
     assert "user_id" not in payload
     assert payload["collection"] == [
@@ -323,7 +324,10 @@ def test_recommendation_processor_always_returns_the_versioned_bundle_shape() ->
     )
 
     assert process_recommendation(request) == {
+        "profile_version": None,
         "discovery": [],
+        "discovery_modes": {"balance": [], "taste": [], "explore": []},
+        "discovery_seasonal": {"spring": [], "summer": [], "fall": [], "winter": []},
         "layering": {"safe": [], "contrast": [], "experimental": []},
     }
 
@@ -406,6 +410,25 @@ def test_recommendation_processor_scores_discovery_and_all_layering_modes() -> N
     result = process_recommendation(request)
 
     assert result["discovery"][0]["fragrance"]["name"] == "Candidate"
-    assert result["discovery"][0]["taste_match"] == 0.85
+    # Unrated ownership is weaker evidence than explicit or positively rated taste.
+    assert result["discovery"][0]["taste_match"] == 0.425
+    assert set(result["discovery_modes"]) == {"balance", "taste", "explore"}
+    assert result["discovery_modes"]["taste"][0]["mode"] == "taste"
+    assert result["discovery_seasonal"]["summer"][0]["season_fit"] == 0.7
+    assert result["discovery_seasonal"]["spring"] == []
     assert set(result["layering"]) == {"safe", "contrast", "experimental"}
     assert all(len(suggestions) == 1 for suggestions in result["layering"].values())
+
+    broad_request = request.model_copy(
+        update={
+            "candidates": [
+                candidate.model_copy(
+                    update={"fragrance": candidate.fragrance.model_copy(update={"id": uuid4()})}
+                )
+                for _ in range(205)
+            ]
+        }
+    )
+    broad_result = process_recommendation(broad_request)
+    assert len(broad_result["discovery_modes"]["balance"]) == 200
+    assert len(broad_result["discovery_seasonal"]["summer"]) == 200

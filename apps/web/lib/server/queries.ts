@@ -39,6 +39,11 @@ export function getDashboardPage(): Promise<DashboardPageData> {
   return apiClient.get<DashboardPageData>("/api/v1/page-data/dashboard");
 }
 
+/** Today needs only the headline counts, so it skips the full insights breakdown. */
+export function getDashboardLite(): Promise<DashboardPageData> {
+  return apiClient.get<DashboardPageData>("/api/v1/page-data/dashboard?lite=true");
+}
+
 export function getLayeringPage(): Promise<LayeringPageData> {
   return apiClient.get<LayeringPageData>("/api/v1/page-data/layering");
 }
@@ -57,6 +62,11 @@ export function getRecommendations(): Promise<RecommendationBundle> {
 
 export function getCollection(): Promise<CollectionItem[]> {
   return apiClient.get<CollectionItem[]>("/api/v1/collection");
+}
+
+/** Totals and accord shares only: for pages that draw a summary rather than the full report. */
+export function getInsightsSummary(): Promise<CollectionInsights> {
+  return apiClient.get<CollectionInsights>("/api/v1/insights/collection?lite=true");
 }
 
 export function getInsights(): Promise<CollectionInsights> {

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -8,6 +9,10 @@ DiscoveryMode = Literal["balance", "taste", "explore", "seasonal"]
 
 
 class DiscoveryResult(BaseModel):
+    generation_mode: str = "baseline"
+    profile_version: str | None = None
+    model_version: str | None = None
+    ai_reasons: list[str] = Field(default_factory=list)
     fragrance: FragranceSummary
     taste_match: float = Field(ge=0, le=1)
     collection_expansion: float = Field(ge=0, le=1)
@@ -17,3 +22,12 @@ class DiscoveryResult(BaseModel):
     season_fit: float | None = None
     evidence_coverage: float = Field(default=0, ge=0, le=1)
     reasons: list[str] = Field(default_factory=list)
+
+
+class DiscoveryFeedResponse(BaseModel):
+    items: list[DiscoveryResult]
+    mode: DiscoveryMode
+    limit: int
+    offset: int
+    generated_at: datetime | None = None
+    refresh_status: Literal["fresh", "pending", "fallback"]

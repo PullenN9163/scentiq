@@ -2,14 +2,17 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import distinct, func, or_, select
 from sqlalchemy.orm import Session, joinedload, load_only, selectinload
 from sqlalchemy.sql.base import ExecutableOption
 
 from scentiq_api.models import (
+    Accord,
     Fragrance,
     FragranceAccord,
+    FragranceCommunityStats,
     FragranceNote,
+    FragranceSeason,
     FragranceSimilarity,
     UserCollectionItem,
 )
@@ -88,6 +91,66 @@ class DiscoveryRepository:
             _max_limit=DISCOVERY_CANDIDATE_POOL,
             _options=_discovery_options(),
         )
+
+    def price_values(self, fragrance_ids: set[UUID]) -> dict[UUID, float]:
+        """Community price-value averages, as the ``minimum_value`` filter reads them."""
+        if not fragrance_ids:
+            return {}
+        statement = select(
+            FragranceCommunityStats.fragrance_id, FragranceCommunityStats.price_value_average
+        ).where(
+            FragranceCommunityStats.fragrance_id.in_(fragrance_ids),
+            FragranceCommunityStats.price_value_average.is_not(None),
+        )
+        return {
+            fragrance_id: float(value) for fragrance_id, value in self._session.execute(statement)
+        }
+
+    def catalog_facets(self, user_id: UUID) -> dict[str, dict[str, int]]:
+        """Fragrance counts per filter value over the whole eligible catalog.
+
+        Eligible means shared and not owned by the member, i.e. the set the discovery
+        candidate query draws its most popular rows from. Keys match the filter
+        semantics of ``FragranceRepository.search``: gender exactly, family and accord
+        name case-insensitively, season by presence of a season row.
+        """
+        owned_ids = set(
+            self._session.scalars(
+                select(UserCollectionItem.fragrance_id).where(
+                    UserCollectionItem.user_id == user_id,
+                    UserCollectionItem.status == "owned",
+                )
+            )
+        )
+        eligible = [Fragrance.owner_user_id.is_(None)]
+        if owned_ids:
+            eligible.append(Fragrance.id.not_in(owned_ids))
+
+        family = func.lower(Fragrance.olfactory_family)
+        accord_name = func.lower(Accord.name)
+        statements = {
+            "gender": select(Fragrance.gender, func.count(Fragrance.id))
+            .where(*eligible, Fragrance.gender.is_not(None))
+            .group_by(Fragrance.gender),
+            "family": select(family, func.count(Fragrance.id))
+            .where(*eligible, Fragrance.olfactory_family.is_not(None))
+            .group_by(family),
+            "season": select(FragranceSeason.season, func.count(distinct(Fragrance.id)))
+            .select_from(Fragrance)
+            .join(FragranceSeason, FragranceSeason.fragrance_id == Fragrance.id)
+            .where(*eligible)
+            .group_by(FragranceSeason.season),
+            "accord": select(accord_name, func.count(distinct(Fragrance.id)))
+            .select_from(Fragrance)
+            .join(FragranceAccord, FragranceAccord.fragrance_id == Fragrance.id)
+            .join(Accord, Accord.id == FragranceAccord.accord_id)
+            .where(*eligible)
+            .group_by(accord_name),
+        }
+        return {
+            kind: {str(key): int(count) for key, count in self._session.execute(statement)}
+            for kind, statement in statements.items()
+        }
 
     def similarity_strengths(
         self, candidate_ids: set[UUID], owned_ids: set[UUID]

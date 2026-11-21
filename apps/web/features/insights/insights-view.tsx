@@ -1,14 +1,9 @@
 "use client";
 
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { ExperienceBackdrop } from "@/components/shared/experience";
+import "./insights.css";
 
 import Link from "next/link";
 
@@ -30,8 +25,9 @@ import type { CollectionInsights } from "@/types/api";
 export function InsightsView({ insights }: { insights: CollectionInsights }) {
   if (insights.total_items === 0) {
     return (
-      <section className="page">
-        <PageHeader
+      <section className="page experience-page insights-experience">
+        <ExperienceBackdrop tone="insights" />
+      <PageHeader
           eyebrow="Collection intelligence"
           title="Insights"
           description="Patterns in what you own and reach for."
@@ -68,22 +64,18 @@ export function InsightsView({ insights }: { insights: CollectionInsights }) {
     ],
   ];
 
-  const accordChartData = insights.accords.map((slice) => ({
-    name: slice.label,
-    value: Math.round(slice.share * 100),
-  }));
-
   const classifiedItems = insights.total_items - insights.unclassified_items;
 
   return (
-    <section className="page">
+    <section className="page experience-page insights-experience">
+      <ExperienceBackdrop tone="insights" />
       <PageHeader
         eyebrow="Collection intelligence"
         title="Insights"
         description="Patterns in what you own, reach for, and might use more intentionally."
       />
 
-      <div className="metric-grid">
+      <div className="metric-grid insight-metrics">
         {metrics.map(([label, value]) => (
           <Card key={label}>
             <CardContent>
@@ -105,83 +97,12 @@ export function InsightsView({ insights }: { insights: CollectionInsights }) {
         </p>
       ) : null}
 
-      <div className="grid grid-2 insight-notes">
+      <div className="insight-charts insight-stage">
         <Card>
           <CardContent>
-            <p className="eyebrow">Ownership mix</p>
-            <h2 className="serif">Formats on the shelf</h2>
-            {insights.ownership_types.map((slice) => (
-              <p key={slice.label}>
-                <strong>{slice.label}</strong> · {slice.count}
-              </p>
-            ))}
-            {insights.custom_items > 0 ? (
-              <p className="data-note">
-                {insights.custom_items}{" "}
-                {insights.custom_items === 1 ? "item is" : "items are"} your own
-                custom entries.
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent>
-            <p className="eyebrow">Status</p>
-            <h2 className="serif">Where things stand</h2>
-            <p>
-              <strong>Owned</strong> · {insights.owned_items}
-            </p>
-            <p>
-              <strong>Wishlist</strong> · {insights.wishlist_items}
-            </p>
-            <p>
-              <strong>Finished or sold</strong> · {insights.retired_items}
-            </p>
-            <p className="data-note">
-              Retired items keep their wear history, so past totals stay
-              accurate.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="insight-charts">
-        <Card>
-          <CardContent>
-            <p className="eyebrow">Character</p>
+            <p className="eyebrow">Your scent fingerprint</p>
             <h2 className="serif">Accord distribution</h2>
-            {accordChartData.length === 0 ? (
-              <p className="muted">
-                None of your fragrances carry accord data yet, so there is
-                nothing to chart.
-              </p>
-            ) : (
-              <div
-                className="chart"
-                role="img"
-                aria-label={`Accord distribution: ${accordChartData
-                  .map((item) => `${item.name} ${item.value}%`)
-                  .join(", ")}`}
-              >
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart
-                    data={accordChartData}
-                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="#ded8cc"
-                    />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#b7772f" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+            <ScentFingerprint accords={insights.accords} />
             {insights.unclassified_items > 0 ? (
               <p className="data-note">
                 Based on {classifiedItems} of {insights.total_items} items.{" "}
@@ -219,6 +140,47 @@ export function InsightsView({ insights }: { insights: CollectionInsights }) {
             <p className="muted">
               {insights.distinct_fragrances_worn} of {insights.total_items} have
               been worn.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-2 insight-notes">
+        <Card>
+          <CardContent>
+            <p className="eyebrow">Ownership mix</p>
+            <h2 className="serif">Formats on the shelf</h2>
+            {insights.ownership_types.map((slice) => (
+              <p key={slice.label}>
+                <strong>{slice.label}</strong> · {slice.count}
+              </p>
+            ))}
+            {insights.custom_items > 0 ? (
+              <p className="data-note">
+                {insights.custom_items}{" "}
+                {insights.custom_items === 1 ? "item is" : "items are"} your own
+                custom entries.
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent>
+            <p className="eyebrow">Status</p>
+            <h2 className="serif">Where things stand</h2>
+            <p>
+              <strong>Owned</strong> · {insights.owned_items}
+            </p>
+            <p>
+              <strong>Wishlist</strong> · {insights.wishlist_items}
+            </p>
+            <p>
+              <strong>Finished or sold</strong> · {insights.retired_items}
+            </p>
+            <p className="data-note">
+              Retired items keep their wear history, so past totals stay
+              accurate.
             </p>
           </CardContent>
         </Card>
@@ -369,7 +331,7 @@ export function InsightsView({ insights }: { insights: CollectionInsights }) {
           </CardContent>
         </Card>
       </div>
-      <Card className="coverage-card">
+      <Card className="coverage-card insight-coverage">
         <CardContent>
           <p className="eyebrow">Season coverage — source-backed</p>
           <h2 className="serif">Where your wardrobe is ready</h2>
@@ -421,11 +383,42 @@ export function InsightsView({ insights }: { insights: CollectionInsights }) {
             <p>Not enough occasion history yet.</p>
           )}
           <p className="data-note">
-            Shares describe your classified fragrances. They support reflection
-            on your collection.
+            Season percentages show shares of recorded season classifications.
+            A fragrance can have more than one classification.
           </p>
         </CardContent>
       </Card>
     </section>
   );
+}
+
+function ScentFingerprint({ accords }: { accords: CollectionInsights["accords"] }) {
+  const [selected, setSelected] = useState(0);
+  const reduced = useReducedMotion();
+  const effectiveSelected = Math.min(selected, Math.max(0, accords.length - 1));
+  const current = accords[effectiveSelected];
+  if (!current) return <p className="muted">None of your fragrances carry accord data yet, so there is nothing to chart.</p>;
+  const visible = accords.slice(0, 6);
+  if (effectiveSelected >= 6) visible[5] = current;
+  return <div className="fingerprint">
+    <div className="fingerprint__visual">
+      <div className="fingerprint__halo" aria-hidden="true" />
+      <svg viewBox="0 0 360 360" aria-hidden="true" className="fingerprint__rings">
+        {visible.map((accord, index) => {
+          const radius = 156 - index * 16;
+          const circumference = 2 * Math.PI * radius;
+          const accordIndex = accords.indexOf(accord);
+          return <g key={accord.label} data-accord={accord.label} data-selected={effectiveSelected === accordIndex} className={`fingerprint__ring fingerprint__ring--${accordIndex % 12}`}>
+            <circle cx="180" cy="180" r={radius} fill="none" stroke="var(--border)" strokeWidth="7" opacity=".5" />
+            <motion.circle cx="180" cy="180" r={radius} fill="none" stroke="var(--ring-color)" strokeWidth={effectiveSelected === accordIndex ? 10 : 7} strokeLinecap="round" transform="rotate(-90 180 180)" strokeDasharray={circumference} initial={reduced ? false : { strokeDashoffset: circumference }} animate={{ strokeDashoffset: circumference * (1 - Math.min(1, Math.max(0, accord.share))) }} transition={{ duration: reduced ? 0 : .7 }} opacity={effectiveSelected === accordIndex ? 1 : .55} />
+          </g>;
+        })}
+      </svg>
+      <div className="fingerprint__center" data-testid="selected-profile" aria-live="polite"><span className="eyebrow">Recorded share</span><strong>{Math.round(current.share * 100)}<small>%</small></strong><span>{current.label}</span><small>{current.count} {current.count === 1 ? "fragrance" : "fragrances"}</small></div>
+    </div>
+    <div className="fingerprint__legend">
+      {accords.map((accord, index) => <button type="button" key={accord.label} aria-label={`Inspect ${accord.label} accord`} aria-pressed={effectiveSelected === index} onClick={() => setSelected(index)} className={`fingerprint__choice fingerprint__ring--${index % 12}`}><i aria-hidden="true" /><span>{accord.label}</span><strong>{Math.round(accord.share * 100)}%</strong></button>)}
+      <p className="data-note">Share of the displayed recorded accord occurrences, not the percentage of bottles. Select an accord to explore your profile.</p>
+    </div>
+  </div>;
 }

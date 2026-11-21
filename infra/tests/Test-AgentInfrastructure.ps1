@@ -26,7 +26,21 @@ $web = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployment
 $apiEnvironment = @($api.properties.parameters.environmentVariables.value)
 Require (@($apiEnvironment | Where-Object name -eq 'AZURE_OPENAI_ENDPOINT').Count -eq 1) 'API must receive the inference endpoint.'
 Require (@($apiEnvironment | Where-Object name -eq 'AZURE_OPENAI_DEPLOYMENT').Count -eq 1) 'API must receive the deployment name.'
+foreach ($surface in @('TODAY', 'WEEK', 'DISCOVERY', 'LAYERING', 'ADVISOR', 'SHADOW')) {
+    Require (@($apiEnvironment | Where-Object name -eq "AI_RANKING_${surface}_ENABLED").Count -eq 1) "API must receive the $surface inference flag."
+}
+Require (@($apiEnvironment | Where-Object name -eq 'AI_MONTHLY_BUDGET_USD').Count -eq 1) 'API must receive the shared inference allowance.'
+Require ($template.parameters.aiMonthlyBudgetUsd.maxValue -eq 5 -and $template.parameters.aiMonthlyBudgetUsd.defaultValue -eq 5) 'Monthly inference allowance must default to and remain below the $5 ceiling.'
+
 $webConfiguration = $web.properties.parameters | ConvertTo-Json -Depth 100
-Require ($webConfiguration -notmatch 'AZURE_OPENAI|AGENT_|foundry') 'Provider configuration must stay out of the web workload.'
+Require ($webConfiguration -notmatch 'AZURE_OPENAI|AGENT_|AI_RANKING|AI_MONTHLY|foundry') 'Provider configuration must stay out of the web workload.'
+$webEnvironment = @($web.properties.parameters.environmentVariables.value)
+Require (@($webEnvironment | Where-Object name -eq 'SCENTIQ_FAST_DISCOVERY_ENABLED').Count -eq 1) 'Web workload must receive the server-side discovery rollback flag.'
+Require (@($webEnvironment | Where-Object name -eq 'SCENTIQ_PREMIUM_UI_ENABLED').Count -eq 1) 'Web workload must receive the server-side premium UI rollback flag.'
 Require (($template | ConvertTo-Json -Depth 100) -notmatch 'AZURE_OPENAI_API_KEY') 'Azure inference must use managed identity, without an API key secret.'
+$inferenceAlerts = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/scheduledQueryRules' -and $_.name -match 'scentiq-inference' })
+Require ($inferenceAlerts.Count -eq 1 -and $inferenceAlerts[0].copy.count -match 'inferenceSignals') 'Inference must monitor fallback, latency, allowance, and planned repeats.'
+$inferenceModules = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.properties.template.variables.inferenceSignals })
+Require ($inferenceModules.Count -eq 1 -and $inferenceModules[0].properties.template.variables.inferenceSignals.Count -eq 4) 'Four inference signals must be configured.'
+Require ($inferenceAlerts[0].properties.severity -eq 3) 'Inference rollout warnings must use operational severity 3.'
 Write-Output 'Agent infrastructure safety checks passed.'

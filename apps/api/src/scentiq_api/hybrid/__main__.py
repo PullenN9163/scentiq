@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     worker.add_argument("--algorithm-version", required=True)
     worker.add_argument("--once", action="store_true")
     worker.add_argument("--poll-seconds", type=float, default=5.0)
+    worker.add_argument("--max-poll-seconds", type=float, default=60.0)
     return parser
 
 
@@ -117,8 +118,13 @@ def _worker(args: argparse.Namespace, settings: HybridWorkerSettings) -> int:
         if args.once:
             print(json.dumps({"processed": processed}))
             return 0
-        if not processed:
-            time.sleep(args.poll_seconds)
+        if processed:
+            args.poll_seconds = 5.0
+        else:
+            time.sleep(min(max(args.poll_seconds, 1.0), max(args.max_poll_seconds, 1.0), 60.0))
+            args.poll_seconds = min(
+                max(args.poll_seconds, 1.0) * 2, max(args.max_poll_seconds, 1.0), 60.0
+            )
 
 
 def main(argv: Sequence[str] | None = None) -> int:

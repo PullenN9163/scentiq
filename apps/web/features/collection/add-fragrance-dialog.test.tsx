@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fragranceSummary } from "@/test/catalog-fixtures";
 
 import { AddFragranceDialog } from "./add-fragrance-dialog";
+import { searchCatalogPage } from "@/lib/server/actions";
 
 vi.mock("@/lib/server/actions", () => ({
   addToCollection: vi.fn(),
@@ -13,6 +14,13 @@ vi.mock("@/lib/server/actions", () => ({
 }));
 
 describe("AddFragranceDialog", () => {
+  it("keeps catalog results usable when load more fails", async () => {
+    vi.mocked(searchCatalogPage).mockRejectedValueOnce(new Error("offline"));
+    render(<AddFragranceDialog open onOpenChange={vi.fn()} catalog={[fragranceSummary()]} ownedFragranceIds={[]} />);
+    await userEvent.click(screen.getByRole("button", {name:"Load more"}));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load");
+    expect(screen.getByRole("radio", {name:/source scent/i})).toBeVisible();
+  });
   it("lets a member select a catalog result from an informative result list", async () => {
     render(
       <AddFragranceDialog

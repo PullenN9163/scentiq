@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from scentiq_api.schemas.wear_recommendations import RecommendationContext
 
-WEAR_ALGORITHM_VERSION = "wear-v1"
+WEAR_ALGORITHM_VERSION = "wear-v2"
 
 
 class CandidateInput(BaseModel):
@@ -23,6 +23,7 @@ class CandidateInput(BaseModel):
     days_since_wear: float | None = None
     wears_last_30_days: int = 0
     rejections: int = 0
+    too_strong_count: int = 0
 
 
 class ScoredCandidate(BaseModel):
@@ -136,6 +137,9 @@ def score_candidate(
     sprays -= int(hot) + int(conservative)
     sprays += int(cold and context.setting == "outdoor" and item.projection == "intimate")
     sprays = max(1, min(8, sprays, maximum_sprays if maximum_sprays is not None else 8))
+    if item.too_strong_count:
+        sprays = max(1, sprays - 1)
+        warnings.append("You found this scent too strong before; start with a lighter application.")
     positives = [
         (season / 15, "Source-backed seasonal match", bool(item.season_weights)),
         (occasion / 25, "Fits recorded occasion evidence", occasion_evidence),

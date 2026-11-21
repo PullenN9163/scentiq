@@ -7,7 +7,8 @@ import logging
 import time
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
+from uuid import uuid4
 
 from scentiq_api.agent.policy import AGENT_PROMPT_VERSION
 from scentiq_api.agent.provider import AgentProvider
@@ -46,6 +47,90 @@ class AgentService:
         usage: dict[str, Any] = {}
         yield {"type": "status", "label": "Checking your ScentIQ context…"}
         try:
+            message = request.message.casefold()
+            if any(
+                word in message for word in ("another", "different", "new recommendation")
+            ) and any(word in message for word in ("discover", "buy", "layer", "stack")):
+                from scentiq_api.schemas.surface_choices import SurfaceChoiceRequest
+                from scentiq_api.services.surface_choices import SurfaceChoiceService
+
+                surface: Literal["discovery", "layering"] = (
+                    "layering"
+                    if any(word in message for word in ("layer", "stack"))
+                    else "discovery"
+                )
+                choice = SurfaceChoiceService(self.tools.session).choose(
+                    self.tools.user_id,
+                    surface,
+                    SurfaceChoiceRequest(idempotency_key=uuid4()),
+                )
+                self.tools.session.commit()
+                if choice.selected is not None:
+                    yield {
+                        "type": "card",
+                        "card": {
+                            "kind": "layering" if surface == "layering" else "discover",
+                            "data": [choice.selected.model_dump(mode="json")],
+                        },
+                    }
+                yield {
+                    "type": "text_delta",
+                    "delta": (
+                        "Here is your next option using the default filters. "
+                        + (
+                            "This batch is exhausted; reset options on the page to browse again."
+                            if choice.options_exhausted
+                            else "Your selection is saved across the app."
+                        )
+                    ),
+                }
+                yield {"type": "done"}
+                return
+            # Only an explicit human request advances the shared displayed choice.
+            # The model itself retains read-only tools.
+            if any(
+                phrase in request.message.casefold()
+                for phrase in (
+                    "another option",
+                    "another recommendation",
+                    "different fragrance",
+                    "new recommendation",
+                )
+            ) and not any(
+                word in request.message.casefold() for word in ("discover", "buy", "layer", "stack")
+            ):
+                from scentiq_api.schemas.wear_recommendations import RecommendationNextRequest
+                from scentiq_api.services.recommendation_choices import RecommendationChoiceService
+                from scentiq_api.services.wear_recommendations import WearRecommendationService
+
+                plan = WearRecommendationService(self.tools.session).today(self.tools.user_id)
+                if plan.recommendations:
+                    option = RecommendationChoiceService(self.tools.session).next(
+                        self.tools.user_id,
+                        plan.recommendations[0].id,
+                        RecommendationNextRequest(
+                            idempotency_key=uuid4(),
+                            expected_fragrance_id=plan.recommendations[0].fragrance.id,
+                        ),
+                    )
+                    self.tools.session.commit()
+                    yield {
+                        "type": "card",
+                        "card": {"kind": "recommendation", "data": option.model_dump(mode="json")},
+                    }
+                    yield {
+                        "type": "text_delta",
+                        "delta": (
+                            "Here is another option from your collection."
+                            if option.fragrance.id != plan.recommendations[0].fragrance.id
+                            else (
+                                "You have seen every available option in this batch. "
+                                "Open Today to reset the options."
+                            )
+                        ),
+                    }
+                    yield {"type": "done"}
+                    return
             # Reserve part of the same overall deadline for the deterministic answer.
             async with asyncio.timeout(self.timeout_seconds * 0.9):
                 if self.provider is None:

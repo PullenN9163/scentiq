@@ -104,6 +104,12 @@ class CalendarEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     setting: Mapped[str | None] = mapped_column(String(40))
     formality: Mapped[str | None] = mapped_column(String(20))
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False)
+    classification_corrected: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )
+    classification_source: Mapped[str] = mapped_column(
+        String(20), default="keyword", server_default="keyword"
+    )
 
 
 class WeatherSnapshot(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
@@ -130,6 +136,7 @@ class WeatherSnapshot(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     condition: Mapped[str] = mapped_column(String(40))
     source: Mapped[str] = mapped_column(String(80))
     fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    hourly_forecast: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
 
 
 class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):

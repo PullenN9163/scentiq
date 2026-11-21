@@ -122,6 +122,16 @@ jobs:
           CLERK_ISSUER: ${{ vars.CLERK_ISSUER }}
           CLERK_AUDIENCE: ${{ vars.CLERK_AUDIENCE }}
           CLERK_AUTHORIZED_PARTIES: ${{ vars.CLERK_AUTHORIZED_PARTIES }}
+          AZURE_OPENAI_ENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ vars.AZURE_OPENAI_DEPLOYMENT }}
+          FOUNDRY_ACCOUNT_NAME: ${{ vars.FOUNDRY_ACCOUNT_NAME }}
+          FOUNDRY_RESOURCE_GROUP_NAME: ${{ vars.FOUNDRY_RESOURCE_GROUP_NAME }}
+          AI_RANKING_SHADOW_ENABLED: ${{ vars.AI_RANKING_SHADOW_ENABLED }}
+          AI_RANKING_TODAY_ENABLED: ${{ vars.AI_RANKING_TODAY_ENABLED }}
+          AI_RANKING_WEEK_ENABLED: ${{ vars.AI_RANKING_WEEK_ENABLED }}
+          AI_RANKING_DISCOVERY_ENABLED: ${{ vars.AI_RANKING_DISCOVERY_ENABLED }}
+          AI_RANKING_LAYERING_ENABLED: ${{ vars.AI_RANKING_LAYERING_ENABLED }}
+          AI_RANKING_ADVISOR_ENABLED: ${{ vars.AI_RANKING_ADVISOR_ENABLED }}
         run: >-
           az deployment sub create
           --name "scentiq-apps-${GITHUB_SHA::8}"
@@ -143,6 +153,16 @@ jobs:
           microsoftOAuthClientId="$MICROSOFT_OAUTH_CLIENT_ID"
           microsoftOAuthClientSecretSecretUri="$MICROSOFT_OAUTH_CLIENT_SECRET_SECRET_URI"
           integrationTokenEncryptionKeySecretUri="$INTEGRATION_TOKEN_ENCRYPTION_KEY_SECRET_URI"
+          azureOpenAIEndpoint="$AZURE_OPENAI_ENDPOINT"
+          azureOpenAIDeployment="$AZURE_OPENAI_DEPLOYMENT"
+          foundryAccountName="$FOUNDRY_ACCOUNT_NAME"
+          foundryResourceGroupName="${FOUNDRY_RESOURCE_GROUP_NAME:-$RESOURCE_GROUP}"
+          aiRankingShadowEnabled="${AI_RANKING_SHADOW_ENABLED:-false}"
+          aiRankingTodayEnabled="${AI_RANKING_TODAY_ENABLED:-false}"
+          aiRankingWeekEnabled="${AI_RANKING_WEEK_ENABLED:-false}"
+          aiRankingDiscoveryEnabled="${AI_RANKING_DISCOVERY_ENABLED:-false}"
+          aiRankingLayeringEnabled="${AI_RANKING_LAYERING_ENABLED:-false}"
+          aiRankingAdvisorEnabled="${AI_RANKING_ADVISOR_ENABLED:-false}"
           alertEmails="$ALERT_EMAILS"
           --only-show-errors
 

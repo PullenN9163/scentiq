@@ -1,13 +1,15 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { Field, FormMessage } from "@/components/shared/form-field";
 import { CatalogImage } from "@/components/catalog-image";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Sheet } from "@/components/atelier/sheet";
 import { Input } from "@/components/ui/input";
+import { NumericSlider } from "@/components/ui/numeric-slider";
 import { idleState, type ActionState } from "@/lib/action-state";
 import { addToCollection, createCustomFragrance, searchCatalogPage } from "@/lib/server/actions";
 import type { FragranceSummary } from "@/types/api";
@@ -24,18 +26,23 @@ export function AddFragranceDialog({
   onOpenChange,
   catalog,
   ownedFragranceIds,
+  variant = "dialog",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   catalog: FragranceSummary[];
   ownedFragranceIds: string[];
+  /** "sheet" renders the same form in the Atelier sheet. */
+  variant?: "dialog" | "sheet";
 }) {
+  const Surface = variant === "sheet" ? SheetSurface : DialogSurface;
   const [mode, setMode] = useState<"catalog" | "custom">("catalog");
   const [wasOpen, setWasOpen] = useState(open);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState(catalog);
   const [selectedId, setSelectedId] = useState("");
   const [isSearching, startSearch] = useTransition();
+  const [searchError, setSearchError] = useState<string | null>(null);
   const searchSequence = useRef(0);
   const isInitialSearch = useRef(true);
   // Close once the save has actually resolved, never optimistically, and from
@@ -60,6 +67,7 @@ export function AddFragranceDialog({
       setQuery("");
       setResults(catalog);
       setSelectedId("");
+      setSearchError(null);
     }
   }
 
@@ -72,10 +80,15 @@ export function AddFragranceDialog({
     const sequence = ++searchSequence.current;
     const handle = window.setTimeout(() => {
       startSearch(async () => {
+        setSearchError(null);
+        try {
         const next = await searchCatalogPage(query, 0);
         if (searchSequence.current === sequence) {
           setResults(next);
           setSelectedId("");
+        }
+        } catch {
+          if (searchSequence.current === sequence) setSearchError("Could not load catalog results. Try searching again.");
         }
       });
     }, 250);
@@ -86,8 +99,7 @@ export function AddFragranceDialog({
   }, [open, query]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Add fragrance" eyebrow="Collection">
+    <Surface open={open} onOpenChange={onOpenChange}>
         {/* Toggle buttons rather than an ARIA tab pattern: a real tablist needs
             arrow-key navigation, and a half-implemented one misleads screen
             reader users about how to move between the panels. */}
@@ -134,7 +146,7 @@ export function AddFragranceDialog({
                     <span>
                       <strong>{item.name}</strong>
                       <small>{item.brand.name}</small>
-                      <small>{formatConcentration(item.concentration)}</small>
+                      {item.concentration ? <small>{formatConcentration(item.concentration)}</small> : null}
                     </span>
                     <small>{isOwned ? "Already in collection" : "Select"}</small>
                   </label>
@@ -163,7 +175,7 @@ export function AddFragranceDialog({
               {(props) => <Input type="number" min="0" step="0.01" {...props} />}
             </Field>
             <Field name="remaining_ml" label="Remaining (ml)" state={addState}>
-              {(props) => <Input type="number" min="0" step="0.01" {...props} />}
+              {(props) => <NumericSlider label="Remaining (ml)" min={0} max={100} inputMax={null} step={0.01} {...props} />}
             </Field>
             <Field
               name="purchase_price"
@@ -197,15 +209,24 @@ export function AddFragranceDialog({
                   const sequence = searchSequence.current;
                   const requestQuery = query;
                   startSearch(async () => {
+                    setSearchError(null);
+                    try {
                     const more = await searchCatalogPage(requestQuery, results.length);
                     if (searchSequence.current === sequence && query === requestQuery) {
-                      setResults((current) => [...current, ...more]);
+                      setResults((current) => {
+                        const known = new Set(current.map(item=>item.id));
+                        return [...current, ...more.filter(item=>!known.has(item.id))];
+                      });
+                    }
+                    } catch {
+                      if (searchSequence.current === sequence) setSearchError("Could not load more fragrances. Your results are still here. Try again.");
                     }
                   });
                 }}
               >
                 Load more
               </Button>
+              {searchError && <p className="field-error" role="alert">{searchError}</p>}
             </div>
           </form>
         ) : (
@@ -262,13 +283,30 @@ export function AddFragranceDialog({
             ) : null}
           </form>
         )}
-      </DialogContent>
-    </Dialog>
+    </Surface>
   );
 }
 
 function formatConcentration(value: string | null): string {
-  if (!value) return "Concentration not recorded";
+  if (!value) return "";
   const words = value.replaceAll("_", " ").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+type SurfaceProps = { open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode };
+
+function DialogSurface({ open, onOpenChange, children }: SurfaceProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title="Add fragrance" eyebrow="Collection">{children}</DialogContent>
+    </Dialog>
+  );
+}
+
+function SheetSurface({ open, onOpenChange, children }: SurfaceProps) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title="Add fragrance">
+      <div className="atelier-legacy-form">{children}</div>
+    </Sheet>
+  );
 }

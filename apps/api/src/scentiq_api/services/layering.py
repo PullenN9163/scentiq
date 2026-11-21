@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import random
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from itertools import combinations
@@ -10,7 +12,7 @@ from uuid import UUID
 from scentiq_api.errors import not_found, unprocessable
 from scentiq_api.models import Fragrance, WearLog
 from scentiq_api.models.layer_stacks import LayerStack, LayerStackItem, LayerStackWear
-from scentiq_api.repositories import LayeringRepository
+from scentiq_api.repositories import HybridJobRepository, LayeringRepository
 from scentiq_api.schemas import LayeringMode, LayeringSuggestion
 from scentiq_api.schemas.layering import (
     LayeringGoal,
@@ -20,13 +22,17 @@ from scentiq_api.schemas.layering import (
     SavedLayeringStack,
 )
 from scentiq_api.services.fragrances import to_fragrance_summary
+from scentiq_api.services.hybrid_jobs import HybridJobService
 from scentiq_api.services.layer_stack_scoring import (
     AUTO_COLLECTION_LIMIT,
+    GOAL_SIGNALS,
     PAIR_BASE_LIMIT,
     THIRD_CANDIDATE_LIMIT,
     score_stack,
     supported_goals,
 )
+from scentiq_api.services.recommendation_scoring import pair_score
+from scentiq_api.services.taste_profile import TasteProfile, TasteProfileService
 
 
 def _weighted_keys(item: Fragrance, relationship: str) -> dict[str, float]:
@@ -34,6 +40,16 @@ def _weighted_keys(item: Fragrance, relationship: str) -> dict[str, float]:
     if relationship == "accord_links":
         return {link.accord.slug: float(link.weight) for link in links}
     return {link.note.slug: float(link.weight or 0.5) for link in links}
+
+
+@dataclass(frozen=True)
+class PreloadedLayering:
+    """Everything one suggestion run reads from the database, loaded once and reusable."""
+
+    owned: list[Fragrance]
+    profile: TasteProfile
+    history: list[LayerStack]
+    inputs: tuple[dict[UUID, float], int | None, dict[UUID, tuple[str | None, float | None]]]
 
 
 class LayeringService:
@@ -48,7 +64,7 @@ class LayeringService:
         self._repository = repository
 
     def _inputs(
-        self, user_id: UUID
+        self, user_id: UUID, profile: TasteProfile | None = None
     ) -> tuple[
         dict[UUID, float],
         int | None,
@@ -57,10 +73,14 @@ class LayeringService:
         collection = self._repository.collection_items(user_id)
         counts = self._repository.wear_counts(user_id)
         preferences = self._repository.preferences(user_id)
+        profile = profile or TasteProfileService(self._repository._session).for_user(user_id)
         affinity = {
             item.fragrance_id: 0.5
             + ((item.user_rating or 3) - 3) * 0.1
             + min(counts.get(item.fragrance_id, 0), 10) * 0.01
+            # Stack ratings also inform exact-stack history; bound the shared
+            # contribution so one rating cannot overwhelm composition evidence.
+            + 0.05 * profile.affinity(item.fragrance)
             for item in collection
         }
         performance = {
@@ -101,6 +121,7 @@ class LayeringService:
             history_affinity=past,
             maximum_sprays=maximum_sprays,
             performance=performance,
+            pairing_ratings=ratings,
         )
 
     def evaluate_stack(
@@ -130,6 +151,16 @@ class LayeringService:
             inputs=inputs,
         )
 
+    def preload(self, user_id: UUID, profile: TasteProfile | None = None) -> PreloadedLayering:
+        """One load of owned scents, taste, saved stacks and inputs for many suggestion runs."""
+        profile = profile or TasteProfileService(self._repository._session).for_user(user_id)
+        return PreloadedLayering(
+            owned=self._repository.owned(user_id),
+            profile=profile,
+            history=self._repository.stacks(user_id),
+            inputs=self._inputs(user_id, profile),
+        )
+
     def stack_suggestions(
         self,
         user_id: UUID,
@@ -140,10 +171,20 @@ class LayeringService:
         limit: int = 12,
         include_triples: bool = True,
         stack_size: Literal[2, 3] | None = None,
+        surprise_seed: int | None = None,
+        exclude_ids: set[UUID] | None = None,
+        preloaded: PreloadedLayering | None = None,
     ) -> list[LayeringStackSuggestion]:
-        owned = self._repository.owned(user_id)
-        history = self._repository.stacks(user_id)
-        inputs = self._inputs(user_id)
+        loaded = preloaded or self.preload(user_id)
+        owned, profile = loaded.owned, loaded.profile
+        owned = [
+            item
+            for item in owned
+            if item.id not in profile.excluded_ids and not (exclude_ids and item.id in exclude_ids)
+        ]
+        # Choose bounded anchors from personal affinity rather than alphabetic collection order.
+        owned.sort(key=lambda item: (-profile.affinity(item), str(item.id)))
+        history, inputs = loaded.history, loaded.inputs
         if inputs[1] is not None and inputs[1] < 2:
             return []
         if inputs[1] is not None and inputs[1] < 3:
@@ -155,8 +196,13 @@ class LayeringService:
             if not anchors:
                 raise not_found("Owned anchor fragrance not found")
         else:
-            # Surprise mode remains bounded and deterministic, ordered by collection metadata.
-            anchors = owned[:8]
+            # Bounded anchors. Surprise me (a seed) samples them at random; otherwise they follow
+            # personal affinity so plain suggestions stay deterministic.
+            anchors = (
+                random.Random(surprise_seed).sample(owned, min(8, len(owned)))
+                if surprise_seed is not None
+                else owned[:8]
+            )
         candidates = owned[:AUTO_COLLECTION_LIMIT]
         results: dict[tuple[UUID, ...], LayeringStackSuggestion] = {}
         for anchor in anchors:
@@ -193,10 +239,14 @@ class LayeringService:
                         key = tuple(sorted([*ids, third.id], key=str))
                         results.setdefault(key, stack)
         ranked = sorted(
-            (
-                value
-                for value in results.values()
-                if stack_size is None or len(value.items) == stack_size
+            self._apply_filters(
+                [
+                    value
+                    for value in results.values()
+                    if stack_size is None or len(value.items) == stack_size
+                ],
+                mode=mode,
+                goal=goal,
             ),
             key=lambda value: (
                 -value.score,
@@ -204,7 +254,55 @@ class LayeringService:
                 tuple(str(item.fragrance.id) for item in value.items),
             ),
         )
-        return ranked[: max(1, min(limit, 50))]
+        if surprise_seed is not None and ranked:
+            ranked = self._surprise_order(ranked, surprise_seed)
+        return [
+            row.model_copy(update={"profile_version": profile.version})
+            for row in ranked[: max(1, min(limit, 50))]
+        ]
+
+    @staticmethod
+    def _apply_filters(
+        stacks: list[LayeringStackSuggestion],
+        *,
+        mode: LayeringMode,
+        goal: LayeringGoal | None,
+    ) -> list[LayeringStackSuggestion]:
+        """Filters change which blends exist, not only their score.
+
+        Hard constraints fall back to the unfiltered list when they would remove everything,
+        so a sparse collection still gets suggestions.
+        """
+
+        def keep(stack: LayeringStackSuggestion) -> bool:
+            components = stack.score_components
+            if mode == "safe":
+                return components.bridge >= 0.35 and components.overload_penalty == 0
+            if mode in ("contrast", "experimental"):
+                return components.redundancy_penalty < 1
+            return True
+
+        kept = [stack for stack in stacks if keep(stack)] or stacks
+        if goal in GOAL_SIGNALS:
+            matched = [
+                stack for stack in kept if stack.goal_fit is not None and stack.goal_fit >= 0.1
+            ]
+            kept = matched or kept
+        return kept
+
+    @staticmethod
+    def _surprise_order(
+        ranked: list[LayeringStackSuggestion], seed: int
+    ) -> list[LayeringStackSuggestion]:
+        """Weighted random pick from the top results, favouring strong researched pairings."""
+        rng = random.Random(seed)
+        pool = ranked[:10]
+        weights = [
+            max(0.001, stack.score**4 * (0.6 + 0.8 * stack.score_components.known_pairing))
+            for stack in pool
+        ]
+        picked = rng.choices(range(len(pool)), weights=weights, k=1)[0]
+        return [pool[picked], *pool[:picked], *pool[picked + 1 :], *ranked[10:]]
 
     def intelligence_page(
         self,
@@ -213,10 +311,13 @@ class LayeringService:
         anchor_id: UUID | None = None,
         mode: LayeringMode = "balanced",
         goal: LayeringGoal | None = None,
+        surprise_seed: int | None = None,
     ) -> LayeringIntelligencePage:
         return LayeringIntelligencePage(
             supported_goals=supported_goals(self._repository.owned(user_id)),
-            suggestions=self.stack_suggestions(user_id, anchor_id=anchor_id, mode=mode, goal=goal),
+            suggestions=self.stack_suggestions(
+                user_id, anchor_id=anchor_id, mode=mode, goal=goal, surprise_seed=surprise_seed
+            ),
             saved=self.saved_stacks(user_id),
         )
 
@@ -250,9 +351,11 @@ class LayeringService:
             history=history,
         )
         if below_ceiling:
-            suggestion.warnings.append(
+            ceiling_warning = (
                 "This saved plan exceeds your current spray ceiling; edit it before wearing."
             )
+            suggestion.warnings.append(ceiling_warning)
+            suggestion.explanation.watch_out_for.append(ceiling_warning)
         ratings = [wear.rating for wear in stack.wears if wear.rating is not None]
         return SavedLayeringStack(
             id=stack.id,
@@ -369,6 +472,10 @@ class LayeringService:
         )
         stack.wears.append(wear)
         self._repository.flush()
+        if rating is not None:
+            HybridJobService(
+                HybridJobRepository(self._repository._session)
+            ).invalidate_recommendations(user_id, reason="layer_wear_rated")
         collection = {
             item.fragrance_id: item for item in self._repository.collection_items(user_id)
         }
@@ -398,8 +505,13 @@ class LayeringService:
             raise not_found("Combination wear not found")
         if rating not in range(1, 6):
             raise unprocessable("invalid_rating", "Rating must be between one and five")
+        previous_rating = wear.rating
         wear.rating = rating
         self._repository.flush()
+        if wear.rating != previous_rating:
+            HybridJobService(
+                HybridJobRepository(self._repository._session)
+            ).invalidate_recommendations(user_id, reason="layer_wear_rated")
         return self._wear_response(wear)
 
     def suggest(
@@ -419,7 +531,10 @@ class LayeringService:
             pairs = [tuple(owned)] if len(owned) == 2 else []
         else:
             pairs = list(combinations(self._repository.owned(user_id), 2))
+        profile = TasteProfileService(self._repository._session).for_user(user_id)
         for first, second in pairs:
+            if first.id in profile.excluded_ids or second.id in profile.excluded_ids:
+                continue
             first_notes = _weighted_keys(first, "note_links")
             second_notes = _weighted_keys(second, "note_links")
             shared_notes = sorted(set(first_notes) & set(second_notes))
@@ -436,12 +551,13 @@ class LayeringService:
             contrast_ratio = len(complementary) / max(
                 len(set(first_accords) | set(second_accords)), 1
             )
-            if mode == "safe":
-                score = 0.5 * shared_ratio + 0.35 * season_overlap + 0.15 * (1 - contrast_ratio)
-            elif mode == "contrast":
-                score = 0.65 * contrast_ratio + 0.25 * season_overlap + 0.1 * shared_ratio
-            else:
-                score = 0.75 * contrast_ratio + 0.25 * (1 - shared_ratio)
+            score = pair_score(
+                shared_ratio,
+                contrast_ratio,
+                season_overlap,
+                mode,
+                (profile.affinity(first) + profile.affinity(second)) / 2,
+            )
             results.append(
                 LayeringSuggestion(
                     first=to_fragrance_summary(first),

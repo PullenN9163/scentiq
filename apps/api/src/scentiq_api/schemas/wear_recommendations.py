@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from scentiq_api.schemas.catalog import FragranceSummary
 from scentiq_api.schemas.enums import Occasion, Season
+from scentiq_api.schemas.layering import LayeringStackSuggestion
 
 
 class RecommendationContext(BaseModel):
@@ -28,6 +29,10 @@ class RecommendationContext(BaseModel):
     precipitation_probability: float | None = None
     condition: str | None = None
     source: Literal["today", "day", "event", "manual", "agent"]
+    weather_resolution: Literal["hourly", "daily", "unavailable"] = "unavailable"
+    weather_stale: bool = False
+    weather_fetched_at: datetime | None = None
+    duration_minutes: int | None = None
 
 
 class RecommendationPreviewRequest(BaseModel):
@@ -98,6 +103,15 @@ class WearRecommendationResponse(WearRecommendationCandidate):
     algorithm_version: str
     alternatives: list[WearRecommendationCandidate]
     decision: RecommendationDecisionResponse | None = None
+    canonical_fragrance_id: UUID | None = None
+    generation_mode: str = "baseline"
+    model_version: str | None = None
+    profile_version: str | None = None
+    remaining_options: int = 0
+    options_exhausted: bool = False
+    # The best owned blend anchored on this pick, with ratios and where to spray. Computed
+    # when the plan is read and never persisted, so it always reflects the latest taste.
+    blend: LayeringStackSuggestion | None = None
 
 
 class WearRecommendationPlan(BaseModel):
@@ -105,3 +119,21 @@ class WearRecommendationPlan(BaseModel):
     local_date: date
     recommendations: list[WearRecommendationResponse]
     gaps: list[str]
+
+
+class RecommendationNextRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    idempotency_key: UUID
+    expected_fragrance_id: UUID | None = None
+    reset: bool = False
+
+
+class RecommendationFeedbackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    fragrance_id: UUID
+    reason: Literal["not_today", "too_strong", "dislike_scent"]
+
+
+class RecommendationFeedbackResponse(BaseModel):
+    id: UUID
+    reason: Literal["not_today", "too_strong", "dislike_scent"]

@@ -71,6 +71,9 @@ class CalendarEventResponse(BaseModel):
     occasion: Occasion
     formality: Formality | None = None
     is_hidden: bool
+    setting: str | None = None
+    classification_corrected: bool = False
+    classification_source: Literal["keyword", "member", "ai"] = "keyword"
     calendar_name: str | None = None
     provider: CalendarProviderValue | None = None
 
@@ -78,4 +81,7 @@ class CalendarEventResponse(BaseModel):
 class CalendarEventUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    is_hidden: bool
+    is_hidden: bool | None = None
+    occasion: Occasion | None = None
+    formality: Formality | None = None
+    setting: Literal["indoor", "outdoor", "mixed"] | None = None

@@ -243,6 +243,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discovery-feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Discovery Feed */
+        get: operations["discovery_feed_api_v1_discovery_feed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Events */
+        post: operations["record_events_api_v1_events_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/fragrances": {
         parameters: {
             query?: never;
@@ -606,6 +640,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/recommendation-options/{surface}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Choose */
+        post: operations["choose_api_v1_recommendation_options__surface__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/recommendations": {
         parameters: {
             query?: never;
@@ -685,6 +736,40 @@ export interface paths {
         put?: never;
         /** Decision */
         post: operations["decision_api_v1_recommendations__recommendation_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recommendations/{recommendation_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Feedback */
+        post: operations["feedback_api_v1_recommendations__recommendation_id__feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recommendations/{recommendation_id}/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Next Option */
+        post: operations["next_option_api_v1_recommendations__recommendation_id__next_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -922,6 +1007,17 @@ export interface components {
             /** Calendar Name */
             calendar_name?: string | null;
             /**
+             * Classification Corrected
+             * @default false
+             */
+            classification_corrected: boolean;
+            /**
+             * Classification Source
+             * @default keyword
+             * @enum {string}
+             */
+            classification_source: "keyword" | "member" | "ai";
+            /**
              * Ends At
              * Format: date-time
              */
@@ -949,6 +1045,8 @@ export interface components {
             occasion: "work" | "casual" | "date" | "dinner" | "party" | "formal" | "gym" | "travel" | "other";
             /** Provider */
             provider?: ("google" | "microsoft") | null;
+            /** Setting */
+            setting?: string | null;
             /**
              * Starts At
              * Format: date-time
@@ -959,8 +1057,14 @@ export interface components {
         };
         /** CalendarEventUpdateRequest */
         CalendarEventUpdateRequest: {
+            /** Formality */
+            formality?: ("formal" | "smart" | "casual") | null;
             /** Is Hidden */
-            is_hidden: boolean;
+            is_hidden?: boolean | null;
+            /** Occasion */
+            occasion?: ("work" | "casual" | "date" | "dinner" | "party" | "formal" | "gym" | "travel" | "other") | null;
+            /** Setting */
+            setting?: ("indoor" | "outdoor" | "mixed") | null;
         };
         /** CalendarProviderStatus */
         CalendarProviderStatus: {
@@ -1217,8 +1321,31 @@ export interface components {
              */
             lifecycle_state: "active" | "deletion_pending";
         };
+        /** DiscoveryFeedResponse */
+        DiscoveryFeedResponse: {
+            /** Generated At */
+            generated_at?: string | null;
+            /** Items */
+            items: components["schemas"]["DiscoveryResult"][];
+            /** Limit */
+            limit: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "balance" | "taste" | "explore" | "seasonal";
+            /** Offset */
+            offset: number;
+            /**
+             * Refresh Status
+             * @enum {string}
+             */
+            refresh_status: "fresh" | "pending" | "fallback";
+        };
         /** DiscoveryResult */
         DiscoveryResult: {
+            /** Ai Reasons */
+            ai_reasons?: string[];
             /** Collection Expansion */
             collection_expansion: number;
             /**
@@ -1228,11 +1355,20 @@ export interface components {
             evidence_coverage: number;
             fragrance: components["schemas"]["FragranceSummary"];
             /**
+             * Generation Mode
+             * @default baseline
+             */
+            generation_mode: string;
+            /**
              * Mode
              * @default balance
              * @enum {string}
              */
             mode: "balance" | "taste" | "explore" | "seasonal";
+            /** Model Version */
+            model_version?: string | null;
+            /** Profile Version */
+            profile_version?: string | null;
             /** Reasons */
             reasons?: string[];
             /** Redundancy Risk */
@@ -1402,6 +1538,47 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** InteractionEventBatch */
+        InteractionEventBatch: {
+            /** Events */
+            events: components["schemas"]["InteractionEventIn"][];
+        };
+        /** InteractionEventIn */
+        InteractionEventIn: {
+            /** Context */
+            context?: {
+                [key: string]: string;
+            };
+            /**
+             * Event Type
+             * @enum {string}
+             */
+            event_type: "view" | "accept" | "reject" | "skip" | "dismiss" | "wear" | "like" | "dislike" | "surprise_click" | "surprise_shown" | "filter_select" | "stack_save" | "stack_edit" | "stack_discard" | "stack_wear";
+            /** Fragrance Ids */
+            fragrance_ids?: string[];
+            /** Rating */
+            rating?: number | null;
+            /**
+             * Subject Type
+             * @default fragrance
+             * @enum {string}
+             */
+            subject_type: "fragrance" | "stack" | "recommendation" | "ui";
+        };
+        /** InteractionEventResult */
+        InteractionEventResult: {
+            /** Recorded */
+            recorded: number;
+        };
+        /** LayeringExplanation */
+        LayeringExplanation: {
+            /** Watch Out For */
+            watch_out_for: string[];
+            /** What Changes */
+            what_changes: string[];
+            /** Why They Fit */
+            why_they_fit: string[];
+        };
         /** LayeringIntelligencePage */
         LayeringIntelligencePage: {
             /** Saved */
@@ -1432,6 +1609,11 @@ export interface components {
             bridge: number;
             /** Complement */
             complement: number;
+            /**
+             * Known Pairing
+             * @default 0.5
+             */
+            known_pairing: number;
             /** Longevity Balance */
             longevity_balance: number;
             /** Novelty */
@@ -1459,6 +1641,8 @@ export interface components {
             role: "anchor" | "bridge" | "accent";
             /** Suggested Sprays */
             suggested_sprays: number;
+            /** Zones */
+            zones?: components["schemas"]["SprayZoneApplication"][];
         };
         /** LayeringStackRatingRequest */
         LayeringStackRatingRequest: {
@@ -1502,9 +1686,11 @@ export interface components {
         };
         /** LayeringStackSuggestion */
         LayeringStackSuggestion: {
+            /** Ai Reasons */
+            ai_reasons?: string[];
             /**
              * Algorithm Version
-             * @default layering-v2
+             * @default layering-v4
              */
             algorithm_version: string;
             /** Best Contexts */
@@ -1520,8 +1706,23 @@ export interface components {
              * @enum {string}
              */
             evidence_label: "limited" | "partial" | "strong";
+            /**
+             * Evidence Summary
+             * @enum {string}
+             */
+            evidence_summary: "Lots of information" | "Some information missing" | "Little information available";
+            explanation: components["schemas"]["LayeringExplanation"];
+            /** Filter Effects */
+            filter_effects?: string[];
+            /**
+             * Generation Mode
+             * @default baseline
+             */
+            generation_mode: string;
             /** Goal */
             goal?: ("fresher" | "warmer" | "sweeter" | "darker" | "cleaner" | "softer" | "more_projection" | "more_intimate" | "daytime" | "evening" | "spring" | "summer" | "fall" | "winter") | null;
+            /** Goal Fit */
+            goal_fit?: number | null;
             /** Items */
             items: components["schemas"]["LayeringStackItem"][];
             /**
@@ -1529,17 +1730,33 @@ export interface components {
              * @enum {string}
              */
             mode: "safe" | "balanced" | "contrast" | "experimental";
+            /** Model Version */
+            model_version?: string | null;
+            /** Pairing Evidence */
+            pairing_evidence?: string[];
+            /** Profile Version */
+            profile_version?: string | null;
             /** Reasons */
             reasons: string[];
             /** Score */
             score: number;
             score_components: components["schemas"]["LayeringScoreComponents"];
+            /**
+             * Score Percent
+             * @default 0
+             */
+            score_percent: number;
             /** Shared Accords */
             shared_accords: string[];
             /** Shared Notes */
             shared_notes: string[];
             /** Total Sprays */
             total_sprays: number;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "Strong fit" | "Promising blend" | "Bold experiment" | "Tricky balance" | "Needs a wear test";
             /** Warnings */
             warnings: string[];
         };
@@ -1736,6 +1953,25 @@ export interface components {
         };
         /** PreferencesResponse */
         PreferencesResponse: {
+            /**
+             * Calendar Ai Titles Enabled
+             * @default false
+             */
+            calendar_ai_titles_enabled: boolean;
+            /** Disliked Accords */
+            disliked_accords?: string[];
+            /** Disliked Families */
+            disliked_families?: string[];
+            /** Disliked Notes */
+            disliked_notes?: string[];
+            /** Excluded Fragrance Ids */
+            excluded_fragrance_ids?: string[];
+            /** Liked Accords */
+            liked_accords?: string[];
+            /** Liked Families */
+            liked_families?: string[];
+            /** Liked Notes */
+            liked_notes?: string[];
             /** Location */
             location?: string | null;
             /**
@@ -1757,12 +1993,37 @@ export interface components {
             temperature_unit?: ("celsius" | "fahrenheit") | null;
             /** Timezone */
             timezone?: string | null;
+            /**
+             * Variety Preference
+             * @default balanced
+             * @enum {string}
+             */
+            variety_preference: "familiar" | "balanced" | "adventurous";
         };
         /**
          * PreferencesUpdateRequest
          * @description A full replacement of the preference set; omitted fields clear.
          */
         PreferencesUpdateRequest: {
+            /**
+             * Calendar Ai Titles Enabled
+             * @default false
+             */
+            calendar_ai_titles_enabled: boolean;
+            /** Disliked Accords */
+            disliked_accords?: string[];
+            /** Disliked Families */
+            disliked_families?: string[];
+            /** Disliked Notes */
+            disliked_notes?: string[];
+            /** Excluded Fragrance Ids */
+            excluded_fragrance_ids?: string[];
+            /** Liked Accords */
+            liked_accords?: string[];
+            /** Liked Families */
+            liked_families?: string[];
+            /** Liked Notes */
+            liked_notes?: string[];
             /** Location */
             location?: string | null;
             /** Maximum Sprays */
@@ -1777,6 +2038,12 @@ export interface components {
             preferred_season?: ("spring" | "summer" | "fall" | "winter") | null;
             /** Temperature Unit */
             temperature_unit?: ("celsius" | "fahrenheit") | null;
+            /**
+             * Variety Preference
+             * @default balanced
+             * @enum {string}
+             */
+            variety_preference: "familiar" | "balanced" | "adventurous";
         };
         /** RecommendationBundleResponse */
         RecommendationBundleResponse: {
@@ -1806,6 +2073,8 @@ export interface components {
              * @enum {string}
              */
             daypart: "day" | "night";
+            /** Duration Minutes */
+            duration_minutes?: number | null;
             /** Formality */
             formality?: string | null;
             /** High Celsius */
@@ -1842,6 +2111,19 @@ export interface components {
             source: "today" | "day" | "event" | "manual" | "agent";
             /** Timezone */
             timezone: string;
+            /** Weather Fetched At */
+            weather_fetched_at?: string | null;
+            /**
+             * Weather Resolution
+             * @default unavailable
+             * @enum {string}
+             */
+            weather_resolution: "hourly" | "daily" | "unavailable";
+            /**
+             * Weather Stale
+             * @default false
+             */
+            weather_stale: boolean;
         };
         /** RecommendationDecisionRequest */
         RecommendationDecisionRequest: {
@@ -1863,11 +2145,54 @@ export interface components {
             /** Selected Fragrance Id */
             selected_fragrance_id?: string | null;
         };
+        /** RecommendationFeedbackRequest */
+        RecommendationFeedbackRequest: {
+            /**
+             * Fragrance Id
+             * Format: uuid
+             */
+            fragrance_id: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "not_today" | "too_strong" | "dislike_scent";
+        };
+        /** RecommendationFeedbackResponse */
+        RecommendationFeedbackResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "not_today" | "too_strong" | "dislike_scent";
+        };
+        /** RecommendationNextRequest */
+        RecommendationNextRequest: {
+            /** Expected Fragrance Id */
+            expected_fragrance_id?: string | null;
+            /**
+             * Idempotency Key
+             * Format: uuid
+             */
+            idempotency_key: string;
+            /**
+             * Reset
+             * @default false
+             */
+            reset: boolean;
+        };
         /** RecommendationPayload */
         RecommendationPayload: {
             /** Discovery */
             discovery?: components["schemas"]["DiscoveryResult"][];
             layering: components["schemas"]["LayeringRecommendationPayload"];
+            /** Profile Version */
+            profile_version?: string | null;
         };
         /** RecommendationPreviewRequest */
         RecommendationPreviewRequest: {
@@ -1968,6 +2293,58 @@ export interface components {
             source: string;
             /** Url */
             url: string | null;
+        };
+        /** SprayZoneApplication */
+        SprayZoneApplication: {
+            /** Sprays */
+            sprays: number;
+            /**
+             * Zone
+             * @enum {string}
+             */
+            zone: "chest" | "back_of_neck" | "neck" | "wrists" | "inner_elbows" | "behind_ears" | "behind_knees";
+        };
+        /** SurfaceChoiceRequest */
+        SurfaceChoiceRequest: {
+            /**
+             * Advance
+             * @default true
+             */
+            advance: boolean;
+            /** Batch Id */
+            batch_id?: string | null;
+            /** Expected Candidate Id */
+            expected_candidate_id?: string | null;
+            /**
+             * Idempotency Key
+             * Format: uuid
+             */
+            idempotency_key: string;
+            /** Parameters */
+            parameters?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Reset
+             * @default false
+             */
+            reset: boolean;
+        };
+        /** SurfaceChoiceResponse */
+        SurfaceChoiceResponse: {
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id: string;
+            /** Candidate Id */
+            candidate_id: string | null;
+            /** Options Exhausted */
+            options_exhausted: boolean;
+            /** Remaining Options */
+            remaining_options: number;
+            /** Selected */
+            selected: components["schemas"]["DiscoveryResult"] | components["schemas"]["LayeringStackSuggestion"] | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -2110,6 +2487,9 @@ export interface components {
             algorithm_version: string;
             /** Alternatives */
             alternatives: components["schemas"]["WearRecommendationCandidate"][];
+            blend?: components["schemas"]["LayeringStackSuggestion"] | null;
+            /** Canonical Fragrance Id */
+            canonical_fragrance_id?: string | null;
             context: components["schemas"]["RecommendationContext"];
             /** Context Key */
             context_key: string;
@@ -2118,10 +2498,24 @@ export interface components {
             evidence_coverage: number;
             fragrance: components["schemas"]["FragranceSummary"];
             /**
+             * Generation Mode
+             * @default baseline
+             */
+            generation_mode: string;
+            /**
              * Id
              * Format: uuid
              */
             id: string;
+            /** Model Version */
+            model_version?: string | null;
+            /**
+             * Options Exhausted
+             * @default false
+             */
+            options_exhausted: boolean;
+            /** Profile Version */
+            profile_version?: string | null;
             /** Reasons */
             reasons: string[];
             /**
@@ -2131,6 +2525,11 @@ export interface components {
             recommended_for: string;
             /** Recommended Sprays */
             recommended_sprays: number;
+            /**
+             * Remaining Options
+             * @default 0
+             */
+            remaining_options: number;
             /** Score */
             score: number;
             /** Score Components */
@@ -2718,6 +3117,81 @@ export interface operations {
             };
         };
     };
+    discovery_feed_api_v1_discovery_feed_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                gender?: ("male" | "female" | "unisex") | null;
+                family?: string | null;
+                season?: ("spring" | "summer" | "fall" | "winter") | null;
+                accord?: string | null;
+                minimum_value?: number | null;
+                mode?: "balance" | "taste" | "explore" | "seasonal";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryFeedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_events_api_v1_events_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InteractionEventBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionEventResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_fragrances_api_v1_fragrances_get: {
         parameters: {
             query?: {
@@ -2933,7 +3407,9 @@ export interface operations {
     };
     collection_insights_api_v1_insights_collection_get: {
         parameters: {
-            query?: never;
+            query?: {
+                lite?: boolean;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -2968,6 +3444,7 @@ export interface operations {
                 anchor_id?: string | null;
                 mode?: "safe" | "balanced" | "contrast" | "experimental";
                 goal?: ("fresher" | "warmer" | "sweeter" | "darker" | "cleaner" | "softer" | "more_projection" | "more_intimate" | "daytime" | "evening" | "spring" | "summer" | "fall" | "winter") | null;
+                surprise_seed?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -3511,7 +3988,9 @@ export interface operations {
     };
     dashboard_api_v1_page_data_dashboard_get: {
         parameters: {
-            query?: never;
+            query?: {
+                lite?: boolean;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -3622,6 +4101,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WeekPageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    choose_api_v1_recommendation_options__surface__post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                surface: "discovery" | "layering";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SurfaceChoiceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurfaceChoiceResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3787,6 +4303,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecommendationDecisionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    feedback_api_v1_recommendations__recommendation_id__feedback_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                recommendation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecommendationFeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationFeedbackResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    next_option_api_v1_recommendations__recommendation_id__next_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                recommendation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecommendationNextRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WearRecommendationResponse"];
                 };
             };
             /** @description Validation Error */

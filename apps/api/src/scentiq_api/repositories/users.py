@@ -20,6 +20,15 @@ _PREFERENCE_FIELDS = (
     "preferred_projection",
     "preferred_longevity",
     "maximum_sprays",
+    "liked_notes",
+    "disliked_notes",
+    "liked_accords",
+    "disliked_accords",
+    "liked_families",
+    "disliked_families",
+    "excluded_fragrance_ids",
+    "variety_preference",
+    "calendar_ai_titles_enabled",
 )
 
 
@@ -44,7 +53,12 @@ class UserRepository:
             preferences = UserPreference(user_id=user_id)
             self._session.add(preferences)
         for field in _PREFERENCE_FIELDS:
-            setattr(preferences, field, values.get(field))
+            default: Any = [] if field.startswith(("liked_", "disliked_", "excluded_")) else None
+            if field == "variety_preference":
+                default = "balanced"
+            elif field == "calendar_ai_titles_enabled":
+                default = False
+            setattr(preferences, field, values.get(field, default))
         self._session.flush()
         return preferences
 
