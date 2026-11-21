@@ -33,9 +33,11 @@ def test_rotation_can_include_blend_candidates_with_zones_and_percent(session: S
         if candidate.blend is not None
     ]
     assert blends, "expected at least one blend among the week's candidates"
-    blend = blends[0]
-    assert blend.blend_key and 0 <= blend.blend.score_percent <= 100
-    assert all(item.zones for item in blend.blend.items)
+    candidate = blends[0]
+    blend = candidate.blend
+    assert blend is not None
+    assert candidate.blend_key and 0 <= blend.score_percent <= 100
+    assert all(item.zones for item in blend.items)
 
 
 def test_choosing_an_alternative_teaches_taste_and_logs_events(session: Session) -> None:
@@ -74,4 +76,5 @@ def test_wearing_a_blend_logs_every_member(session: Session) -> None:
         ),
     )
     logged = session.scalars(select(WearLog).where(WearLog.user_id == user.id)).all()
+    assert blend.blend is not None
     assert len(logged) == len(blend.blend.items)
