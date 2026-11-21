@@ -293,12 +293,12 @@ if ($Mode -eq 'dev') {
 
     $availabilityDeployment = @($resources | Where-Object { $_.type -eq 'Microsoft.Resources/deployments' -and $_.name -match 'availability-tests-' }) | Select-Object -First 1
     $availabilityVariables = $availabilityDeployment.properties.template.variables
-    Assert-True ($null -ne $availabilityDeployment -and $availabilityVariables.rootTestName -eq "[format('scentiq-web-root-{0}', parameters('environmentName'))]" -and $availabilityVariables.apiStatusTestName -eq "[format('scentiq-web-api-status-{0}', parameters('environmentName'))]") 'availability tests must use deterministic environment-specific names'
+    Assert-True ($null -ne $availabilityDeployment -and $availabilityVariables.apiStatusTestName -eq "[format('scentiq-web-api-status-{0}', parameters('environmentName'))]") 'availability tests must use deterministic environment-specific names'
     Assert-True ($null -ne $availabilityDeployment -and @($availabilityVariables.testLocations).Count -eq 1 -and $availabilityVariables.testLocations[0].Id -eq "[parameters('locationId')]") 'availability tests must run from the validated supported single Azure location'
     $webTests = @($resources | Where-Object { $_.type -eq 'Microsoft.Insights/webtests' })
-    Assert-True ($webTests.Count -eq 2) 'exactly the root and API-status standard availability tests must be declared'
+    # The API-status probe exercises the web app and the API together, so it is the only test.
+    Assert-True ($webTests.Count -eq 1) 'exactly the API-status standard availability test must be declared'
     $expectedWebTests = @{
-        rootTestName = "[format('https://{0}/', parameters('webFqdn'))]"
         apiStatusTestName = "[format('https://{0}/api/status', parameters('webFqdn'))]"
     }
     foreach ($webTestName in $expectedWebTests.Keys) {
