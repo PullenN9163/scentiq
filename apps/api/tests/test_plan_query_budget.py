@@ -93,12 +93,14 @@ def test_today_and_week_plans_stay_within_a_statement_budget(session: Session) -
         session.commit()
     _report("week (repeat, reused)", week_repeat)
 
-    # Budgets sit a little above today's measured counts (32, 25, 103 and 79). Raising one should
+    # Budgets sit a little above the measured counts (43, 36, 114 and 90). Raising one should
     # be a deliberate decision: each statement is a round trip to a database a region away.
-    assert sum(today_counts.values()) <= 36
-    assert sum(repeat_counts.values()) <= 29
-    assert sum(week_counts.values()) <= 108
-    assert sum(week_repeat.values()) <= 84
+    # Blends in the rotation load the owned scents once per plan (about 11 statements, not per
+    # day); before them the counts were 32, 25, 103 and 79.
+    assert sum(today_counts.values()) <= 47
+    assert sum(repeat_counts.values()) <= 40
+    assert sum(week_counts.values()) <= 118
+    assert sum(week_repeat.values()) <= 94
 
 
 def test_warming_after_today_leaves_the_week_plan_ready(session: Session) -> None:

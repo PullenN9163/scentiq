@@ -123,3 +123,10 @@
 :global(html[data-effects="reduced"]) .landed,
 .landed { animation: none; }
 @media (prefers-reduced-motion: no-preference) { :global(html:not([data-effects="reduced"])) .landed { animation: landed 600ms ease-out; } }
+
+/* The 3D cologne bottle fills the same area the SVG flask used. */
+.cologne { position: relative; z-index: 1; width: 100%; height: min(100%, 56vh); min-height: 300px; }
+.cologne canvas { touch-action: pan-y; }
+.zones { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.zones li { display: grid; gap: 2px; }
+.zoneList { margin: 0; padding-left: 1.1em; }

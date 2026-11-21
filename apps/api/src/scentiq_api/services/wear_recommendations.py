@@ -6,6 +6,7 @@ import time as timer
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -29,6 +30,8 @@ from scentiq_api.models import (
 )
 from scentiq_api.models.recommendation_choices import RecommendationFeedback
 from scentiq_api.repositories.calendar import CalendarRepository
+from scentiq_api.repositories.layering import LayeringRepository
+from scentiq_api.schemas.layering import LayeringGoal
 from scentiq_api.schemas.wear import WearLogResponse
 from scentiq_api.schemas.wear_recommendations import (
     RecommendationContext,
@@ -42,6 +45,7 @@ from scentiq_api.schemas.wear_recommendations import (
 )
 from scentiq_api.services.ai_ranking import ranking_configuration_version
 from scentiq_api.services.fragrances import to_fragrance_summary
+from scentiq_api.services.layering import LayeringService
 from scentiq_api.services.personalized_ranking import rerank
 from scentiq_api.services.recommendation_choices import RecommendationChoiceService
 from scentiq_api.services.taste_profile import TasteProfile, TasteProfileService
@@ -50,6 +54,17 @@ from scentiq_api.services.wear_scoring import (
     CandidateInput,
     score_candidate,
 )
+
+MIN_BLEND_PERCENT = 55
+
+
+def blend_goal(context: RecommendationContext) -> str:
+    """The layering goal that best fits the day's weather and daypart."""
+    if context.high_celsius is not None and context.high_celsius <= 10:
+        return "warmer"
+    if context.high_celsius is not None and context.high_celsius >= 26:
+        return "fresher"
+    return "evening" if context.daypart == "night" else "daytime"
 
 
 def aware(value: datetime) -> datetime:
@@ -316,6 +331,8 @@ class WearRecommendationService:
             gaps.append(
                 "Some fragrances repeat to balance your collection size and contextual fit."
             )
+        if owned and recommendations:
+            self._attach_blends(user_id, recommendations)
         finished_at = timer.monotonic()
         diagnostic_logger.info(
             format_runtime_event(
@@ -335,6 +352,39 @@ class WearRecommendationService:
         return WearRecommendationPlan(
             timezone=str(zone), local_date=today, recommendations=recommendations, gaps=gaps
         )
+
+    def _attach_blends(
+        self, user_id: UUID, recommendations: list[WearRecommendationResponse]
+    ) -> None:
+        """Offer each pick a researched blend, varied across the plan.
+
+        The blend is anchored on the pick, steered by the day's weather and daypart, and
+        scored with the same pairing knowledge as the Blend Studio. Each blend appears once
+        per plan when an alternative exists, so the week rotates blends as well as scents.
+        Weak blends are left out rather than pushed.
+        """
+        layering = LayeringService(LayeringRepository(self.session))
+        preloaded = layering.preload(user_id, self._taste_profile(user_id))
+        used: set[tuple[str, ...]] = set()
+        for response in recommendations:
+            suggestions = layering.stack_suggestions(
+                user_id,
+                anchor_id=response.fragrance.id,
+                goal=cast(LayeringGoal, blend_goal(response.context)),
+                limit=6,
+                preloaded=preloaded,
+            )
+            fresh = [
+                stack
+                for stack in suggestions
+                if tuple(sorted(str(item.fragrance.id) for item in stack.items)) not in used
+            ]
+            candidates = fresh or suggestions
+            pick = candidates[0] if candidates else None
+            if pick is None or pick.score_percent < MIN_BLEND_PERCENT:
+                continue
+            used.add(tuple(sorted(str(item.fragrance.id) for item in pick.items)))
+            response.blend = pick
 
     def _forget_request_state(self) -> None:
         """Drop per-request memoized reads so a reused service never sees stale data."""

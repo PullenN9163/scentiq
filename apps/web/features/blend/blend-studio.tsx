@@ -17,6 +17,7 @@ import { Sheet } from "@/components/atelier/sheet";
 import { accordFor, accordVars, type AccordKey } from "@/lib/accord";
 import { generateBlendName } from "@/lib/blend-names";
 import { motionTokens } from "@/lib/motion";
+import { recordEvents } from "@/lib/server/event-actions";
 import { getLayeringIntelligence, logLayerStackWear, rateLayerStackWear, saveLayerStack } from "@/lib/server/layering-actions";
 import { cn } from "@/lib/utils";
 import type { CollectionItem, FragranceSummary } from "@/types/api";
@@ -26,7 +27,9 @@ import { RatingSheet, SaveSheet, VaultSheet } from "./blend-sheets";
 import { GOAL_LABELS, MODES, MORE_GOALS, PRIMARY_GOALS, scoreOf } from "./blend-copy";
 import { snapshotOfSaved } from "./blend-start";
 import { blendReducer, initialBlend, sameBlend, suggestionMatches, type BlendStart } from "./blend-state";
-import { Flask, type FlaskLayer } from "./flask";
+import { CologneBottle } from "./cologne-bottle";
+import { type FlaskLayer } from "./flask";
+import { SprayZones } from "./spray-zones";
 import { useBlendEvaluation } from "./use-blend-evaluation";
 import styles from "./blend.module.css";
 
@@ -79,8 +82,16 @@ export function BlendStudio({ owned, saved, supportedGoals, start }: { owned: Co
     undoTimer.current = setTimeout(() => setUndoVisible(false), UNDO_MS);
   }
   const toggle = (id: string) => { dispatch({ type: "toggle", id }); changed(); };
-  const setGoal = (goal: LayeringGoal) => { dispatch({ type: "goal", goal }); changed(); };
-  const setMode = (mode: StackMode) => { dispatch({ type: "mode", mode }); changed(); };
+  const setGoal = (goal: LayeringGoal) => {
+    dispatch({ type: "goal", goal });
+    changed();
+    void recordEvents([{ event_type: "filter_select", subject_type: "ui", context: { goal: state.goal === goal ? "none" : goal, mode: state.mode } }]);
+  };
+  const setMode = (mode: StackMode) => {
+    dispatch({ type: "mode", mode });
+    changed();
+    void recordEvents([{ event_type: "filter_select", subject_type: "ui", context: { mode, goal: state.goal ?? "none" } }]);
+  };
 
   /** A bottle dropped on the flask is added; anywhere else it snaps back. */
   function dropOnFlask(id: string, point: PanInfo["point"]) {
@@ -93,12 +104,15 @@ export function BlendStudio({ owned, saved, supportedGoals, start }: { owned: Co
   function surprise() {
     startSurprise(async () => {
       try {
-        const page = await getLayeringIntelligence({ anchorId: state.ids[0], mode: state.mode, goal: state.goal });
+        void recordEvents([{ event_type: "surprise_click", subject_type: "ui", context: { mode: state.mode, goal: state.goal ?? "none" } }]);
+        // A fresh seed each time picks a different anchor and a weighted pick among the best blends.
+        const page = await getLayeringIntelligence({ anchorId: undefined, mode: state.mode, goal: state.goal, surpriseSeed: Math.floor(Math.random() * 2_147_483_647) });
         const options = page.suggestions.filter((suggestion) => suggestion.items.every((item) => byId.has(item.fragrance.id)));
         const key = (suggestion: LayeringStackSuggestion) => suggestion.items.map((item) => item.fragrance.id).sort().join();
         const pick = options.find((suggestion) => key(suggestion) !== lastSurprise.current && key(suggestion) !== [...state.ids].sort().join()) ?? options.find((suggestion) => key(suggestion) !== lastSurprise.current);
         if (!pick) { toast("No new combination to suggest. Try another tilt."); return; }
         lastSurprise.current = key(pick);
+        void recordEvents([{ event_type: "surprise_shown", subject_type: "stack", fragrance_ids: pick.items.map((item) => item.fragrance.id), context: { mode: pick.mode, goal: pick.goal ?? "none" } }]);
         const ids = [...pick.items].sort((a, b) => a.application_order - b.application_order).map((item) => item.fragrance.id);
         pourTimers.current.forEach(clearTimeout);
         dispatch({ type: "load", ids: [ids[0]], mode: pick.mode, goal: pick.goal ?? null });
@@ -206,6 +220,7 @@ export function BlendStudio({ owned, saved, supportedGoals, start }: { owned: Co
       try {
         const entry = await saveLayerStack(state.ids, state.mode, state.goal, name, note || undefined);
         dispatch({ type: "saved", savedId: entry.id });
+        void recordEvents([{ event_type: "stack_save", subject_type: "stack", fragrance_ids: state.ids, context: { mode: state.mode, goal: state.goal ?? "none" } }]);
         setPulse((count) => count + 1);
         setSaveMode(null);
         setSaveError(null);
@@ -289,7 +304,7 @@ export function BlendStudio({ owned, saved, supportedGoals, start }: { owned: Co
               <Plate fragrance={plateFragrance(lastAddedFragrance)} accord={accordFor(lastAddedFragrance)} className={styles.ghostPlate} decorative compact />
             </motion.div>
           ) : null}
-          <Flask layers={layers} fill={fill} />
+          <CologneBottle layers={layers} fill={fill} title={items ? items.map((item) => item.fragrance.name).join(" + ") : "Your blend"} percent={target} sprayKey={state.lastAdded ? `${state.lastAdded}:${state.ids.length}` : ""} />
           {state.ids.length === 0 ? <p className={styles.prompt}>Tap or drag a bottle into the flask</p> : null}
           {state.ids.length === 1 ? <p className={styles.prompt}>Add a second bottle</p> : null}
         </div>
@@ -297,7 +312,7 @@ export function BlendStudio({ owned, saved, supportedGoals, start }: { owned: Co
         <section className={styles.reading} aria-label="Blend reading">
           {suggestion ? (
             <>
-              <p className={styles.numeral}><span className="at-tabular">{numeral}</span></p>
+              <p className={styles.numeral}><span className="at-tabular">{numeral}</span><span aria-hidden="true">%</span></p>
               <p className={styles.verdict}>{suggestion.verdict}</p>
             </>
           ) : state.ids.length >= 2 ? (
@@ -378,6 +393,14 @@ export function BlendStudio({ owned, saved, supportedGoals, start }: { owned: Co
           <div className={styles.why}>
             <WhyList title="Why they fit" items={suggestion.explanation.why_they_fit} />
             <WhyList title="What changes" items={suggestion.explanation.what_changes} />
+            {suggestion.items.some((item) => (item.zones ?? []).length > 0) ? (
+              <section>
+                <h3 className="at-subtitle">Where to spray</h3>
+                <SprayZones stack={suggestion} />
+              </section>
+            ) : null}
+            <WhyList title="Known pairings" items={suggestion.pairing_evidence ?? []} />
+            <WhyList title="How your tilt shaped it" items={suggestion.filter_effects ?? []} />
             <WhyList title="Watch out for" items={[...suggestion.explanation.watch_out_for, ...suggestion.warnings]} />
             <p className="at-caption">{suggestion.evidence_summary}</p>
           </div>

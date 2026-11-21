@@ -4,6 +4,7 @@ import hashlib
 import json
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from statistics import mean
 from uuid import UUID
 
@@ -21,8 +22,23 @@ from scentiq_api.models import (
     WearLog,
 )
 from scentiq_api.models.layer_stacks import LayerStackItem, LayerStackWear
+from scentiq_api.models.learning import InteractionEvent
+from scentiq_api.models.planning import Recommendation, RecommendationDecision
 from scentiq_api.models.recommendation_choices import RecommendationFeedback
 from scentiq_api.models.taste import UserTasteProfile
+
+IMPLICIT_WINDOW = timedelta(days=120)
+IMPLICIT_LIMIT = 300
+IMPLICIT_LIKE = 4.0
+IMPLICIT_DISLIKE = 2.0
+# Interaction events that say something about taste, as the rating they stand for.
+EVENT_RATINGS = {
+    "stack_save": IMPLICIT_LIKE,
+    "stack_wear": IMPLICIT_LIKE,
+    "stack_discard": IMPLICIT_DISLIKE,
+    "dislike": 1.5,
+    "like": 4.5,
+}
 
 
 def fragrance_features(fragrance: Fragrance) -> set[str]:
@@ -102,6 +118,11 @@ class TasteProfileService:
             .where(LayerStackWear.user_id == user_id, LayerStackWear.rating.is_not(None))
         ):
             ratings[fragrance_id].append(float(rating))
+        # Implicit signals: what the member accepted, replaced, rejected or dismissed, and which
+        # blends they saved or discarded. Each counts as a mild 4 (liked) or 2 (disliked) rating,
+        # so explicit ratings and preferences still dominate.
+        for fragrance_id, rating in self._implicit_ratings(user_id):
+            ratings[fragrance_id].append(rating)
         learned: dict[str, list[float]] = defaultdict(list)
         for fragrance_id, values in ratings.items():
             if fragrance_id in fragrances:
@@ -128,7 +149,7 @@ class TasteProfileService:
                     "features": features,
                     "excluded": sorted(map(str, exclusions)),
                     "variety": variety,
-                    "algorithm": "taste-v1",
+                    "algorithm": "taste-v2",
                 },
                 sort_keys=True,
             ).encode()
@@ -150,3 +171,41 @@ class TasteProfileService:
             cached.version, cached.features = version, features
         self.session.flush()
         return TasteProfile(version, features, exclusions, variety)
+
+    def _implicit_ratings(self, user_id: UUID) -> list[tuple[UUID, float]]:
+        """Mild pseudo-ratings from recent behaviour, bounded in age and count."""
+        since = datetime.now(UTC) - IMPLICIT_WINDOW
+        output: list[tuple[UUID, float]] = []
+        for action, recommended, selected in self.session.execute(
+            select(
+                RecommendationDecision.action,
+                Recommendation.fragrance_id,
+                RecommendationDecision.selected_fragrance_id,
+            )
+            .join(Recommendation, Recommendation.id == RecommendationDecision.recommendation_id)
+            .where(
+                RecommendationDecision.user_id == user_id,
+                RecommendationDecision.created_at >= since,
+            )
+            .order_by(RecommendationDecision.created_at.desc())
+            .limit(IMPLICIT_LIMIT)
+        ):
+            if action in ("accepted", "replaced") and selected is not None:
+                output.append((selected, IMPLICIT_LIKE))
+                if action == "replaced":
+                    output.append((recommended, IMPLICIT_DISLIKE))
+            elif action in ("rejected", "dismissed"):
+                output.append((recommended, IMPLICIT_DISLIKE))
+        for event_type, fragrance_ids in self.session.execute(
+            select(InteractionEvent.event_type, InteractionEvent.fragrance_ids)
+            .where(
+                InteractionEvent.user_id == user_id,
+                InteractionEvent.created_at >= since,
+                InteractionEvent.event_type.in_(tuple(EVENT_RATINGS)),
+            )
+            .order_by(InteractionEvent.created_at.desc())
+            .limit(IMPLICIT_LIMIT)
+        ):
+            for value in fragrance_ids:
+                output.append((UUID(value), EVENT_RATINGS[event_type]))
+        return output

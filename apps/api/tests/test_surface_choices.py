@@ -56,7 +56,7 @@ def test_layering_algorithm_upgrade_replaces_incompatible_saved_batch(
         for candidate in stored.candidates
     ]
     session.flush()
-    monkeypatch.setattr(surface_choices_module, "LAYERING_ALGORITHM_VERSION", "layering-v3")
+    monkeypatch.setattr(surface_choices_module, "LAYERING_ALGORITHM_VERSION", "layering-v4")
 
     refreshed = service.choose(
         user.id, "layering", SurfaceChoiceRequest(idempotency_key=uuid4(), advance=False)
@@ -65,7 +65,7 @@ def test_layering_algorithm_upgrade_replaces_incompatible_saved_batch(
     assert refreshed.batch_id != legacy.batch_id
     assert refreshed.selected is not None
     assert isinstance(refreshed.selected, LayeringStackSuggestion)
-    assert refreshed.selected.algorithm_version == "layering-v3"
+    assert refreshed.selected.algorithm_version == "layering-v4"
 
 
 def test_changed_collection_invalidates_surface_batch(session: Session) -> None:

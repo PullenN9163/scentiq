@@ -116,3 +116,35 @@ describe("BlendStudio saving and wearing", () => {
     await waitFor(() => expect(layering.rateLayerStackWear).toHaveBeenCalledWith("new-blend", "wear-1", 4));
   });
 });
+
+describe("BlendStudio blends with zones, pairings and a seeded Surprise me", () => {
+  it("lists where to spray, researched pairings and what the tilt did in Why it works", async () => {
+    const user = userEvent.setup();
+    layering.evaluateLayerStack.mockImplementation(async (ids: string[]) => {
+      const base = reading(ids);
+      return {
+        ...base,
+        items: base.items.map((item, index) => ({
+          ...item,
+          zones: [{ zone: index === 0 ? "chest" : "wrists", sprays: item.suggested_sprays }],
+        })),
+        pairing_evidence: ["Vetiver + cedar: dry woods that deepen each other."],
+        filter_effects: ["Warmer: favours Amber Hour (62% goal match)."],
+      } as LayeringStackSuggestion;
+    });
+    render(<BlendStudio owned={owned} saved={[]} start={initialBlend({ ids: [owned[0].fragrance.id, owned[1].fragrance.id] })} />);
+    await waitFor(() => expect(screen.getByText("Strong fit")).toBeInTheDocument(), { timeout: 2000 });
+    await user.click(screen.getByRole("button", { name: "Why it works" }));
+    expect(screen.getByRole("list", { name: "Where to spray" })).toHaveTextContent("Chest ×2");
+    expect(screen.getByText("Vetiver + cedar: dry woods that deepen each other.")).toBeInTheDocument();
+    expect(screen.getByText(/Warmer: favours Amber Hour/)).toBeInTheDocument();
+  });
+
+  it("asks for a fresh random blend with a seed each time", async () => {
+    const user = userEvent.setup();
+    layering.getLayeringIntelligence.mockResolvedValue({ supported_goals: [], saved: [], suggestions: [reading([owned[0].fragrance.id, owned[1].fragrance.id])] });
+    render(<BlendStudio owned={owned} saved={[]} start={initialBlend()} />);
+    await user.click(screen.getByRole("button", { name: "Surprise me" }));
+    await waitFor(() => expect(layering.getLayeringIntelligence).toHaveBeenCalledWith(expect.objectContaining({ surpriseSeed: expect.any(Number) })));
+  });
+});

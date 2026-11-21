@@ -37,3 +37,8 @@ Inference has a ten-second ranking HTTP timeout. A durable member-scoped cache c
 All inference, including advisor turns and optional title interpretation, shares an atomic monthly UTC ledger capped at $25. Integer microdollar reservations precede dispatch; complete usage settles them exactly once. Conservative configurable token price ceilings must cover the deployed model’s actual rates. Application accounting does not cap unrelated Azure consumption or replace Azure billing controls.
 
 See the [Azure deployment runbook](../runbooks/azure-deployment.md) for configuration, the budgeted synthetic smoke test, shadow rollout, and alerts. Model availability, quota, and managed-identity access must be verified before activation. Quality activation additionally requires a reviewed comparison against the baseline; passing deterministic tests alone does not establish AI preference quality.
+
+## Blends in the rotation, and implicit learning
+
+* **Blend of the day**: Today and the week plan attach a `blend` to each pick (`WearRecommendationService._attach_blends`): the best owned blend anchored on that pick, steered by the day's weather and daypart and varied across the plan. It is computed when the plan is read from one preloaded set of owned scents, is never persisted, and is left out below a 55% match.
+* **Implicit taste** (`taste-v2`): `TasteProfileService` also folds in recent accepted, replaced, rejected and dismissed recommendations and the Blend Studio events recorded by `POST /api/v1/events` (`interaction_events`, fragrance ids and filter keys only). Each counts as a mild 4 or 2 out of 5, so explicit ratings and preferences still dominate. Events older than 120 days are ignored.

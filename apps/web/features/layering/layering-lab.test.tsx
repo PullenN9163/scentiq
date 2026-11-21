@@ -54,7 +54,7 @@ const stack: LayeringStackSuggestion = {
   ],
   mode: "balanced",
   goal: null,
-  score: 0.7,
+  score: 0.7, score_percent: 70,
   score_components: {
     bridge: 0.5,
     complement: 0.5,
@@ -64,7 +64,7 @@ const stack: LayeringStackSuggestion = {
     novelty: 0.5,
     user_affinity: 0.5,
     redundancy_penalty: 0.2,
-    overload_penalty: 0,
+    overload_penalty: 0, known_pairing: 0.5,
   },
   shared_notes: ["cedar"],
   shared_accords: ["woody"],

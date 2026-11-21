@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import random
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from itertools import combinations
@@ -23,13 +25,14 @@ from scentiq_api.services.fragrances import to_fragrance_summary
 from scentiq_api.services.hybrid_jobs import HybridJobService
 from scentiq_api.services.layer_stack_scoring import (
     AUTO_COLLECTION_LIMIT,
+    GOAL_SIGNALS,
     PAIR_BASE_LIMIT,
     THIRD_CANDIDATE_LIMIT,
     score_stack,
     supported_goals,
 )
 from scentiq_api.services.recommendation_scoring import pair_score
-from scentiq_api.services.taste_profile import TasteProfileService
+from scentiq_api.services.taste_profile import TasteProfile, TasteProfileService
 
 
 def _weighted_keys(item: Fragrance, relationship: str) -> dict[str, float]:
@@ -37,6 +40,16 @@ def _weighted_keys(item: Fragrance, relationship: str) -> dict[str, float]:
     if relationship == "accord_links":
         return {link.accord.slug: float(link.weight) for link in links}
     return {link.note.slug: float(link.weight or 0.5) for link in links}
+
+
+@dataclass(frozen=True)
+class PreloadedLayering:
+    """Everything one suggestion run reads from the database, loaded once and reusable."""
+
+    owned: list[Fragrance]
+    profile: TasteProfile
+    history: list[LayerStack]
+    inputs: tuple[dict[UUID, float], int | None, dict[UUID, tuple[str | None, float | None]]]
 
 
 class LayeringService:
@@ -51,7 +64,7 @@ class LayeringService:
         self._repository = repository
 
     def _inputs(
-        self, user_id: UUID
+        self, user_id: UUID, profile: TasteProfile | None = None
     ) -> tuple[
         dict[UUID, float],
         int | None,
@@ -60,7 +73,7 @@ class LayeringService:
         collection = self._repository.collection_items(user_id)
         counts = self._repository.wear_counts(user_id)
         preferences = self._repository.preferences(user_id)
-        profile = TasteProfileService(self._repository._session).for_user(user_id)
+        profile = profile or TasteProfileService(self._repository._session).for_user(user_id)
         affinity = {
             item.fragrance_id: 0.5
             + ((item.user_rating or 3) - 3) * 0.1
@@ -108,6 +121,7 @@ class LayeringService:
             history_affinity=past,
             maximum_sprays=maximum_sprays,
             performance=performance,
+            pairing_ratings=ratings,
         )
 
     def evaluate_stack(
@@ -137,6 +151,16 @@ class LayeringService:
             inputs=inputs,
         )
 
+    def preload(self, user_id: UUID, profile: TasteProfile | None = None) -> PreloadedLayering:
+        """One load of owned scents, taste, saved stacks and inputs for many suggestion runs."""
+        profile = profile or TasteProfileService(self._repository._session).for_user(user_id)
+        return PreloadedLayering(
+            owned=self._repository.owned(user_id),
+            profile=profile,
+            history=self._repository.stacks(user_id),
+            inputs=self._inputs(user_id, profile),
+        )
+
     def stack_suggestions(
         self,
         user_id: UUID,
@@ -147,14 +171,20 @@ class LayeringService:
         limit: int = 12,
         include_triples: bool = True,
         stack_size: Literal[2, 3] | None = None,
+        surprise_seed: int | None = None,
+        exclude_ids: set[UUID] | None = None,
+        preloaded: PreloadedLayering | None = None,
     ) -> list[LayeringStackSuggestion]:
-        owned = self._repository.owned(user_id)
-        profile = TasteProfileService(self._repository._session).for_user(user_id)
-        owned = [item for item in owned if item.id not in profile.excluded_ids]
+        loaded = preloaded or self.preload(user_id)
+        owned, profile = loaded.owned, loaded.profile
+        owned = [
+            item
+            for item in owned
+            if item.id not in profile.excluded_ids and not (exclude_ids and item.id in exclude_ids)
+        ]
         # Choose bounded anchors from personal affinity rather than alphabetic collection order.
         owned.sort(key=lambda item: (-profile.affinity(item), str(item.id)))
-        history = self._repository.stacks(user_id)
-        inputs = self._inputs(user_id)
+        history, inputs = loaded.history, loaded.inputs
         if inputs[1] is not None and inputs[1] < 2:
             return []
         if inputs[1] is not None and inputs[1] < 3:
@@ -166,8 +196,13 @@ class LayeringService:
             if not anchors:
                 raise not_found("Owned anchor fragrance not found")
         else:
-            # Surprise mode remains bounded and deterministic, ordered by collection metadata.
-            anchors = owned[:8]
+            # Bounded anchors. Surprise me (a seed) samples them at random; otherwise they follow
+            # personal affinity so plain suggestions stay deterministic.
+            anchors = (
+                random.Random(surprise_seed).sample(owned, min(8, len(owned)))
+                if surprise_seed is not None
+                else owned[:8]
+            )
         candidates = owned[:AUTO_COLLECTION_LIMIT]
         results: dict[tuple[UUID, ...], LayeringStackSuggestion] = {}
         for anchor in anchors:
@@ -204,10 +239,14 @@ class LayeringService:
                         key = tuple(sorted([*ids, third.id], key=str))
                         results.setdefault(key, stack)
         ranked = sorted(
-            (
-                value
-                for value in results.values()
-                if stack_size is None or len(value.items) == stack_size
+            self._apply_filters(
+                [
+                    value
+                    for value in results.values()
+                    if stack_size is None or len(value.items) == stack_size
+                ],
+                mode=mode,
+                goal=goal,
             ),
             key=lambda value: (
                 -value.score,
@@ -215,11 +254,55 @@ class LayeringService:
                 tuple(str(item.fragrance.id) for item in value.items),
             ),
         )
-
+        if surprise_seed is not None and ranked:
+            ranked = self._surprise_order(ranked, surprise_seed)
         return [
             row.model_copy(update={"profile_version": profile.version})
             for row in ranked[: max(1, min(limit, 50))]
         ]
+
+    @staticmethod
+    def _apply_filters(
+        stacks: list[LayeringStackSuggestion],
+        *,
+        mode: LayeringMode,
+        goal: LayeringGoal | None,
+    ) -> list[LayeringStackSuggestion]:
+        """Filters change which blends exist, not only their score.
+
+        Hard constraints fall back to the unfiltered list when they would remove everything,
+        so a sparse collection still gets suggestions.
+        """
+
+        def keep(stack: LayeringStackSuggestion) -> bool:
+            components = stack.score_components
+            if mode == "safe":
+                return components.bridge >= 0.35 and components.overload_penalty == 0
+            if mode in ("contrast", "experimental"):
+                return components.redundancy_penalty < 1
+            return True
+
+        kept = [stack for stack in stacks if keep(stack)] or stacks
+        if goal in GOAL_SIGNALS:
+            matched = [
+                stack for stack in kept if stack.goal_fit is not None and stack.goal_fit >= 0.1
+            ]
+            kept = matched or kept
+        return kept
+
+    @staticmethod
+    def _surprise_order(
+        ranked: list[LayeringStackSuggestion], seed: int
+    ) -> list[LayeringStackSuggestion]:
+        """Weighted random pick from the top results, favouring strong researched pairings."""
+        rng = random.Random(seed)
+        pool = ranked[:10]
+        weights = [
+            max(0.001, stack.score**4 * (0.6 + 0.8 * stack.score_components.known_pairing))
+            for stack in pool
+        ]
+        picked = rng.choices(range(len(pool)), weights=weights, k=1)[0]
+        return [pool[picked], *pool[:picked], *pool[picked + 1 :], *ranked[10:]]
 
     def intelligence_page(
         self,
@@ -228,10 +311,13 @@ class LayeringService:
         anchor_id: UUID | None = None,
         mode: LayeringMode = "balanced",
         goal: LayeringGoal | None = None,
+        surprise_seed: int | None = None,
     ) -> LayeringIntelligencePage:
         return LayeringIntelligencePage(
             supported_goals=supported_goals(self._repository.owned(user_id)),
-            suggestions=self.stack_suggestions(user_id, anchor_id=anchor_id, mode=mode, goal=goal),
+            suggestions=self.stack_suggestions(
+                user_id, anchor_id=anchor_id, mode=mode, goal=goal, surprise_seed=surprise_seed
+            ),
             saved=self.saved_stacks(user_id),
         )
 

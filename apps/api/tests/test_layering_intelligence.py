@@ -76,7 +76,7 @@ def test_v3_rewards_a_useful_bridge_and_only_penalizes_near_duplicates(session: 
 
     repeated = service.evaluate_stack(user.id, [items[0].id, duplicate.id])
 
-    assert useful.algorithm_version == "layering-v3"
+    assert useful.algorithm_version == "layering-v4"
     assert useful.score_components.bridge == 1
     assert useful.score_components.redundancy_penalty == 0
     assert repeated.score_components.redundancy_penalty == 1
@@ -177,7 +177,7 @@ def test_save_wear_rate_rename_delete_is_user_isolated(session: Session) -> None
     service.rate_stack_wear(user.id, saved.id, worn.id, rating=1)
     assert jobs.current_input_version(user.id) == 2
     after = service.evaluate_stack(user.id, [items[0].id, items[1].id])
-    assert 0 < before.score - after.score <= 0.1
+    assert 0 < before.score - after.score <= 0.15  # rating nudges history and pairing prior
     assert service.rename_stack(user.id, saved.id, "Renamed").name == "Renamed"
     service.delete_stack(user.id, saved.id)
     assert service.saved_stacks(user.id) == []
@@ -208,7 +208,7 @@ def test_saved_stack_keeps_original_scoring_version_and_snapshot(session: Sessio
     saved = service.save_stack(user.id, [items[0].id, items[1].id], name="Snapshot")
     stored = session.get(LayerStack, saved.id)
     assert stored is not None
-    assert stored.algorithm_version == "layering-v3"
+    assert stored.algorithm_version == "layering-v4"
     assert float(stored.score_snapshot) == saved.suggestion.score
     assert stored.score_components["overload_penalty"] == 0
     assert float(stored.evidence_coverage) == saved.suggestion.evidence_coverage

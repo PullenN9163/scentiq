@@ -2143,6 +2143,110 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InteractionEventBatch": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/InteractionEventIn"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "title": "InteractionEventBatch",
+        "type": "object"
+      },
+      "InteractionEventIn": {
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "maxProperties": 8,
+            "title": "Context",
+            "type": "object"
+          },
+          "event_type": {
+            "enum": [
+              "view",
+              "accept",
+              "reject",
+              "skip",
+              "dismiss",
+              "wear",
+              "like",
+              "dislike",
+              "surprise_click",
+              "surprise_shown",
+              "filter_select",
+              "stack_save",
+              "stack_edit",
+              "stack_discard",
+              "stack_wear"
+            ],
+            "title": "Event Type",
+            "type": "string"
+          },
+          "fragrance_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 3,
+            "title": "Fragrance Ids",
+            "type": "array"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "subject_type": {
+            "default": "fragrance",
+            "enum": [
+              "fragrance",
+              "stack",
+              "recommendation",
+              "ui"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_type"
+        ],
+        "title": "InteractionEventIn",
+        "type": "object"
+      },
+      "InteractionEventResult": {
+        "properties": {
+          "recorded": {
+            "title": "Recorded",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "recorded"
+        ],
+        "title": "InteractionEventResult",
+        "type": "object"
+      },
       "LayeringExplanation": {
         "properties": {
           "watch_out_for": {
@@ -2280,6 +2384,11 @@
             "title": "Complement",
             "type": "number"
           },
+          "known_pairing": {
+            "default": 0.5,
+            "title": "Known Pairing",
+            "type": "number"
+          },
           "longevity_balance": {
             "title": "Longevity Balance",
             "type": "number"
@@ -2348,6 +2457,13 @@
             "minimum": 1.0,
             "title": "Suggested Sprays",
             "type": "integer"
+          },
+          "zones": {
+            "items": {
+              "$ref": "#/components/schemas/SprayZoneApplication"
+            },
+            "title": "Zones",
+            "type": "array"
           }
         },
         "required": [
@@ -2536,7 +2652,7 @@
             "type": "array"
           },
           "algorithm_version": {
-            "default": "layering-v3",
+            "default": "layering-v4",
             "title": "Algorithm Version",
             "type": "string"
           },
@@ -2588,6 +2704,13 @@
           "explanation": {
             "$ref": "#/components/schemas/LayeringExplanation"
           },
+          "filter_effects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Filter Effects",
+            "type": "array"
+          },
           "generation_mode": {
             "default": "baseline",
             "title": "Generation Mode",
@@ -2620,6 +2743,19 @@
             ],
             "title": "Goal"
           },
+          "goal_fit": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal Fit"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/LayeringStackItem"
@@ -2648,6 +2784,13 @@
             ],
             "title": "Model Version"
           },
+          "pairing_evidence": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pairing Evidence",
+            "type": "array"
+          },
           "profile_version": {
             "anyOf": [
               {
@@ -2674,6 +2817,13 @@
           },
           "score_components": {
             "$ref": "#/components/schemas/LayeringScoreComponents"
+          },
+          "score_percent": {
+            "default": 0,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Score Percent",
+            "type": "integer"
           },
           "shared_accords": {
             "items": {
@@ -4425,6 +4575,35 @@
         "title": "SourceResponse",
         "type": "object"
       },
+      "SprayZoneApplication": {
+        "properties": {
+          "sprays": {
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Sprays",
+            "type": "integer"
+          },
+          "zone": {
+            "enum": [
+              "chest",
+              "back_of_neck",
+              "neck",
+              "wrists",
+              "inner_elbows",
+              "behind_ears",
+              "behind_knees"
+            ],
+            "title": "Zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "zone",
+          "sprays"
+        ],
+        "title": "SprayZoneApplication",
+        "type": "object"
+      },
       "SurfaceChoiceRequest": {
         "additionalProperties": false,
         "properties": {
@@ -4993,6 +5172,16 @@
             },
             "title": "Alternatives",
             "type": "array"
+          },
+          "blend": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LayeringStackSuggestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "canonical_fragrance_id": {
             "anyOf": [
@@ -6614,6 +6803,65 @@
         ]
       }
     },
+    "/api/v1/events": {
+      "post": {
+        "operationId": "record_events_api_v1_events_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InteractionEventBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InteractionEventResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Events",
+        "tags": [
+          "events"
+        ]
+      }
+    },
     "/api/v1/fragrances": {
       "get": {
         "operationId": "list_fragrances_api_v1_fragrances_get",
@@ -7115,6 +7363,16 @@
         "operationId": "collection_insights_api_v1_insights_collection_get",
         "parameters": [
           {
+            "in": "query",
+            "name": "lite",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Lite",
+              "type": "boolean"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -7226,6 +7484,24 @@
                 }
               ],
               "title": "Goal"
+            }
+          },
+          {
+            "in": "query",
+            "name": "surprise_seed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2147483647,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Surprise Seed"
             }
           },
           {
@@ -8308,6 +8584,16 @@
       "get": {
         "operationId": "dashboard_api_v1_page_data_dashboard_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "lite",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Lite",
+              "type": "boolean"
+            }
+          },
           {
             "in": "header",
             "name": "authorization",

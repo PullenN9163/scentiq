@@ -14,6 +14,7 @@ import { plateFragrance } from "@/components/atelier/plate-fragrance";
 import { Sheet } from "@/components/atelier/sheet";
 import { AtelierEmpty } from "@/components/atelier/states";
 import { EventCorrectionForm } from "@/features/dashboard/events-card";
+import { BlendIdea } from "@/features/today/blend-idea";
 import { RecommendationHero } from "@/features/today/recommendation-hero";
 import { recommendationCaption, selectedCandidate } from "@/features/today/today-copy";
 import { accordFor } from "@/lib/accord";
@@ -136,6 +137,7 @@ export function WeekView({
                       ...(first.context.occasion && calendar.status !== "not_connected" ? [{ label: occasionLabel(first.context.occasion) }] : []),
                     ]}
                   />
+                  {first.blend && selectedCandidate(first).fragrance.id === first.fragrance.id ? <BlendIdea blend={first.blend} className={styles.blendIdea} /> : null}
                   {rest.length > 0 ? (
                     <div className={styles.more}>
                       {rest.map((recommendation) => <MoreRow key={recommendation.id} recommendation={recommendation} events={events} timeZone={timeZone} />)}
