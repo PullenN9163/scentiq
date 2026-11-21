@@ -22,6 +22,15 @@ API_ROOT = Path(__file__).parents[2]
 DEMO_USER_ID = "00000000-0000-4000-8000-000000000001"
 AMBER_ATLAS_ID = "10000000-0000-4000-8000-000000000001"
 REQUIRED_TABLES = {
+    "ai_ranking_cache",
+    "ai_usage_months",
+    "ai_usage_reservations",
+    "recommendation_choices",
+    "recommendation_choice_receipts",
+    "recommendation_feedback",
+    "surface_choice_batches",
+    "surface_choice_receipts",
+    "user_taste_profiles",
     "accords",
     "async_jobs",
     "identity_events",
@@ -39,9 +48,7 @@ REQUIRED_TABLES = {
     "fragrance_similarities",
     "fragrance_sources",
     "fragrances",
-    "interaction_events",
     "layering_logs",
-    "user_taste_profiles",
     "layer_stacks",
     "layer_stack_items",
     "layer_stack_wears",

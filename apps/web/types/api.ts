@@ -164,6 +164,15 @@ export interface WearLogEntry {
 }
 
 export interface Preferences {
+  liked_notes?: string[];
+  disliked_notes?: string[];
+  liked_accords?: string[];
+  disliked_accords?: string[];
+  liked_families?: string[];
+  disliked_families?: string[];
+  excluded_fragrance_ids?: string[];
+  variety_preference?: "familiar" | "balanced" | "adventurous";
+  calendar_ai_titles_enabled?: boolean;
   location: string | null;
   /** The place `location` resolved to; null until it has been found. */
   location_label: string | null;
@@ -346,6 +355,9 @@ export interface CalendarEvent {
   occasion: Occasion;
   formality: "formal" | "smart" | "casual" | null;
   is_hidden: boolean;
+  setting?: string | null;
+  classification_corrected?: boolean;
+  classification_source?: "keyword" | "member" | "ai";
   calendar_name: string | null;
   provider: CalendarProviderName | null;
 }

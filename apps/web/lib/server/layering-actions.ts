@@ -50,7 +50,6 @@ export async function getLayeringIntelligence(
     anchorId?: string;
     mode?: StackMode;
     goal?: LayeringGoal | null;
-    surpriseSeed?: number;
   } = {},
 ): Promise<LayeringIntelligencePage> {
   const parameters = new URLSearchParams();
@@ -58,11 +57,6 @@ export async function getLayeringIntelligence(
     parameters.set("anchor_id", z.uuid().parse(options.anchorId));
   parameters.set("mode", modeSchema.parse(options.mode ?? "balanced"));
   if (options.goal) parameters.set("goal", goalSchema.parse(options.goal));
-  if (options.surpriseSeed !== undefined)
-    parameters.set(
-      "surprise_seed",
-      String(z.number().int().min(0).max(2_147_483_647).parse(options.surpriseSeed)),
-    );
   return apiClient.get<LayeringIntelligencePage>(
     `/api/v1/layering/intelligence?${parameters}`,
   );
@@ -166,5 +160,8 @@ export async function getDiscoveryIntelligence(
   if (options.season) parameters.set("season", options.season);
   if (options.minimumValue)
     parameters.set("minimum_value", options.minimumValue);
-  return apiClient.get<DiscoveryResult[]>(`/api/v1/discover?${parameters}`);
+  // Measured cold discovery requests can exceed the ordinary ten-second read
+  // deadline. Keep this larger budget scoped to discovery, with a searchable
+  // loading surface and a recoverable error if it still cannot finish.
+  return apiClient.get<DiscoveryResult[]>(`/api/v1/discover?${parameters}`, {timeoutMs:60_000});
 }

@@ -134,6 +134,7 @@ class WeatherService:
                     condition=condition_for_code(forecast.weather_code),
                     source=WEATHER_SOURCE,
                     fetched_at=now,
+                    hourly_forecast=list(forecast.hourly),
                 )
             )
             for forecast in forecasts

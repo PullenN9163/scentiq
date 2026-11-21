@@ -52,6 +52,77 @@ def test_anchor_suggestions_and_goals_rank_useful_owned_support(session: Session
     assert any(len(stack.items) == 3 for stack in fresh)
 
 
+def test_v3_rewards_a_useful_bridge_and_only_penalizes_near_duplicates(session: Session) -> None:
+    user, items = scents(session)
+    service = LayeringService(LayeringRepository(session))
+
+    useful = service.evaluate_stack(user.id, [items[0].id, items[1].id])
+
+    brand = items[0].brand
+    duplicate = make_fragrance(session, brand=brand, name="Woody duplicate", seasons=("summer",))
+    make_collection_item(session, user=user, fragrance=duplicate)
+    woody = next(link.accord for link in items[0].accord_links if link.accord.slug == "woody")
+    session.add(
+        FragranceAccord(
+            fragrance_id=duplicate.id,
+            accord_id=woody.id,
+            weight=Decimal("0.8"),
+        )
+    )
+    duplicate.projection_level = "moderate"
+    duplicate.longevity_score = Decimal("6")
+    session.flush()
+    session.expire_all()
+
+    repeated = service.evaluate_stack(user.id, [items[0].id, duplicate.id])
+
+    assert useful.algorithm_version == "layering-v3"
+    assert useful.score_components.bridge == 1
+    assert useful.score_components.redundancy_penalty == 0
+    assert repeated.score_components.redundancy_penalty == 1
+    assert useful.score > repeated.score
+
+
+def test_v3_returns_plain_language_verdict_evidence_and_explanations(session: Session) -> None:
+    user, items = scents(session)
+    service = LayeringService(LayeringRepository(session))
+
+    result = service.evaluate_stack(user.id, [items[0].id, items[1].id])
+    sparse = service.evaluate_stack(user.id, [items[0].id, items[3].id])
+
+    assert result.verdict in {"Strong fit", "Promising blend", "Bold experiment", "Tricky balance"}
+    assert result.evidence_summary in {
+        "Lots of information",
+        "Some information missing",
+        "Little information available",
+    }
+    assert result.explanation.why_they_fit
+    assert result.explanation.what_changes
+    assert result.explanation.watch_out_for
+    assert sparse.verdict == "Needs a wear test"
+    assert sparse.evidence_summary == "Little information available"
+    assert any("No shared note or accord" in line for line in sparse.explanation.why_they_fit)
+
+
+def test_layering_suggestions_follow_the_displayed_score(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scentiq_api.services import layering as layering_module
+
+    user, _ = scents(session)
+
+    def unexpected_rerank(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("Layering suggestions must not be AI-reordered")
+
+    monkeypatch.setattr(layering_module, "rerank", unexpected_rerank, raising=False)
+    results = LayeringService(LayeringRepository(session)).stack_suggestions(user.id)
+
+    assert results
+    assert [item.score for item in results] == sorted(
+        (item.score for item in results), reverse=True
+    )
+
+
 def test_stack_whole_structure_sprays_weak_evidence_and_duplicates(session: Session) -> None:
     user, items = scents(session)
     service = LayeringService(LayeringRepository(session))
@@ -82,23 +153,31 @@ def test_three_strong_scents_get_overload_penalty(session: Session) -> None:
 
 
 def test_save_wear_rate_rename_delete_is_user_isolated(session: Session) -> None:
+    from scentiq_api.repositories import HybridJobRepository
+
     user, items = scents(session)
     other = make_user(session, email="other-layer@example.test")
     service = LayeringService(LayeringRepository(session))
     saved = service.save_stack(user.id, [items[0].id, items[1].id], name="Summer")
+    jobs = HybridJobRepository(session)
+    assert jobs.current_input_version(user.id) == 0
     assert saved.name == "Summer"
     with pytest.raises(ApiError):
         service.rename_stack(other.id, saved.id, "Stolen")
     with pytest.raises(ApiError):
         service.evaluate_stack(other.id, [items[0].id, items[1].id])
     worn = service.log_stack_wear(user.id, saved.id, rating=5, notes="A bright day")
+    assert jobs.current_input_version(user.id) == 1
     assert worn.rating == 5
     assert service.history(user.id, saved.id)[0].notes == "A bright day"
     assert service.saved_stacks(user.id)[0].average_rating == 5
     before = service.evaluate_stack(user.id, [items[0].id, items[1].id])
     service.rate_stack_wear(user.id, saved.id, worn.id, rating=1)
+    assert jobs.current_input_version(user.id) == 2
+    service.rate_stack_wear(user.id, saved.id, worn.id, rating=1)
+    assert jobs.current_input_version(user.id) == 2
     after = service.evaluate_stack(user.id, [items[0].id, items[1].id])
-    assert 0 < before.score - after.score <= 0.15  # rating nudges both history and pairing prior
+    assert 0 < before.score - after.score <= 0.1
     assert service.rename_stack(user.id, saved.id, "Renamed").name == "Renamed"
     service.delete_stack(user.id, saved.id)
     assert service.saved_stacks(user.id) == []
@@ -145,6 +224,7 @@ def test_saved_history_stays_visible_after_lowering_spray_ceiling(session: Sessi
     listing = service.saved_stacks(user.id)
     assert listing[0].wear_count == 1
     assert any("ceiling" in warning for warning in listing[0].suggestion.warnings)
+    assert any("ceiling" in warning for warning in listing[0].suggestion.explanation.watch_out_for)
 
 
 def test_requested_triples_are_filtered_before_small_result_limit(session: Session) -> None:

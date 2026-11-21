@@ -208,6 +208,21 @@
             ],
             "title": "Calendar Name"
           },
+          "classification_corrected": {
+            "default": false,
+            "title": "Classification Corrected",
+            "type": "boolean"
+          },
+          "classification_source": {
+            "default": "keyword",
+            "enum": [
+              "keyword",
+              "member",
+              "ai"
+            ],
+            "title": "Classification Source",
+            "type": "string"
+          },
           "ends_at": {
             "format": "date-time",
             "title": "Ends At",
@@ -284,6 +299,17 @@
             ],
             "title": "Provider"
           },
+          "setting": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setting"
+          },
           "starts_at": {
             "format": "date-time",
             "title": "Starts At",
@@ -309,14 +335,72 @@
       "CalendarEventUpdateRequest": {
         "additionalProperties": false,
         "properties": {
+          "formality": {
+            "anyOf": [
+              {
+                "enum": [
+                  "formal",
+                  "smart",
+                  "casual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formality"
+          },
           "is_hidden": {
-            "title": "Is Hidden",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Hidden"
+          },
+          "occasion": {
+            "anyOf": [
+              {
+                "enum": [
+                  "work",
+                  "casual",
+                  "date",
+                  "dinner",
+                  "party",
+                  "formal",
+                  "gym",
+                  "travel",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occasion"
+          },
+          "setting": {
+            "anyOf": [
+              {
+                "enum": [
+                  "indoor",
+                  "outdoor",
+                  "mixed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setting"
           }
         },
-        "required": [
-          "is_hidden"
-        ],
         "title": "CalendarEventUpdateRequest",
         "type": "object"
       },
@@ -1284,8 +1368,74 @@
         "title": "DeletionResponse",
         "type": "object"
       },
+      "DiscoveryFeedResponse": {
+        "properties": {
+          "generated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryResult"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "balance",
+              "taste",
+              "explore",
+              "seasonal"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "refresh_status": {
+            "enum": [
+              "fresh",
+              "pending",
+              "fallback"
+            ],
+            "title": "Refresh Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "mode",
+          "limit",
+          "offset",
+          "refresh_status"
+        ],
+        "title": "DiscoveryFeedResponse",
+        "type": "object"
+      },
       "DiscoveryResult": {
         "properties": {
+          "ai_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ai Reasons",
+            "type": "array"
+          },
           "collection_expansion": {
             "maximum": 1.0,
             "minimum": 0.0,
@@ -1302,6 +1452,11 @@
           "fragrance": {
             "$ref": "#/components/schemas/FragranceSummary"
           },
+          "generation_mode": {
+            "default": "baseline",
+            "title": "Generation Mode",
+            "type": "string"
+          },
           "mode": {
             "default": "balance",
             "enum": [
@@ -1312,6 +1467,28 @@
             ],
             "title": "Mode",
             "type": "string"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "profile_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Version"
           },
           "reasons": {
             "items": {
@@ -1966,113 +2143,36 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
-      "InteractionEventBatch": {
-        "additionalProperties": false,
+      "LayeringExplanation": {
         "properties": {
-          "events": {
+          "watch_out_for": {
             "items": {
-              "$ref": "#/components/schemas/InteractionEventIn"
+              "type": "string"
             },
-            "maxItems": 50,
-            "minItems": 1,
-            "title": "Events",
+            "title": "Watch Out For",
+            "type": "array"
+          },
+          "what_changes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "What Changes",
+            "type": "array"
+          },
+          "why_they_fit": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Why They Fit",
             "type": "array"
           }
         },
         "required": [
-          "events"
+          "why_they_fit",
+          "what_changes",
+          "watch_out_for"
         ],
-        "title": "InteractionEventBatch",
-        "type": "object"
-      },
-      "InteractionEventIn": {
-        "additionalProperties": false,
-        "properties": {
-          "context": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "maxProperties": 8,
-            "title": "Context",
-            "type": "object"
-          },
-          "event_type": {
-            "enum": [
-              "view",
-              "accept",
-              "reject",
-              "skip",
-              "dismiss",
-              "wear",
-              "like",
-              "dislike",
-              "surprise_click",
-              "surprise_shown",
-              "filter_select",
-              "stack_save",
-              "stack_edit",
-              "stack_discard",
-              "stack_wear"
-            ],
-            "title": "Event Type",
-            "type": "string"
-          },
-          "fragrance_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "maxItems": 3,
-            "title": "Fragrance Ids",
-            "type": "array"
-          },
-          "rating": {
-            "anyOf": [
-              {
-                "maximum": 5.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rating"
-          },
-          "subject_type": {
-            "default": "fragrance",
-            "enum": [
-              "fragrance",
-              "stack",
-              "recommendation",
-              "ui"
-            ],
-            "title": "Subject Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "event_type"
-        ],
-        "title": "InteractionEventIn",
-        "type": "object"
-      },
-      "InteractionEventResult": {
-        "properties": {
-          "learned": {
-            "title": "Learned",
-            "type": "integer"
-          },
-          "recorded": {
-            "title": "Recorded",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "recorded",
-          "learned"
-        ],
-        "title": "InteractionEventResult",
+        "title": "LayeringExplanation",
         "type": "object"
       },
       "LayeringIntelligencePage": {
@@ -2180,11 +2280,6 @@
             "title": "Complement",
             "type": "number"
           },
-          "known_pairing": {
-            "default": 0.5,
-            "title": "Known Pairing",
-            "type": "number"
-          },
           "longevity_balance": {
             "title": "Longevity Balance",
             "type": "number"
@@ -2253,13 +2348,6 @@
             "minimum": 1.0,
             "title": "Suggested Sprays",
             "type": "integer"
-          },
-          "zones": {
-            "items": {
-              "$ref": "#/components/schemas/SprayZoneApplication"
-            },
-            "title": "Zones",
-            "type": "array"
           }
         },
         "required": [
@@ -2440,6 +2528,13 @@
       },
       "LayeringStackSuggestion": {
         "properties": {
+          "ai_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ai Reasons",
+            "type": "array"
+          },
           "algorithm_version": {
             "default": "layering-v3",
             "title": "Algorithm Version",
@@ -2481,12 +2576,22 @@
             "title": "Evidence Label",
             "type": "string"
           },
-          "filter_effects": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Filter Effects",
-            "type": "array"
+          "evidence_summary": {
+            "enum": [
+              "Lots of information",
+              "Some information missing",
+              "Little information available"
+            ],
+            "title": "Evidence Summary",
+            "type": "string"
+          },
+          "explanation": {
+            "$ref": "#/components/schemas/LayeringExplanation"
+          },
+          "generation_mode": {
+            "default": "baseline",
+            "title": "Generation Mode",
+            "type": "string"
           },
           "goal": {
             "anyOf": [
@@ -2515,19 +2620,6 @@
             ],
             "title": "Goal"
           },
-          "goal_fit": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Goal Fit"
-          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/LayeringStackItem"
@@ -2545,12 +2637,27 @@
             "title": "Mode",
             "type": "string"
           },
-          "pairing_evidence": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Pairing Evidence",
-            "type": "array"
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "profile_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Version"
           },
           "reasons": {
             "items": {
@@ -2567,13 +2674,6 @@
           },
           "score_components": {
             "$ref": "#/components/schemas/LayeringScoreComponents"
-          },
-          "score_percent": {
-            "default": 0,
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Score Percent",
-            "type": "integer"
           },
           "shared_accords": {
             "items": {
@@ -2592,6 +2692,17 @@
           "total_sprays": {
             "title": "Total Sprays",
             "type": "integer"
+          },
+          "verdict": {
+            "enum": [
+              "Strong fit",
+              "Promising blend",
+              "Bold experiment",
+              "Tricky balance",
+              "Needs a wear test"
+            ],
+            "title": "Verdict",
+            "type": "string"
           },
           "warnings": {
             "items": {
@@ -2615,7 +2726,10 @@
           "warnings",
           "total_sprays",
           "evidence_coverage",
-          "evidence_label"
+          "evidence_label",
+          "verdict",
+          "evidence_summary",
+          "explanation"
         ],
         "title": "LayeringStackSuggestion",
         "type": "object"
@@ -3121,6 +3235,67 @@
       },
       "PreferencesResponse": {
         "properties": {
+          "calendar_ai_titles_enabled": {
+            "default": false,
+            "title": "Calendar Ai Titles Enabled",
+            "type": "boolean"
+          },
+          "disliked_accords": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Disliked Accords",
+            "type": "array"
+          },
+          "disliked_families": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Disliked Families",
+            "type": "array"
+          },
+          "disliked_notes": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Disliked Notes",
+            "type": "array"
+          },
+          "excluded_fragrance_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Excluded Fragrance Ids",
+            "type": "array"
+          },
+          "liked_accords": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Liked Accords",
+            "type": "array"
+          },
+          "liked_families": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Liked Families",
+            "type": "array"
+          },
+          "liked_notes": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Liked Notes",
+            "type": "array"
+          },
           "location": {
             "anyOf": [
               {
@@ -3246,6 +3421,16 @@
               }
             ],
             "title": "Timezone"
+          },
+          "variety_preference": {
+            "default": "balanced",
+            "enum": [
+              "familiar",
+              "balanced",
+              "adventurous"
+            ],
+            "title": "Variety Preference",
+            "type": "string"
           }
         },
         "title": "PreferencesResponse",
@@ -3255,6 +3440,67 @@
         "additionalProperties": false,
         "description": "A full replacement of the preference set; omitted fields clear.",
         "properties": {
+          "calendar_ai_titles_enabled": {
+            "default": false,
+            "title": "Calendar Ai Titles Enabled",
+            "type": "boolean"
+          },
+          "disliked_accords": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Disliked Accords",
+            "type": "array"
+          },
+          "disliked_families": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Disliked Families",
+            "type": "array"
+          },
+          "disliked_notes": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Disliked Notes",
+            "type": "array"
+          },
+          "excluded_fragrance_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Excluded Fragrance Ids",
+            "type": "array"
+          },
+          "liked_accords": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Liked Accords",
+            "type": "array"
+          },
+          "liked_families": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Liked Families",
+            "type": "array"
+          },
+          "liked_notes": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Liked Notes",
+            "type": "array"
+          },
           "location": {
             "anyOf": [
               {
@@ -3362,6 +3608,16 @@
               }
             ],
             "title": "Temperature Unit"
+          },
+          "variety_preference": {
+            "default": "balanced",
+            "enum": [
+              "familiar",
+              "balanced",
+              "adventurous"
+            ],
+            "title": "Variety Preference",
+            "type": "string"
           }
         },
         "title": "PreferencesUpdateRequest",
@@ -3448,6 +3704,17 @@
             ],
             "title": "Daypart",
             "type": "string"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
           },
           "formality": {
             "anyOf": [
@@ -3571,6 +3838,33 @@
           "timezone": {
             "title": "Timezone",
             "type": "string"
+          },
+          "weather_fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Fetched At"
+          },
+          "weather_resolution": {
+            "default": "unavailable",
+            "enum": [
+              "hourly",
+              "daily",
+              "unavailable"
+            ],
+            "title": "Weather Resolution",
+            "type": "string"
+          },
+          "weather_stale": {
+            "default": false,
+            "title": "Weather Stale",
+            "type": "boolean"
           }
         },
         "required": [
@@ -3596,12 +3890,6 @@
               "dismissed"
             ],
             "title": "Action",
-            "type": "string"
-          },
-          "blend_key": {
-            "default": "",
-            "maxLength": 100,
-            "title": "Blend Key",
             "type": "string"
           },
           "selected_fragrance_id": {
@@ -3635,11 +3923,6 @@
             "title": "Action",
             "type": "string"
           },
-          "blend_key": {
-            "default": "",
-            "title": "Blend Key",
-            "type": "string"
-          },
           "selected_fragrance_id": {
             "anyOf": [
               {
@@ -3659,6 +3942,87 @@
         "title": "RecommendationDecisionResponse",
         "type": "object"
       },
+      "RecommendationFeedbackRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "fragrance_id": {
+            "format": "uuid",
+            "title": "Fragrance Id",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "not_today",
+              "too_strong",
+              "dislike_scent"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fragrance_id",
+          "reason"
+        ],
+        "title": "RecommendationFeedbackRequest",
+        "type": "object"
+      },
+      "RecommendationFeedbackResponse": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "not_today",
+              "too_strong",
+              "dislike_scent"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ],
+        "title": "RecommendationFeedbackResponse",
+        "type": "object"
+      },
+      "RecommendationNextRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_fragrance_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Fragrance Id"
+          },
+          "idempotency_key": {
+            "format": "uuid",
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "reset": {
+            "default": false,
+            "title": "Reset",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "idempotency_key"
+        ],
+        "title": "RecommendationNextRequest",
+        "type": "object"
+      },
       "RecommendationPayload": {
         "properties": {
           "discovery": {
@@ -3670,6 +4034,17 @@
           },
           "layering": {
             "$ref": "#/components/schemas/LayeringRecommendationPayload"
+          },
+          "profile_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Version"
           }
         },
         "required": [
@@ -3800,12 +4175,6 @@
       "RecommendationWearRequest": {
         "additionalProperties": false,
         "properties": {
-          "blend_key": {
-            "default": "",
-            "maxLength": 100,
-            "title": "Blend Key",
-            "type": "string"
-          },
           "notes": {
             "anyOf": [
               {
@@ -4056,33 +4425,109 @@
         "title": "SourceResponse",
         "type": "object"
       },
-      "SprayZoneApplication": {
+      "SurfaceChoiceRequest": {
+        "additionalProperties": false,
         "properties": {
-          "sprays": {
-            "maximum": 3.0,
-            "minimum": 1.0,
-            "title": "Sprays",
-            "type": "integer"
+          "advance": {
+            "default": true,
+            "title": "Advance",
+            "type": "boolean"
           },
-          "zone": {
-            "enum": [
-              "chest",
-              "back_of_neck",
-              "neck",
-              "wrists",
-              "inner_elbows",
-              "behind_ears",
-              "behind_knees"
+          "batch_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Zone",
+            "title": "Batch Id"
+          },
+          "expected_candidate_id": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Candidate Id"
+          },
+          "idempotency_key": {
+            "format": "uuid",
+            "title": "Idempotency Key",
             "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "title": "Parameters",
+            "type": "object"
+          },
+          "reset": {
+            "default": false,
+            "title": "Reset",
+            "type": "boolean"
           }
         },
         "required": [
-          "zone",
-          "sprays"
+          "idempotency_key"
         ],
-        "title": "SprayZoneApplication",
+        "title": "SurfaceChoiceRequest",
+        "type": "object"
+      },
+      "SurfaceChoiceResponse": {
+        "properties": {
+          "batch_id": {
+            "format": "uuid",
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "candidate_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Id"
+          },
+          "options_exhausted": {
+            "title": "Options Exhausted",
+            "type": "boolean"
+          },
+          "remaining_options": {
+            "title": "Remaining Options",
+            "type": "integer"
+          },
+          "selected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiscoveryResult"
+              },
+              {
+                "$ref": "#/components/schemas/LayeringStackSuggestion"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected"
+          }
+        },
+        "required": [
+          "batch_id",
+          "selected",
+          "candidate_id",
+          "remaining_options",
+          "options_exhausted"
+        ],
+        "title": "SurfaceChoiceResponse",
         "type": "object"
       },
       "ValidationError": {
@@ -4452,21 +4897,6 @@
       },
       "WearRecommendationCandidate": {
         "properties": {
-          "blend": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LayeringStackSuggestion"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "blend_key": {
-            "default": "",
-            "title": "Blend Key",
-            "type": "string"
-          },
           "evidence_coverage": {
             "title": "Evidence Coverage",
             "type": "number"
@@ -4564,20 +4994,17 @@
             "title": "Alternatives",
             "type": "array"
           },
-          "blend": {
+          "canonical_fragrance_id": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/LayeringStackSuggestion"
+                "format": "uuid",
+                "type": "string"
               },
               {
                 "type": "null"
               }
-            ]
-          },
-          "blend_key": {
-            "default": "",
-            "title": "Blend Key",
-            "type": "string"
+            ],
+            "title": "Canonical Fragrance Id"
           },
           "context": {
             "$ref": "#/components/schemas/RecommendationContext"
@@ -4603,10 +5030,42 @@
           "fragrance": {
             "$ref": "#/components/schemas/FragranceSummary"
           },
+          "generation_mode": {
+            "default": "baseline",
+            "title": "Generation Mode",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "options_exhausted": {
+            "default": false,
+            "title": "Options Exhausted",
+            "type": "boolean"
+          },
+          "profile_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Version"
           },
           "reasons": {
             "items": {
@@ -4622,6 +5081,11 @@
           },
           "recommended_sprays": {
             "title": "Recommended Sprays",
+            "type": "integer"
+          },
+          "remaining_options": {
+            "default": 0,
+            "title": "Remaining Options",
             "type": "integer"
           },
           "score": {
@@ -5967,10 +6431,144 @@
         ]
       }
     },
-    "/api/v1/events": {
-      "post": {
-        "operationId": "record_events_api_v1_events_post",
+    "/api/v1/discovery-feed": {
+      "get": {
+        "operationId": "discovery_feed_api_v1_discovery_feed_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "gender",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "male",
+                    "female",
+                    "unisex"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Gender"
+            }
+          },
+          {
+            "in": "query",
+            "name": "family",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Family"
+            }
+          },
+          {
+            "in": "query",
+            "name": "season",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "spring",
+                    "summer",
+                    "fall",
+                    "winter"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          },
+          {
+            "in": "query",
+            "name": "accord",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accord"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimum_value",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 5,
+                  "minimum": 1,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minimum Value"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "balance",
+              "enum": [
+                "balance",
+                "taste",
+                "explore",
+                "seasonal"
+              ],
+              "title": "Mode",
+              "type": "string"
+            }
+          },
           {
             "in": "header",
             "name": "authorization",
@@ -5988,22 +6586,12 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InteractionEventBatch"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
-          "202": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/InteractionEventResult"
+                  "$ref": "#/components/schemas/DiscoveryFeedResponse"
                 }
               }
             },
@@ -6020,9 +6608,9 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Record Events",
+        "summary": "Discovery Feed",
         "tags": [
-          "events"
+          "discover"
         ]
       }
     },
@@ -6641,24 +7229,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "surprise_seed",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maximum": 2147483647,
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Surprise Seed"
-            }
-          },
-          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -6981,45 +7551,6 @@
                 }
               ],
               "title": "Stack Size"
-            }
-          },
-          {
-            "in": "query",
-            "name": "surprise_seed",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maximum": 2147483647,
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Surprise Seed"
-            }
-          },
-          {
-            "in": "query",
-            "name": "exclude_ids",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "items": {
-                    "format": "uuid",
-                    "type": "string"
-                  },
-                  "maxItems": 20,
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Exclude Ids"
             }
           },
           {
@@ -7979,6 +8510,78 @@
         ]
       }
     },
+    "/api/v1/recommendation-options/{surface}": {
+      "post": {
+        "operationId": "choose_api_v1_recommendation_options__surface__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "surface",
+            "required": true,
+            "schema": {
+              "enum": [
+                "discovery",
+                "layering"
+              ],
+              "title": "Surface",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SurfaceChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurfaceChoiceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Choose",
+        "tags": [
+          "recommendation-options"
+        ]
+      }
+    },
     "/api/v1/recommendations": {
       "get": {
         "operationId": "recommendations_api_v1_recommendations_get",
@@ -8249,6 +8852,144 @@
           }
         },
         "summary": "Decision",
+        "tags": [
+          "wear-recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/{recommendation_id}/feedback": {
+      "post": {
+        "operationId": "feedback_api_v1_recommendations__recommendation_id__feedback_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recommendation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recommendation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendationFeedbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationFeedbackResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Feedback",
+        "tags": [
+          "wear-recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/{recommendation_id}/next": {
+      "post": {
+        "operationId": "next_option_api_v1_recommendations__recommendation_id__next_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recommendation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recommendation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendationNextRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WearRecommendationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Next Option",
         "tags": [
           "wear-recommendations"
         ]

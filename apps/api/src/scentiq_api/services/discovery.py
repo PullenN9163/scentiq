@@ -7,6 +7,9 @@ from scentiq_api.repositories import DiscoveryRepository
 from scentiq_api.schemas import DiscoveryResult
 from scentiq_api.schemas.discovery import DiscoveryMode
 from scentiq_api.services.fragrances import to_fragrance_summary
+from scentiq_api.services.personalized_ranking import rerank, surface_context
+from scentiq_api.services.recommendation_scoring import discovery_score, positive_taste_overlap
+from scentiq_api.services.taste_profile import TasteProfileService
 
 
 def _accords(item: Fragrance) -> dict[str, float]:
@@ -44,8 +47,13 @@ class DiscoveryService:
         accord: str | None = None,
         minimum_value: float | None = None,
         mode: DiscoveryMode = "balance",
+        rank_with_ai: bool = True,
     ) -> list[DiscoveryResult]:
         owned = self._repository.owned(user_id)
+        profile = TasteProfileService(self._repository._session).for_user(user_id)
+        context = surface_context(self._repository._session, user_id, profile)
+        if mode == "seasonal" and season is None:
+            season = str(context["season"])
         candidates = self._repository.candidates(
             user_id,
             gender=gender,
@@ -55,6 +63,7 @@ class DiscoveryService:
             minimum_value=minimum_value,
         )
         owned_accords = set().union(*(_accords(item) for item in owned)) if owned else set()
+        owned_accord_sets = [set(_accords(item)) for item in owned]
         owned_notes = set().union(*(_notes(item) for item in owned)) if owned else set()
         owned_families = {item.olfactory_family for item in owned if item.olfactory_family}
         similarities = self._repository.similarity_strengths(
@@ -63,31 +72,25 @@ class DiscoveryService:
 
         results: list[DiscoveryResult] = []
         for candidate in candidates:
+            if candidate.id in profile.excluded_ids:
+                continue
             candidate_accords = _accords(candidate)
+            candidate_accord_ids = set(candidate_accords)
             candidate_notes = _notes(candidate)
-            accord_total = sum(candidate_accords.values()) or 1.0
-            accord_overlap = (
-                sum(weight for key, weight in candidate_accords.items() if key in owned_accords)
-                / accord_total
+            taste = positive_taste_overlap(
+                candidate_accords, candidate_notes, owned_accords, owned_notes, profile.features
             )
-            note_overlap = (
-                len(candidate_notes & owned_notes) / len(candidate_notes)
-                if candidate_notes
-                else 0.0
-            )
-            taste = (accord_overlap + note_overlap) / 2
 
-            expansion_parts = [key not in owned_accords for key in candidate_accords]
+            expansion_parts = [key not in owned_accords for key in candidate_accord_ids]
             if candidate.olfactory_family:
                 expansion_parts.append(candidate.olfactory_family not in owned_families)
             expansion = sum(expansion_parts) / len(expansion_parts) if expansion_parts else 0.0
 
             risk = 0.0
-            for owned_item in owned:
-                owned_item_accords = set(_accords(owned_item))
-                union = set(candidate_accords) | owned_item_accords
+            for owned_item, owned_item_accords in zip(owned, owned_accord_sets, strict=True):
+                union = candidate_accord_ids | owned_item_accords
                 overlap = (
-                    len(set(candidate_accords) & owned_item_accords) / len(union) if union else 0
+                    len(candidate_accord_ids & owned_item_accords) / len(union) if union else 0
                 )
                 risk = max(risk, overlap, similarities.get((candidate.id, owned_item.id), 0.0))
             season_fit = (
@@ -98,14 +101,14 @@ class DiscoveryService:
                 if season
                 else None
             )
-            if mode == "taste":
-                score = 0.80 * taste + 0.15 * expansion - 0.10 * risk
-            elif mode == "explore":
-                score = 0.15 * taste + 0.70 * expansion - 0.35 * risk
-            elif mode == "seasonal":
-                score = 0.35 * taste + 0.25 * expansion + 0.40 * (season_fit or 0) - 0.20 * risk
-            else:
-                score = 0.55 * taste + 0.35 * expansion - 0.25 * risk
+            score = discovery_score(
+                taste,
+                expansion,
+                risk,
+                mode=mode,
+                season_fit=season_fit,
+                affinity=profile.affinity(candidate),
+            )
             evidence = (
                 sum(
                     (
@@ -118,12 +121,19 @@ class DiscoveryService:
                 / 4
             )
             reasons = [
-                f"{round(taste * 100)}% recorded taste overlap with your owned collection.",
+                f"{round(taste * 100)}% match to positive taste signals; "
+                "unrated ownership is weak evidence.",
                 f"{round(expansion * 100)}% of recorded profile signals add collection variety.",
                 f"{round(risk * 100)}% nearest-profile redundancy risk.",
             ]
             if season_fit is not None:
                 reasons.append(f"Recorded {season} suitability: {round(season_fit * 100)}%.")
+            if profile.affinity(candidate) > 0:
+                reasons.append(
+                    "Personal taste fit from explicit preferences and rated scent profiles."
+                )
+            elif profile.affinity(candidate) < 0:
+                reasons.append("Some recorded scent signals conflict with your personal taste.")
             if evidence < 0.5:
                 reasons.append(
                     "Limited catalog evidence; compare the fragrance details before deciding."
@@ -149,4 +159,38 @@ class DiscoveryService:
                 str(result.fragrance.id),
             ),
         )
+        if not rank_with_ai:
+            return ranked[offset : offset + limit]
+        ranking = rerank(
+            self._repository._session,
+            user_id,
+            surface="discovery",
+            candidates=[
+                {
+                    "candidate_id": str(row.fragrance.id),
+                    "baseline_score": row.score,
+                    "evidence": {
+                        "taste_match": row.taste_match,
+                        "collection_expansion": row.collection_expansion,
+                        "redundancy": row.redundancy_risk,
+                        "reasons": row.reasons,
+                    },
+                }
+                for row in ranked
+            ],
+            context={**context, "mode": mode, "season": season},
+            version=profile.version,
+        )
+        by_id = {str(row.fragrance.id): row for row in ranked}
+        ranked = [
+            by_id[key].model_copy(
+                update={
+                    "generation_mode": ranking.generation_mode,
+                    "profile_version": profile.version,
+                    "model_version": ranking.model_version,
+                    "ai_reasons": ranking.explanations.get(key, []),
+                }
+            )
+            for key in ranking.ordered_ids
+        ]
         return ranked[offset : offset + limit]

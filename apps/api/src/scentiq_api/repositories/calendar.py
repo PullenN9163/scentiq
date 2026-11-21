@@ -25,6 +25,11 @@ class CalendarRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
+    @property
+    def session(self) -> Session:
+        """Transaction shared by calendar context and its bounded inference service."""
+        return self._session
+
     # --- OAuth state -------------------------------------------------------
 
     def add_state(self, state: OAuthState) -> None:

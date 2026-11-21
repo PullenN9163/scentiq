@@ -2,7 +2,7 @@ from datetime import timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from scentiq_api.auth import AuthenticatedUser, CurrentUserDependency
@@ -70,11 +70,18 @@ def create_page_data_router(
     def dashboard(
         session: Annotated[Session, Depends(get_session)],
         user: Annotated[AuthenticatedUser, Depends(current_user)],
+        lite: Annotated[bool, Query()] = False,
     ) -> DashboardPageResponse:
         me = ProfileService(UserRepository(session)).get(user.user_id)
+        insights_service = InsightsService(InsightsRepository(session))
         response = DashboardPageResponse(
             me=me,
-            insights=InsightsService(InsightsRepository(session)).for_user(user.user_id),
+            # Today needs only the headline counts; the full breakdown is for Insights.
+            insights=(
+                insights_service.totals_for_user(user.user_id)
+                if lite
+                else insights_service.for_user(user.user_id)
+            ),
             recent_wears=wears(session).list_for_user(user.user_id, limit=10),
         )
         session.commit()

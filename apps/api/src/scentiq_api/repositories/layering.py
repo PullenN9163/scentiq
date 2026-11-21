@@ -14,10 +14,6 @@ class LayeringRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    @property
-    def session(self) -> Session:
-        return self._session
-
     def owned(self, user_id: UUID) -> list[Fragrance]:
         statement = (
             select(Fragrance)

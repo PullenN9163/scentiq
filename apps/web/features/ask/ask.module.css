@@ -1,0 +1,93 @@
+.conversation { display: flex; min-height: 100%; flex-direction: column; gap: var(--space-4); }
+.thread { display: grid; flex: 1; align-content: start; gap: var(--space-5); }
+.empty { display: grid; justify-items: start; gap: var(--space-4); padding: var(--space-6) 0 var(--space-2); }
+.prompts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+.user { justify-self: end; max-width: 85%; }
+.userText {
+  margin: 0;
+  border-radius: var(--radius-md) var(--radius-md) var(--radius-xs) var(--radius-md);
+  padding: 10px 14px;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+.assistant { display: grid; min-width: 0; gap: var(--space-3); }
+.answer { margin: 0; white-space: pre-wrap; }
+.status { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--ink-muted); font-size: 14px; }
+.status i { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); }
+.error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; color: var(--danger); font-weight: 500; }
+
+.result { display: grid; gap: var(--space-3); border-top: 1px solid var(--line); padding-top: var(--space-3); }
+.resultLink { justify-self: start; color: var(--accent); font: 500 14px/1.2 var(--font-sans); text-decoration: underline; text-underline-offset: 4px; }
+.resultLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.stack { display: flex; align-items: center; gap: var(--space-3); }
+.stackText { display: grid; min-width: 0; flex: 1; gap: 2px; }
+.list { display: grid; margin: 0; padding: 0; list-style: none; }
+.list li, .plainRow { display: flex; justify-content: space-between; gap: var(--space-3); margin: 0; border-bottom: 1px solid var(--line); padding: 8px 0; }
+
+.composer {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 calc(var(--space-4) * -1) calc(var(--space-6) * -1);
+  padding: var(--space-3) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+  background: var(--surface);
+}
+.context { display: inline-flex; align-items: center; gap: 2px; }
+.clearContext { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: var(--radius-pill); background: none; color: var(--ink-muted); cursor: pointer; }
+.clearContext svg { width: 16px; height: 16px; }
+.clearContext:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  border-radius: var(--radius-lg);
+  padding: 6px 6px 6px 18px;
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.field:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field textarea {
+  min-height: 44px;
+  max-height: 160px;
+  flex: 1;
+  resize: none;
+  border: 0;
+  padding: 11px 0;
+  background: none;
+  color: var(--ink);
+  font: 400 15px/1.4 var(--font-sans);
+  outline: none;
+  field-sizing: content;
+}
+.field textarea::placeholder { color: var(--ink-muted); }
+/* The pill shows the focus ring; the field inside does not draw a second one. */
+.field textarea:focus-visible { outline: none !important; }
+.send {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--action);
+  color: var(--on-action);
+  cursor: pointer;
+}
+.send svg { width: 20px; height: 20px; stroke-width: 1.75; }
+.send:disabled { opacity: 0.45; cursor: not-allowed; }
+.send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (min-width: 700px) {
+  .composer { margin-inline: calc(var(--space-6) * -1); padding-inline: var(--space-6); }
+}
+
+/* The /agent page: the same conversation at reading width. */
+.pageLayout { max-width: 760px; margin-inline: auto; }
+.pageLayout .composer { margin: 0; padding-inline: 0; background: var(--ground); }
+.pageTitle { max-width: 760px; margin: 0 auto var(--space-4); }
+@media (max-width: 699px) { .pageTitle { font-size: 36px; } }
+@media (max-width: 699px) { .pageLayout .composer { bottom: calc(88px + env(safe-area-inset-bottom)); } }

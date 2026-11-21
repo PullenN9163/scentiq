@@ -35,7 +35,8 @@ from scentiq_api.schemas import (
     CalendarSourceResponse,
     Occasion,
 )
-from scentiq_api.services.event_classification import classify_event
+from scentiq_api.schemas.calendar import CalendarEventUpdateRequest
+from scentiq_api.services.event_classification import classify_event, interpret_event_title
 
 STATE_TTL = timedelta(minutes=10)
 SYNC_INTERVAL = timedelta(minutes=15)
@@ -43,6 +44,7 @@ SYNC_INTERVAL = timedelta(minutes=15)
 SYNC_PAST = timedelta(days=1)
 SYNC_AHEAD = timedelta(days=21)
 MAX_EVENT_RANGE = timedelta(days=31)
+MAX_TITLE_INTERPRETATIONS = 2
 _OCCASIONS = frozenset(get_args(Occasion))
 
 
@@ -119,6 +121,9 @@ class CalendarService:
         self._cipher = cipher
         self._public_app_url = public_app_url
         self._clock = clock
+        # Calendar sync must stay usable even when hundreds of ambiguous events
+        # arrive together. Remaining events keep local classification and can be corrected.
+        self._remaining_title_interpretations = MAX_TITLE_INTERPRETATIONS
 
     # --- providers ---------------------------------------------------------
 
@@ -327,6 +332,27 @@ class CalendarService:
 
     # --- sync --------------------------------------------------------------
 
+    def update_event(
+        self, user_id: UUID, event_id: UUID, payload: CalendarEventUpdateRequest
+    ) -> CalendarEventResponse:
+        event = self._repository.get_event(user_id, event_id)
+        if event is None:
+            raise not_found("Event not found")
+        fields = payload.model_fields_set
+        if "is_hidden" in fields and payload.is_hidden is not None:
+            event.is_hidden = payload.is_hidden
+        if fields & {"occasion", "formality", "setting"}:
+            if payload.occasion is not None:
+                event.event_type = payload.occasion
+            if "formality" in fields:
+                event.formality = payload.formality
+            if "setting" in fields:
+                event.setting = payload.setting
+            event.classification_corrected = True
+            event.classification_source = "member"
+        self._repository.flush()
+        return _event_response(event, None, None)
+
     def sync_stale(self, user_id: UUID) -> None:
         now = self._clock()
         for connection in self._repository.list_connections(user_id):
@@ -466,6 +492,18 @@ class CalendarService:
             event = stored.pop(incoming.id, None) or self._repository.find_event(
                 source.id, incoming.id
             )
+            title_changed = event is None or event.title != incoming.title
+            if (
+                classification.occasion == "other"
+                and source.is_selected
+                and title_changed
+                and self._remaining_title_interpretations > 0
+                and (event is None or not (event.is_hidden or event.classification_corrected))
+            ):
+                self._remaining_title_interpretations -= 1
+                classification = interpret_event_title(
+                    self._repository.session, connection.user_id, incoming.title, incoming.starts_at
+                )
             if event is None:
                 self._repository.add_event(
                     CalendarEvent(
@@ -480,6 +518,7 @@ class CalendarService:
                         location_label=incoming.location,
                         event_type=classification.occasion,
                         formality=classification.formality,
+                        classification_source=classification.source,
                         is_hidden=False,
                     )
                 )
@@ -490,8 +529,10 @@ class CalendarService:
             event.ends_at = incoming.ends_at
             event.is_all_day = incoming.is_all_day
             event.location_label = incoming.location
-            event.event_type = classification.occasion
-            event.formality = classification.formality
+            if not event.classification_corrected and title_changed:
+                event.event_type = classification.occasion
+                event.formality = classification.formality
+                event.classification_source = classification.source
         # Anything left was cancelled, deleted or moved out of the window.
         self._repository.delete_events(event.id for event in stored.values())
         self._repository.flush()
@@ -547,6 +588,9 @@ def _event_response(
             "occasion": event.event_type if event.event_type in _OCCASIONS else "other",
             "formality": event.formality,
             "is_hidden": event.is_hidden,
+            "setting": event.setting,
+            "classification_corrected": event.classification_corrected,
+            "classification_source": event.classification_source,
             "calendar_name": calendar_name,
             "provider": provider,
         }

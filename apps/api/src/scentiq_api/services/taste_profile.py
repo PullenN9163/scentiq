@@ -1,157 +1,152 @@
-"""Online per-user taste learning. Pure functions plus a thin persistence service.
+"""Shared, inspectable taste learning from explicit preferences and rated experience."""
 
-Two things are learned from interaction events:
-
-* ``affinities``: signed preference for notes/accords/families, nudged by every positive
-  (accept, wear, high rating, save) or negative (reject, skip, dismiss, discard) event and
-  decayed so recent behaviour dominates.
-* ``component_weights``: per recommendation-component multipliers fitted with a tiny online
-  logistic step, so a user who always accepts weather-appropriate picks gets weather weighted up.
-
-Both are clamped, explainable, and fall back to neutral for a new user.
-"""
-
-from __future__ import annotations
-
-import math
-from collections.abc import Iterable, Mapping
+import hashlib
+import json
+from collections import defaultdict
+from dataclasses import dataclass
+from statistics import mean
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, joinedload
 
-from scentiq_api.models.learning import InteractionEvent, UserTasteProfile
-
-DECAY = 0.97
-LEARNING_RATE = 0.12
-WEIGHT_RATE = 0.05
-WEIGHT_BOUNDS = (0.5, 1.8)
-MIN_EVENTS_FOR_WEIGHTS = 8
-
-POSITIVE = {
-    "accept": 1.0,
-    "wear": 1.0,
-    "stack_save": 0.8,
-    "stack_wear": 1.0,
-    "like": 1.0,
-    "view_detail": 0.15,
-}
-NEGATIVE = {"reject": -1.0, "skip": -0.6, "dismiss": -0.5, "stack_discard": -0.7, "dislike": -1.0}
+from scentiq_api.models import (
+    Fragrance,
+    FragranceAccord,
+    FragranceNote,
+    UserCollectionItem,
+    UserPreference,
+    WearFeedback,
+    WearLog,
+)
+from scentiq_api.models.layer_stacks import LayerStackItem, LayerStackWear
+from scentiq_api.models.recommendation_choices import RecommendationFeedback
+from scentiq_api.models.taste import UserTasteProfile
 
 
-def polarity(event_type: str, rating: int | None = None) -> float:
-    """Signed strength of an event, scaled by an explicit 1-5 rating when present."""
-    if rating is not None:
-        return (rating - 3) / 2
-    return POSITIVE.get(event_type, NEGATIVE.get(event_type, 0.0))
+def fragrance_features(fragrance: Fragrance) -> set[str]:
+    values = {f"accord:{link.accord.slug}" for link in fragrance.accord_links}
+    values.update(f"note:{link.note.slug}" for link in fragrance.note_links)
+    if fragrance.olfactory_family:
+        values.add("family:" + fragrance.olfactory_family.casefold().replace(" ", "-"))
+    return values
 
 
-def update_affinities(
-    affinities: Mapping[str, float],
-    signal_profiles: Iterable[Mapping[str, float]],
-    strength: float,
-) -> dict[str, float]:
-    """Decay every affinity, then move the event's signals toward its polarity."""
-    updated = {key: value * DECAY for key, value in affinities.items()}
-    profiles = list(signal_profiles)
-    for profile in profiles if strength else []:
-        total = sum(profile.values()) or 1.0
-        for key, weight in profile.items():
-            share = weight / total
-            current = updated.get(key, 0.0)
-            updated[key] = max(-1.0, min(1.0, current + LEARNING_RATE * strength * share * 4))
-    # Drop negligible entries so the stored JSON stays small.
-    return {key: round(value, 4) for key, value in updated.items() if abs(value) >= 0.01}
+@dataclass(frozen=True)
+class TasteProfile:
+    version: str
+    features: dict[str, float]
+    excluded_ids: frozenset[UUID]
+    variety: str
 
+    def affinity(self, fragrance: Fragrance) -> float:
+        values = [
+            self.features[key] for key in fragrance_features(fragrance) if key in self.features
+        ]
+        return mean(values) if values else 0.0
 
-def taste_affinity(affinities: Mapping[str, float], profile: Mapping[str, float]) -> float:
-    """0-1 affinity of a scent's signal profile for this user; 0.5 means no information."""
-    total = sum(profile.values())
-    if not total or not affinities:
-        return 0.5
-    value = sum(weight * affinities.get(key, 0.0) for key, weight in profile.items()) / total
-    return max(0.0, min(1.0, 0.5 + value * 0.5))
-
-
-def update_component_weights(
-    weights: Mapping[str, float],
-    components: Mapping[str, float],
-    accepted: bool,
-) -> dict[str, float]:
-    """One online logistic step. ``components`` are 0-1 normalised component scores."""
-    keys = list(components)
-    current = {key: weights.get(key, 1.0) for key in keys}
-    logit = sum((current[key] - 1.0) * components[key] for key in keys)
-    predicted = 1 / (1 + math.exp(-logit))
-    error = (1.0 if accepted else 0.0) - predicted
-    lower, upper = WEIGHT_BOUNDS
-    merged = dict(weights)
-    for key in keys:
-        merged[key] = round(
-            max(lower, min(upper, current[key] + WEIGHT_RATE * error * components[key])), 4
-        )
-    return merged
-
-
-def exploration_bonus(shown: int, total_shown: int) -> float:
-    """UCB-style bonus: under-shown items get a small boost, decaying with exposure."""
-    if total_shown <= 0:
-        return 0.0
-    return min(0.08, 0.08 * math.sqrt(math.log(total_shown + 1) / (shown + 1)) / 2)
+    def evidence(self, fragrance: Fragrance) -> list[str]:
+        return sorted(key for key in fragrance_features(fragrance) if key in self.features)
 
 
 class TasteProfileService:
     def __init__(self, session: Session) -> None:
-        self._session = session
+        self.session = session
 
-    def profile(self, user_id: UUID) -> UserTasteProfile:
-        record = self._session.get(UserTasteProfile, user_id)
-        if record is None:
-            record = UserTasteProfile(
-                user_id=user_id, affinities={}, component_weights={}, event_count=0
+    def for_user(self, user_id: UUID) -> TasteProfile:
+        preferences = self.session.get(UserPreference, user_id)
+        collection = list(
+            self.session.scalars(
+                select(UserCollectionItem)
+                .where(UserCollectionItem.user_id == user_id)
+                .options(
+                    joinedload(UserCollectionItem.fragrance)
+                    .selectinload(Fragrance.accord_links)
+                    .joinedload(FragranceAccord.accord),
+                    joinedload(UserCollectionItem.fragrance)
+                    .selectinload(Fragrance.note_links)
+                    .joinedload(FragranceNote.note),
+                )
             )
-            self._session.add(record)
-            self._session.flush()
-        return record
-
-    def affinities(self, user_id: UUID) -> dict[str, float]:
-        record = self._session.get(UserTasteProfile, user_id)
-        return dict(record.affinities) if record else {}
-
-    def component_weights(self, user_id: UUID) -> dict[str, float]:
-        record = self._session.get(UserTasteProfile, user_id)
-        if record is None or record.event_count < MIN_EVENTS_FOR_WEIGHTS:
-            return {}
-        return dict(record.component_weights)
-
-    def learn(
-        self,
-        user_id: UUID,
-        signal_profiles: Iterable[Mapping[str, float]],
-        strength: float,
-        *,
-        components: Mapping[str, float] | None = None,
-        accepted: bool | None = None,
-    ) -> None:
-        record = self.profile(user_id)
-        record.affinities = update_affinities(record.affinities, signal_profiles, strength)
-        if components is not None and accepted is not None:
-            record.component_weights = update_component_weights(
-                record.component_weights, components, accepted
-            )
-        record.event_count += 1
-        self._session.flush()
-
-    def recent_blend_keys(self, user_id: UUID, limit: int = 30) -> list[list[str]]:
-        """Fragrance-id sets of the most recent surprise/suggestion views, to avoid repeats."""
-        rows = self._session.scalars(
-            select(InteractionEvent)
-            .where(
-                InteractionEvent.user_id == user_id,
-                InteractionEvent.subject_type == "stack",
-                InteractionEvent.event_type.in_(("surprise_shown", "view", "stack_discard")),
-            )
-            .order_by(InteractionEvent.created_at.desc())
-            .limit(limit)
         )
-        return [list(row.fragrance_ids) for row in rows]
+        ratings: dict[UUID, list[float]] = defaultdict(list)
+        fragrances = {item.fragrance_id: item.fragrance for item in collection}
+        # Duplicate bottle/decant rows contribute a single average personal rating.
+        item_ratings: dict[UUID, list[float]] = defaultdict(list)
+        for item in collection:
+            if item.user_rating is not None:
+                item_ratings[item.fragrance_id].append(float(item.user_rating))
+        for fragrance_id, values in item_ratings.items():
+            ratings[fragrance_id].append(mean(values))
+        for fragrance_id, rating in self.session.execute(
+            select(UserCollectionItem.fragrance_id, WearFeedback.rating)
+            .join(WearLog, WearLog.collection_item_id == UserCollectionItem.id)
+            .join(WearFeedback, WearFeedback.wear_log_id == WearLog.id)
+            .where(WearLog.user_id == user_id, WearFeedback.rating.is_not(None))
+        ):
+            ratings[fragrance_id].append(float(rating))
+        disliked_ids = set(
+            self.session.scalars(
+                select(RecommendationFeedback.fragrance_id).where(
+                    RecommendationFeedback.user_id == user_id,
+                    RecommendationFeedback.reason == "dislike_scent",
+                )
+            )
+        )
+        for fragrance_id in disliked_ids:
+            ratings[fragrance_id].append(1.0)
+        for fragrance_id, rating in self.session.execute(
+            select(LayerStackItem.fragrance_id, LayerStackWear.rating)
+            .join(LayerStackWear, LayerStackWear.stack_id == LayerStackItem.stack_id)
+            .where(LayerStackWear.user_id == user_id, LayerStackWear.rating.is_not(None))
+        ):
+            ratings[fragrance_id].append(float(rating))
+        learned: dict[str, list[float]] = defaultdict(list)
+        for fragrance_id, values in ratings.items():
+            if fragrance_id in fragrances:
+                for key in fragrance_features(fragrances[fragrance_id]):
+                    learned[key].append((mean(values) - 3) / 2)
+        features = {key: round(mean(values), 4) for key, values in learned.items()}
+        if preferences:
+            for kind, prefix in (("notes", "note"), ("accords", "accord"), ("families", "family")):
+                for polarity, value in (("liked", 1.0), ("disliked", -1.0)):
+                    features.update(
+                        {
+                            f"{prefix}:{key}": value
+                            for key in getattr(preferences, f"{polarity}_{kind}")
+                        }
+                    )
+        exclusions = frozenset(
+            {UUID(value) for value in (preferences.excluded_fragrance_ids if preferences else [])}
+            | disliked_ids
+        )
+        variety = preferences.variety_preference if preferences else "balanced"
+        version = hashlib.sha256(
+            json.dumps(
+                {
+                    "features": features,
+                    "excluded": sorted(map(str, exclusions)),
+                    "variety": variety,
+                    "algorithm": "taste-v1",
+                },
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
+        cached = self.session.get(UserTasteProfile, user_id)
+        if cached is None:
+            cached = UserTasteProfile(user_id=user_id, version=version, features=features)
+            try:
+                with self.session.begin_nested():
+                    self.session.add(cached)
+                    self.session.flush()
+            except IntegrityError:
+                # Another request initialized the same member's cache. The derived
+                # response remains authoritative; do not roll back the parent request.
+                cached = self.session.get(UserTasteProfile, user_id)
+                if cached is not None:
+                    cached.version, cached.features = version, features
+        elif cached.version != version:
+            cached.version, cached.features = version, features
+        self.session.flush()
+        return TasteProfile(version, features, exclusions, variety)

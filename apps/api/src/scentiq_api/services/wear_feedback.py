@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 
 from scentiq_api.errors import not_found
 from scentiq_api.models import WearFeedback, WearLog
+from scentiq_api.repositories import HybridJobRepository
 from scentiq_api.schemas.wear import WearFeedbackRequest, WearFeedbackResponse
+from scentiq_api.services.hybrid_jobs import HybridJobService
 
 
 class WearFeedbackService:
@@ -52,11 +54,16 @@ class WearFeedbackService:
         if row is None:
             row = WearFeedback(user_id=user_id, wear_log_id=wear_id)
             self.session.add(row)
+        previous_rating = row.rating
         row.rating = request.rating
         row.longevity = Decimal(str(request.longevity)) if request.longevity is not None else None
         row.projection = request.projection
         row.comments = request.comments
         self.session.flush()
+        if row.rating != previous_rating:
+            HybridJobService(HybridJobRepository(self.session)).invalidate_recommendations(
+                user_id, reason="wear_feedback_changed"
+            )
         result = self.get(user_id, wear_id)
         assert result is not None
         return result

@@ -25,6 +25,7 @@ from scentiq_api.models import AsyncJob, Fragrance, UserCollectionItem, UserPref
 from scentiq_api.repositories import DiscoveryRepository, HybridJobRepository, LayeringRepository
 from scentiq_api.services import HybridJobService
 from scentiq_api.services.fragrances import to_fragrance_summary
+from scentiq_api.services.taste_profile import TasteProfileService
 
 JOB_QUEUE = "hybrid-jobs"
 RESULT_QUEUE = "hybrid-results"
@@ -42,6 +43,7 @@ def _hybrid_fragrance(
     similarities: dict[tuple[Any, Any], float] | None = None,
     owned_ids: set[Any] | None = None,
     include_seasons: bool = True,
+    price_values: dict[Any, float] | None = None,
 ) -> HybridFragrance:
     similarity_map = {
         owned_id: strength
@@ -57,6 +59,8 @@ def _hybrid_fragrance(
         ),
         family=item.olfactory_family,
         similarities=similarity_map,
+        accord_names=sorted({link.accord.name for link in item.accord_links}),
+        price_value=(price_values or {}).get(item.id),
     )
 
 
@@ -79,6 +83,7 @@ class HybridDispatcher:
                 .where(AsyncJob.status == "pending")
                 .order_by(AsyncJob.created_at, AsyncJob.id)
                 .limit(limit)
+                .with_for_update(skip_locked=True)
             )
         )
         dispatched = 0
@@ -118,14 +123,18 @@ class HybridDispatcher:
             )
         )
         preferences = self._session.get(UserPreference, job.user_id)
+        profile = TasteProfileService(self._session).for_user(job.user_id)
         discovery_repository = DiscoveryRepository(self._session)
         owned = LayeringRepository(self._session).owned(job.user_id)
         candidates = discovery_repository.candidates(job.user_id)
         owned_ids = {item.id for item in owned}
-        similarities = discovery_repository.similarity_strengths(
-            {item.id for item in candidates}, owned_ids
-        )
+        candidate_ids = {item.id for item in candidates}
+        similarities = discovery_repository.similarity_strengths(candidate_ids, owned_ids)
+        price_values = discovery_repository.price_values(candidate_ids)
         return RecommendationJobInput(
+            profile_version=profile.version,
+            taste_features=profile.features,
+            excluded_ids=list(profile.excluded_ids),
             job_id=job.id,
             execution_id=job.execution_id,
             input_version=job.input_version,
@@ -159,10 +168,12 @@ class HybridDispatcher:
                     item,
                     similarities=similarities,
                     owned_ids=owned_ids,
-                    include_seasons=False,
+                    include_seasons=True,
+                    price_values=price_values,
                 )
                 for item in candidates
             ],
+            catalog_facets=discovery_repository.catalog_facets(job.user_id),
         )
 
 

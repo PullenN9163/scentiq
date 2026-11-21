@@ -17,6 +17,11 @@ export function RemoteImagesProvider({
   return <RemoteImagesContext value={enabled}>{children}</RemoteImagesContext>;
 }
 
+/** Whether catalog hotlinks may load; private uploads always may. */
+export function useRemoteImagesEnabled(): boolean {
+  return useContext(RemoteImagesContext);
+}
+
 export function CatalogImage({
   id,
   name,
@@ -24,6 +29,7 @@ export function CatalogImage({
   imageUrl,
   className,
   priority = false,
+  sizes,
 }: {
   id: string;
   name: string;
@@ -31,6 +37,7 @@ export function CatalogImage({
   imageUrl: string | null;
   className?: string;
   priority?: boolean;
+  sizes?: string;
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const remoteEnabled = useContext(RemoteImagesContext);
@@ -54,7 +61,7 @@ export function CatalogImage({
         alt={`${name} by ${brand}`}
         width={375}
         height={500}
-        sizes="(max-width: 640px) 42vw, (max-width: 1200px) 24vw, 240px"
+        sizes={sizes ?? "(max-width: 640px) 42vw, (max-width: 1200px) 24vw, 240px"}
         priority={priority}
         unoptimized={privateImage}
         onError={() => setFailedUrl(imageUrl)}

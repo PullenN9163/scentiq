@@ -3,47 +3,14 @@ param environmentName string
 param webFqdn string
 param applicationInsightsResourceId string
 param commonTags object
+@allowed([900])
+param frequencySeconds int = 900
+@allowed(['us-tx-sn1-azr'])
+param locationId string = 'us-tx-sn1-azr'
 
-var testLocations = [
-  { Id: 'us-tx-sn1-azr' }
-  { Id: 'us-il-ch1-azr' }
-  { Id: 'us-ca-sjc-azr' }
-]
+var testLocations = [ { Id: locationId } ]
 
-var rootTestName = 'scentiq-web-root-${environmentName}'
 var apiStatusTestName = 'scentiq-web-api-status-${environmentName}'
-
-resource rootTest 'Microsoft.Insights/webtests@2022-06-15' = {
-  name: rootTestName
-  location: location
-  kind: 'standard'
-  tags: union(commonTags, {
-    'hidden-link:${applicationInsightsResourceId}': 'Resource'
-  })
-  properties: {
-    Description: 'ScentIQ public root availability. Runbook: docs/runbooks/azure-deployment.md#monitoring-alerts'
-    Enabled: true
-    Frequency: 300
-    Kind: 'standard'
-    Locations: testLocations
-    Name: rootTestName
-    Request: {
-      FollowRedirects: false
-      Headers: []
-      HttpVerb: 'GET'
-      ParseDependentRequests: false
-      RequestUrl: 'https://${webFqdn}/'
-    }
-    RetryEnabled: true
-    SyntheticMonitorId: rootTestName
-    Timeout: 30
-    ValidationRules: {
-      ExpectedHttpStatusCode: 200
-      SSLCertRemainingLifetimeCheck: 7
-      SSLCheck: true
-    }
-  }
-}
 
 resource apiStatusTest 'Microsoft.Insights/webtests@2022-06-15' = {
   name: apiStatusTestName
@@ -55,7 +22,7 @@ resource apiStatusTest 'Microsoft.Insights/webtests@2022-06-15' = {
   properties: {
     Description: 'ScentIQ frontend API-status availability. Runbook: docs/runbooks/azure-deployment.md#monitoring-alerts'
     Enabled: true
-    Frequency: 300
+    Frequency: frequencySeconds
     Kind: 'standard'
     Locations: testLocations
     Name: apiStatusTestName
@@ -77,5 +44,4 @@ resource apiStatusTest 'Microsoft.Insights/webtests@2022-06-15' = {
   }
 }
 
-output rootTestId string = rootTest.id
 output apiStatusTestId string = apiStatusTest.id

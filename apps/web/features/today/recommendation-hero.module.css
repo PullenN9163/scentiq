@@ -1,0 +1,154 @@
+/* Light: the accord field with ink-on-field; dark: the deep tone with ink-on-deep. */
+.hero {
+  isolation: isolate;
+  --hero-bg: var(--af);
+  --hero-ink: var(--ink-on-field);
+  --hero-soft: #f7f4efcc;
+  --hero-chip: #f7f4efb3;
+  /* #fffdfa8c over the field, mixed opaque so the photo blends onto a solid plate. */
+  --hero-plate: color-mix(in srgb, #fffdfa 55%, var(--af));
+  /* Re-point the shared tokens so buttons and chips take the hero's tint. */
+  --action: var(--hero-ink);
+  --on-action: var(--hero-bg);
+  --surface-sunken: var(--hero-soft);
+  --ink: var(--hero-ink);
+  --chip-bg: var(--hero-chip);
+  --chip-ink: var(--hero-ink);
+  --plate-bg: var(--hero-plate);
+  position: relative;
+  display: grid;
+  grid-template-areas: "chips" "plate" "body";
+  gap: var(--space-4);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  background-color: var(--hero-bg);
+  color: var(--hero-ink);
+  transition: background-color 300ms cubic-bezier(0.22, 1, 0.36, 1), color 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+:global([data-theme="dark"]) .hero {
+  --hero-bg: var(--ad);
+  --hero-ink: var(--ink-on-deep);
+  --hero-soft: #fbf3e624;
+  --hero-chip: #fbf3e61f;
+  --hero-plate: var(--af);
+}
+
+.copy { display: flex; min-width: 0; flex-direction: column; grid-area: body; }
+.chips { display: flex; flex-wrap: wrap; align-content: start; gap: var(--space-2); grid-area: chips; }
+.chipLink { border-radius: var(--radius-pill); text-decoration: underline; text-underline-offset: 3px; }
+.chipLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.identity { margin-top: 0; }
+.house { margin: 0; }
+.name { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+.nameLink { color: inherit; text-decoration: none; border-radius: 6px; }
+.nameLink:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+.nameLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.reason { max-width: 30em; margin: 14px 0 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0 0; font-size: 14px; opacity: 0.85; }
+.meta b { font-weight: 600; }
+.responses { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: 22px; }
+.followUp { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); font-weight: 500; }
+.exhausted { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: var(--space-3) 0 0; font-weight: 500; }
+.error {
+  margin: var(--space-3) 0 0;
+  border-radius: var(--radius-xs);
+  padding: 6px 10px;
+  background: var(--surface);
+  color: var(--danger);
+  font-weight: 500;
+}
+:global([data-theme="dark"]) .error { background: var(--ground); }
+
+.plateArea { position: relative; grid-area: plate; height: clamp(200px, 56vw, 280px); }
+.plateMotion, .plateLink, .plateBox { display: block; height: 100%; }
+.plateLink { border-radius: var(--radius-md); }
+.plateLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.plate { width: 100%; height: 100%; min-height: 200px; border-radius: var(--radius-md); }
+.match {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  min-width: 44px;
+  min-height: 44px;
+  justify-items: end;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  background: none;
+  color: var(--ink-on-field);
+  font: 500 13px/1.2 var(--font-sans);
+  text-align: right;
+  cursor: pointer;
+}
+.match:hover b { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+.match:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.why { display: grid; gap: var(--space-4); }
+.why p { margin: 0; }
+.scores { display: grid; margin: 0; }
+.scores div { display: flex; justify-content: space-between; gap: var(--space-4); border-bottom: 1px solid var(--line); padding: 10px 0; }
+.scores dt { color: var(--ink); }
+.scores dd { margin: 0; color: var(--ink-muted); }
+.warnings { margin: 0; padding-left: 1.2em; color: var(--warning); }
+.wearForm { display: grid; gap: var(--space-5); }
+.sheetActions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+
+.skeleton {
+  display: grid;
+  gap: var(--space-5);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  background: var(--surface-sunken);
+}
+.skeletonCopy { display: grid; gap: var(--space-4); align-content: end; }
+.skeletonPlate { order: -1; min-height: 200px; border-radius: var(--radius-md); background: var(--surface); }
+
+@media (min-width: 700px) {
+  .hero, .skeleton { grid-template-columns: minmax(0, 1fr) 220px; gap: var(--space-6); padding: var(--space-8); }
+  .hero { grid-template-areas: "chips plate" "body plate"; grid-template-rows: auto 1fr; row-gap: 0; }
+  .copy { justify-content: flex-end; padding-top: var(--space-6); }
+  .plateArea { height: auto; }
+  .plateArea, .skeletonPlate { order: 0; min-height: 340px; }
+}
+@media (min-width: 1100px) {
+  .hero, .skeleton { grid-template-columns: minmax(0, 1fr) 260px; }
+  .plateArea, .skeletonPlate { min-height: 400px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero { transition: none; }
+}
+
+/* Week planner: display-lg name and a smaller plate. */
+.compact .name { font-size: 36px; line-height: 1.05; }
+@media (min-width: 700px) {
+  .compact { grid-template-columns: minmax(0, 1fr) 190px; padding: var(--space-6); }
+  .compact .plateArea { min-height: 260px; }
+  .compact .name { font-size: 56px; line-height: 1; }
+}
+
+/* New-pick bloom: the hero color opens outward from the bottle. The hero is transparent while it runs, so the page ground shows around the growing circle. */
+.hero[data-blooming="true"] {
+  background-color: transparent;
+  transition: none;
+}
+
+.bloom {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--hero-bg);
+  pointer-events: none;
+  animation: heroBloom 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes heroBloom {
+  from {
+    clip-path: circle(0px at var(--bx) var(--by));
+  }
+  to {
+    clip-path: circle(var(--br) at var(--bx) var(--by));
+  }
+}

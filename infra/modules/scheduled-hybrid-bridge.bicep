@@ -7,6 +7,8 @@ param registryServer string
 param image string
 param environmentName string
 param catalogVersion string
+@allowed(['*/2 * * * *'])
+param cronExpression string = '*/2 * * * *'
 param storageAccountUrl string
 @secure()
 param applicationInsightsConnectionString string
@@ -29,7 +31,7 @@ resource job 'Microsoft.App/jobs@2025-01-01' = {
       replicaTimeout: 300
       replicaRetryLimit: 1
       scheduleTriggerConfig: {
-        cronExpression: '* * * * *'
+        cronExpression: cronExpression
         parallelism: 1
         replicaCompletionCount: 1
       }

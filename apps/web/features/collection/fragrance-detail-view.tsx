@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NumericSlider } from "@/components/ui/numeric-slider";
 import { Progress } from "@/components/ui/progress";
 import { idleState, type ActionState } from "@/lib/action-state";
 import { logWear, updateCollectionItem } from "@/lib/server/actions";
@@ -37,7 +38,9 @@ function formatWhen(value: string): string {
 
 /** A datetime-local value for "now", which the input requires unzoned. */
 function nowForInput(): string {
-  return new Date().toISOString().slice(0, 16);
+  const now = new Date();
+  const pad = (value:number) => String(value).padStart(2,"0");
+  return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
 export function FragranceDetailView({
@@ -68,9 +71,14 @@ export function FragranceDetailView({
   );
   const [wearState, wearAction, wearPending] = useActionState(
     async (previous: ActionState, formData: FormData) => {
+      const localTime = String(formData.get("worn_at") ?? "");
+      const instant = new Date(localTime);
+      // Resolve datetime-local in the member's browser, before the request
+      // crosses into a server that may run in a different timezone.
+      formData.set("worn_at", Number.isNaN(instant.getTime()) ? "" : instant.toISOString());
       const result = await logWear(previous, formData);
       if (result.status === "success") { setLogOpen(false); toast.success(result.message); }
-      return result;
+      return result.values ? {...result,values:{...result.values,worn_at:localTime}} : result;
     },
     idleState,
   );
@@ -264,7 +272,7 @@ export function FragranceDetailView({
                   state={editState}
                   fallbackValue={ownedItem.remaining_ml?.toString() ?? ""}
                 >
-                  {(props) => <Input type="number" min="0" step="0.01" {...props} />}
+                  {(props) => <NumericSlider label="Remaining (ml)" min={0} max={Math.max(100, ownedItem.bottle_size_ml ?? 0, ownedItem.remaining_ml ?? 0)} inputMax={null} step={0.01} {...props} />}
                 </Field>
                 <Field
                   name="user_rating"
@@ -340,7 +348,7 @@ export function FragranceDetailView({
                   {(props) => <Input type="datetime-local" {...props} />}
                 </Field>
                 <Field name="sprays" label="Sprays" state={wearState}>
-                  {(props) => <Input type="number" min="1" max="30" step="1" {...props} />}
+                  {(props) => <NumericSlider label="Sprays" min={1} max={30} {...props} />}
                 </Field>
                 <Field name="occasion" label="Occasion" state={wearState}>
                   {(props) => (

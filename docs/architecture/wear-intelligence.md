@@ -2,7 +2,7 @@
 
 Today, My Week and the advisor use `WearRecommendationService`. The existing hybrid discovery/layering snapshot contract remains available. Browser requests terminate at the authenticated Next.js server; private scoring and persistence run in FastAPI.
 
-## Score version wear-v1
+## Baseline score components
 
 Each owned fragrance receives these components, followed by penalties and a clamp to 0–100:
 
@@ -24,13 +24,13 @@ Reasons are the strongest supported positive components, sorted deterministicall
 
 Spray guidance starts at intimate 5, moderate 4, strong 3, unknown 4. Subtract one for ≥28°C and one for indoor/work/formal context. Add one for intimate projection outdoors at ≤5°C. Clamp to 1–8 and the member's maximum. This is starting guidance rather than a performance guarantee.
 
-Positive match explanations require supported inputs and more than half of the component�s normalized fit. Poor matches cannot produce positive season, occasion, projection or weather claims. Performance preferences count toward evidence only when the corresponding fragrance performance is known.
+Positive match explanations require supported inputs and more than half of the component's normalized fit. Poor matches cannot produce positive season, occasion, projection or weather claims. Performance preferences count toward evidence only when the corresponding fragrance performance is known.
 
 ## Persistence and ownership
 
-`recommendations` stores a context, fingerprint, selected score and evidence. `recommendation_candidates` stores up to six ranked candidates and their individual guidance. Fingerprints canonicalize ranking inputs, preferences, contextual weather/history and algorithm version. A unique member/context/fingerprint/version constraint and transaction savepoint make repeated generation idempotent; changed inputs create historical records rather than overwrite them.
+`recommendations` stores a context, fingerprint, selected score and evidence. `recommendation_candidates` stores all eligible ranked candidates and their individual guidance. Fingerprints canonicalize ranking inputs, preferences, contextual weather/history and algorithm version. A unique member/context/fingerprint/version constraint and transaction savepoint make repeated generation idempotent; changed inputs create historical records rather than overwrite them.
 
-Visible events from selected calendars generate separate contexts when occasion, formality, setting or daypart differ. Hidden events never generate a context. Open-day contexts use a stable 09:00 local time. Missing timezone uses UTC with a disclosed gap; missing weather uses neutral scoring. Provider refresh failures preserve cached input.
+Visible events from selected calendars generate separate contexts when occasion, formality, setting or daypart differ. Hidden events never generate a context. Today uses the current local hour; future open-day contexts use 09:00 local time. Missing timezone uses UTC with a disclosed gap; missing weather uses neutral scoring. Provider refresh failures preserve cached input.
 
 `recommendation_decisions` persists accepted/rejected/replaced/dismissed. Replacements must be currently owned. Converting a recommendation to a wear writes its decision and `wear_logs.recommendation_id` in one transaction. Private `wear_feedback` can be read or replaced only through the caller-owned wear log. Account deletion cascades through recommendation decisions, candidates, wear history and feedback.
 
@@ -43,9 +43,6 @@ Visible events from selected calendars generate separate contexts when occasion,
 
 Apply database migrations before the API revision, then deploy the web revision. Keep the Azure model disabled until its endpoint, deployment and managed identity access are configured. Recommendations operate independently of model availability.
 
-## Score version wear-v2
+## Personalization and alternatives
 
-* **Blends in the rotation**: `_generate` adds up to two layered blends (from `LayeringService`, goal chosen from weather/daypart) as candidates. A blend scores 50% on its blend score and 50% on how well its members fit the context, and must be within 6 points of the best single scent. Blend candidates are anchored on their first fragrance and distinguished by `blend_key`; `wear` logs every member.
-* **Rotation across the week**: a scent (or blend member) picked for an earlier day in the same plan counts as recently worn for later days.
-* **Learning**: decisions (accept, replace, reject, dismiss) update a per-user taste profile (signed note/accord affinities with decay) and, after enough events, per-component weight multipliers fitted by a small online logistic step. Learned taste moves `user_preference` by up to +/-3 points. A small exploration bonus favours scents worn rarely. Exploration derives from wear history only, so regenerating a plan stays idempotent.
-* A recommendation the user accepted or replaced stays visible for its context until it is actually worn.
+The current `wear-v2` engine adds explicit and learned taste, hourly weather, event duration, weekly diversity, and persisted non-repeating alternatives. See [Recommendation intelligence](recommendation-intelligence.md) for ranking, inference controls, and rollout requirements.

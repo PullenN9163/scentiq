@@ -1,3 +1,4 @@
+from scentiq_api.models.ai_usage import AIRankingCache, AIUsageMonth, AIUsageReservation
 from scentiq_api.models.base import Base
 from scentiq_api.models.catalog import (
     Accord,
@@ -18,7 +19,6 @@ from scentiq_api.models.catalog import (
 from scentiq_api.models.hybrid_jobs import AsyncJob, RecommendationSnapshot, RecommendationState
 from scentiq_api.models.identity import IdentityEvent, UserIdentity
 from scentiq_api.models.layer_stacks import LayerStack, LayerStackItem, LayerStackWear
-from scentiq_api.models.learning import InteractionEvent, UserTasteProfile
 from scentiq_api.models.planning import (
     CalendarConnection,
     CalendarEvent,
@@ -30,6 +30,13 @@ from scentiq_api.models.planning import (
     RecommendationDecision,
     WeatherSnapshot,
 )
+from scentiq_api.models.recommendation_choices import (
+    RecommendationChoice,
+    RecommendationChoiceReceipt,
+    RecommendationFeedback,
+)
+from scentiq_api.models.surface_choices import SurfaceChoiceBatch, SurfaceChoiceReceipt
+from scentiq_api.models.taste import UserTasteProfile
 from scentiq_api.models.users import (
     User,
     UserCollectionItem,
@@ -40,6 +47,9 @@ from scentiq_api.models.users import (
 )
 
 __all__ = [
+    "AIRankingCache",
+    "AIUsageMonth",
+    "AIUsageReservation",
     "Accord",
     "AsyncJob",
     "Base",
@@ -58,7 +68,6 @@ __all__ = [
     "FragranceSimilarity",
     "FragranceSource",
     "IdentityEvent",
-    "InteractionEvent",
     "LayerStack",
     "LayerStackItem",
     "LayerStackWear",
@@ -68,9 +77,14 @@ __all__ = [
     "Perfumer",
     "Recommendation",
     "RecommendationCandidate",
+    "RecommendationChoice",
+    "RecommendationChoiceReceipt",
     "RecommendationDecision",
+    "RecommendationFeedback",
     "RecommendationSnapshot",
     "RecommendationState",
+    "SurfaceChoiceBatch",
+    "SurfaceChoiceReceipt",
     "User",
     "UserCollectionItem",
     "UserIdentity",

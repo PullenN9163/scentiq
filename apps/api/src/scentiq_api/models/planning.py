@@ -104,6 +104,12 @@ class CalendarEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     setting: Mapped[str | None] = mapped_column(String(40))
     formality: Mapped[str | None] = mapped_column(String(20))
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False)
+    classification_corrected: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )
+    classification_source: Mapped[str] = mapped_column(
+        String(20), default="keyword", server_default="keyword"
+    )
 
 
 class WeatherSnapshot(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
@@ -130,6 +136,7 @@ class WeatherSnapshot(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     condition: Mapped[str] = mapped_column(String(40))
     source: Mapped[str] = mapped_column(String(80))
     fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    hourly_forecast: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
 
 
 class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -174,10 +181,7 @@ class RecommendationCandidate(UUIDPrimaryKeyMixin, Base):
         CheckConstraint("rank > 0", name="rank_positive"),
         CheckConstraint("score BETWEEN 0 AND 100", name="score_range"),
         UniqueConstraint(
-            "recommendation_id",
-            "fragrance_id",
-            "blend_key",
-            name="recommendation_candidate_fragrance",
+            "recommendation_id", "fragrance_id", name="recommendation_candidate_fragrance"
         ),
         UniqueConstraint("recommendation_id", "rank", name="recommendation_candidate_rank"),
     )
@@ -186,8 +190,6 @@ class RecommendationCandidate(UUIDPrimaryKeyMixin, Base):
         ForeignKey("recommendations.id", ondelete="CASCADE"), index=True
     )
     fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id", ondelete="CASCADE"))
-    # Empty for a single fragrance; the sorted member ids for a blend anchored on fragrance_id.
-    blend_key: Mapped[str] = mapped_column(String(100), default="", server_default="")
     rank: Mapped[int]
     score: Mapped[Decimal] = mapped_column(Numeric(5, 2))
     score_components: Mapped[dict[str, float]] = mapped_column(JSON)

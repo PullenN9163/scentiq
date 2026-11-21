@@ -1,62 +1,67 @@
-from layering_helpers import scents
+from domain_fixtures import make_brand, make_collection_item, make_fragrance, make_user
 from sqlalchemy.orm import Session
 
-from scentiq_api.schemas.events import InteractionEventBatch, InteractionEventIn
-from scentiq_api.services.events import EventService
-from scentiq_api.services.taste_profile import (
-    TasteProfileService,
-    exploration_bonus,
-    taste_affinity,
-    update_affinities,
-    update_component_weights,
-)
+from scentiq_api.models import UserPreference
+from scentiq_api.schemas.identity import PreferencesUpdateRequest
 
 
-def test_positive_and_negative_events_move_affinity_in_opposite_directions() -> None:
-    liked = update_affinities({}, [{"vanilla": 1.0}], 1.0)
-    disliked = update_affinities({}, [{"vanilla": 1.0}], -1.0)
-    assert (
-        taste_affinity(liked, {"vanilla": 1.0}) > 0.5 > taste_affinity(disliked, {"vanilla": 1.0})
+def test_explicit_taste_is_normalized_and_rejects_conflicts() -> None:
+    import pytest
+    from pydantic import ValidationError
+
+    request = PreferencesUpdateRequest(liked_accords=["  Fresh Spicy ", "fresh-spicy"])
+    assert request.liked_accords == ["fresh-spicy"]
+    with pytest.raises(ValidationError):
+        PreferencesUpdateRequest(liked_accords=["woody"], disliked_accords=["Woody"])
+
+
+def test_profile_learns_ratings_transfers_affinity_and_explicit_taste_wins(
+    session: Session,
+) -> None:
+    from scentiq_api.services.taste_profile import TasteProfileService
+
+    user = make_user(session, email="taste@example.test")
+    brand = make_brand(session, name="Taste")
+    loved = make_fragrance(session, brand=brand, name="Loved")
+    loved.olfactory_family = "woody"
+    similar = make_fragrance(session, brand=brand, name="Similar")
+    similar.olfactory_family = "woody"
+    neutral = make_fragrance(session, brand=brand, name="Neutral")
+    neutral.olfactory_family = "citrus"
+    make_collection_item(session, user=user, fragrance=loved, user_rating=5)
+    profile = TasteProfileService(session).for_user(user.id)
+    assert profile.affinity(similar) > profile.affinity(neutral)
+    before = profile.version
+    session.add(UserPreference(user_id=user.id, disliked_families=["woody"]))
+    session.flush()
+    explicit = TasteProfileService(session).for_user(user.id)
+    assert explicit.version != before
+    assert explicit.affinity(similar) < explicit.affinity(neutral)
+
+
+def test_profile_deduplicates_bottles_and_isolates_members(session: Session) -> None:
+    from scentiq_api.services.taste_profile import TasteProfileService
+
+    user = make_user(session, email="taste-one@example.test")
+    other = make_user(session, email="taste-two@example.test")
+    fragrance = make_fragrance(session, brand=make_brand(session, name="Duplicates"), name="One")
+    fragrance.olfactory_family = "floral"
+    make_collection_item(session, user=user, fragrance=fragrance, user_rating=1)
+    first = TasteProfileService(session).for_user(user.id)
+    make_collection_item(
+        session, user=user, fragrance=fragrance, ownership_type="decant", user_rating=1
     )
-    assert taste_affinity({}, {"vanilla": 1.0}) == 0.5
-
-
-def test_affinities_decay_and_stay_bounded() -> None:
-    state: dict[str, float] = {}
-    for _ in range(100):
-        state = update_affinities(state, [{"oud": 1.0}], 1.0)
-    assert state["oud"] <= 1.0
-    for _ in range(200):
-        state = update_affinities(state, [], 0)
-    assert "oud" not in state
-
-
-def test_component_weights_rise_for_components_that_predict_acceptance() -> None:
-    weights: dict[str, float] = {}
-    for _ in range(40):
-        weights = update_component_weights(weights, {"weather": 0.9, "rotation": 0.1}, True)
-    assert weights["weather"] > weights["rotation"] >= 1.0
-    for _ in range(80):
-        weights = update_component_weights(weights, {"weather": 0.9, "rotation": 0.1}, False)
-    assert 0.5 <= weights["weather"] <= 1.8
-
-
-def test_exploration_bonus_favours_under_shown_items() -> None:
-    assert exploration_bonus(0, 50) > exploration_bonus(30, 50) >= 0
-    assert exploration_bonus(0, 0) == 0
-
-
-def test_recording_events_learns_only_from_owned_fragrances(session: Session) -> None:
-    user, items = scents(session)
-    service = EventService(session)
-    result = service.record(
-        user.id,
-        InteractionEventBatch(
-            events=[
-                InteractionEventIn(event_type="accept", fragrance_ids=[items[0].id]),
-                InteractionEventIn(event_type="filter_select", subject_type="ui"),
-            ]
-        ),
+    assert TasteProfileService(session).for_user(user.id).affinity(fragrance) == first.affinity(
+        fragrance
     )
-    assert result.recorded == 2 and result.learned == 1
-    assert TasteProfileService(session).affinities(user.id).get("woody", 0) > 0
+    assert TasteProfileService(session).for_user(other.id).affinity(fragrance) == 0
+
+
+def test_explicit_exclusion_is_available_to_every_surface(session: Session) -> None:
+    from scentiq_api.services.taste_profile import TasteProfileService
+
+    user = make_user(session, email="taste-exclusion@example.test")
+    fragrance = make_fragrance(session, brand=make_brand(session, name="Excluded"), name="Excluded")
+    session.add(UserPreference(user_id=user.id, excluded_fragrance_ids=[str(fragrance.id)]))
+    session.flush()
+    assert fragrance.id in TasteProfileService(session).for_user(user.id).excluded_ids
