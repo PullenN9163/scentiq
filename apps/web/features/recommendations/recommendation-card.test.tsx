@@ -15,12 +15,12 @@ export const recommendation: WearRecommendation = {
   id:"rec1", context_key:"day:2026-10-07", recommended_for:"2026-10-07T09:00:00Z", algorithm_version:"wear-v1",
   context:{context_key:"day:2026-10-07",recommended_for:"2026-10-07T09:00:00Z",local_date:"2026-10-07",timezone:"UTC",daypart:"day",season:"fall",source:"day"},
   fragrance:fragranceDetail(),score:78,evidence_coverage:0.7,recommended_sprays:3,
-  score_components:{occasion:12.5,weather:10,season:15,rotation:10},reasons:["Source-backed seasonal match"],warnings:[],
-  alternatives:[{fragrance:fragranceDetail({id:"second",name:"Alternative Scent"}),score:72,evidence_coverage:0.5,recommended_sprays:4,score_components:{rotation:10},reasons:["Useful rotation"],warnings:[]}],decision:null,
+  score_components:{occasion:12.5,weather:10,season:15,rotation:10},reasons:["Source-backed seasonal match"],warnings:[],blend_key:"",
+  alternatives:[{fragrance:fragranceDetail({id:"second",name:"Alternative Scent"}),score:72,evidence_coverage:0.5,recommended_sprays:4,score_components:{rotation:10},reasons:["Useful rotation"],warnings:[],blend_key:""}],decision:null,
 };
 it("shows backend score, evidence and inspectable components", async () => {
   const user=userEvent.setup(); render(<RecommendationCard recommendation={recommendation}/>);
-  expect(screen.getByText("Match 78 / 100")).toBeVisible();
+  expect(screen.getByText("Match 78%")).toBeVisible();
   expect(screen.getByText("Moderate evidence")).toBeVisible();
   await user.click(screen.getByRole("button",{name:"Why this?"}));
   expect(screen.getByText("12.5")).toBeVisible();
@@ -29,7 +29,7 @@ it("persists alternatives and logs the selected fragrance", async () => {
   const user=userEvent.setup(); render(<RecommendationCard recommendation={recommendation}/>);
   await user.click(screen.getByRole("button",{name:"Another Option"}));
   await user.click(screen.getByRole("button",{name:/Choose Alternative Scent/}));
-  expect(decide).toHaveBeenCalledWith("rec1","replaced","second");
+  expect(decide).toHaveBeenCalledWith("rec1","replaced","second","");
   await waitFor(() => expect(screen.getByRole("button", {name:"Wear This"})).toBeEnabled());
   await user.click(screen.getByRole("button",{name:"Wear This"}));
   await user.click(await screen.findByRole("button",{name:"Log wear"}));

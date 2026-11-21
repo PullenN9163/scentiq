@@ -9,6 +9,7 @@ from scentiq_api.api.v1.agent import create_agent_router
 from scentiq_api.api.v1.calendar import create_calendar_router
 from scentiq_api.api.v1.collection import create_collection_router
 from scentiq_api.api.v1.discover import create_discover_router
+from scentiq_api.api.v1.events import create_events_router
 from scentiq_api.api.v1.fragrance_images import create_fragrance_image_router
 from scentiq_api.api.v1.fragrances import create_fragrance_router
 from scentiq_api.api.v1.identity_events import create_identity_event_router
@@ -80,6 +81,7 @@ def create_v1_router(
     router.include_router(create_fragrance_image_router(get_session, current_user, settings))
     router.include_router(create_discover_router(get_session, current_user))
     router.include_router(create_layering_router(get_session, current_user))
+    router.include_router(create_events_router(get_session, current_user))
     router.include_router(create_collection_router(get_session, current_user))
     router.include_router(create_wear_log_router(get_session, current_user))
     router.include_router(create_insights_router(get_session, current_user))

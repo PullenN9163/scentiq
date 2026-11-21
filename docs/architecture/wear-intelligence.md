@@ -42,3 +42,10 @@ Visible events from selected calendars generate separate contexts when occasion,
 - `GET` and `PUT /api/v1/wear-logs/{id}/feedback`: rating, longevity, projection and private comments.
 
 Apply database migrations before the API revision, then deploy the web revision. Keep the Azure model disabled until its endpoint, deployment and managed identity access are configured. Recommendations operate independently of model availability.
+
+## Score version wear-v2
+
+* **Blends in the rotation**: `_generate` adds up to two layered blends (from `LayeringService`, goal chosen from weather/daypart) as candidates. A blend scores 50% on its blend score and 50% on how well its members fit the context, and must be within 6 points of the best single scent. Blend candidates are anchored on their first fragrance and distinguished by `blend_key`; `wear` logs every member.
+* **Rotation across the week**: a scent (or blend member) picked for an earlier day in the same plan counts as recently worn for later days.
+* **Learning**: decisions (accept, replace, reject, dismiss) update a per-user taste profile (signed note/accord affinities with decay) and, after enough events, per-component weight multipliers fitted by a small online logistic step. Learned taste moves `user_preference` by up to +/-3 points. A small exploration bonus favours scents worn rarely. Exploration derives from wear history only, so regenerating a plan stays idempotent.
+* A recommendation the user accepted or replaced stays visible for its context until it is actually worn.

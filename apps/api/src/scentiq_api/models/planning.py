@@ -174,7 +174,10 @@ class RecommendationCandidate(UUIDPrimaryKeyMixin, Base):
         CheckConstraint("rank > 0", name="rank_positive"),
         CheckConstraint("score BETWEEN 0 AND 100", name="score_range"),
         UniqueConstraint(
-            "recommendation_id", "fragrance_id", name="recommendation_candidate_fragrance"
+            "recommendation_id",
+            "fragrance_id",
+            "blend_key",
+            name="recommendation_candidate_fragrance",
         ),
         UniqueConstraint("recommendation_id", "rank", name="recommendation_candidate_rank"),
     )
@@ -183,6 +186,8 @@ class RecommendationCandidate(UUIDPrimaryKeyMixin, Base):
         ForeignKey("recommendations.id", ondelete="CASCADE"), index=True
     )
     fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id", ondelete="CASCADE"))
+    # Empty for a single fragrance; the sorted member ids for a blend anchored on fragrance_id.
+    blend_key: Mapped[str] = mapped_column(String(100), default="", server_default="")
     rank: Mapped[int]
     score: Mapped[Decimal] = mapped_column(Numeric(5, 2))
     score_components: Mapped[dict[str, float]] = mapped_column(JSON)

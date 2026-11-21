@@ -1,12 +1,23 @@
 """Pure deterministic wear scoring. Missing metadata receives neutral points."""
 
+from collections.abc import Mapping
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from scentiq_api.schemas.wear_recommendations import RecommendationContext
 
-WEAR_ALGORITHM_VERSION = "wear-v1"
+WEAR_ALGORITHM_VERSION = "wear-v2"
+# Maximum points of each component, used to normalise components for online weight learning.
+COMPONENT_MAXIMUM = {
+    "occasion": 25.0,
+    "weather": 20.0,
+    "season": 15.0,
+    "setting_projection": 10.0,
+    "time_of_day": 10.0,
+    "user_preference": 10.0,
+    "rotation": 10.0,
+}
 
 
 class CandidateInput(BaseModel):
@@ -23,6 +34,10 @@ class CandidateInput(BaseModel):
     days_since_wear: float | None = None
     wears_last_30_days: int = 0
     rejections: int = 0
+    # 0-1 learned affinity for this scent's notes/accords (0.5 = no information).
+    taste: float | None = None
+    # Small bonus (points) for scents shown rarely recently, so rotation does not collapse.
+    exploration: float = 0.0
 
 
 class ScoredCandidate(BaseModel):
@@ -41,6 +56,7 @@ def score_candidate(
     maximum_sprays: int | None = None,
     preferred_projection: str | None = None,
     preferred_longevity: float | None = None,
+    component_weights: Mapping[str, float] | None = None,
 ) -> ScoredCandidate:
     occasion = 12.5
     occasion_evidence = False
@@ -97,6 +113,9 @@ def score_candidate(
         preference += 1 if preferred_projection == item.projection else -1
     if preferred_longevity is not None and item.longevity is not None:
         preference += max(-1, 1 - abs(item.longevity - preferred_longevity) / 3)
+    if item.taste is not None and item.taste != 0.5:
+        # Learned note/accord taste can move preference by up to +/-3 of its 10 points.
+        preference += (item.taste - 0.5) * 6
     preference = max(0, min(10, preference))
     days = item.days_since_wear
     rotation = 10 if days is None or days >= 7 else (8 if days >= 3 else (5 if days >= 1 else 2))
@@ -110,7 +129,7 @@ def score_candidate(
     if hot and weather == 6:
         penalties -= 4
     penalties = max(-30, penalties)
-    components = {
+    raw = {
         "occasion": occasion,
         "weather": weather,
         "season": season,
@@ -118,8 +137,13 @@ def score_candidate(
         "time_of_day": time_score,
         "user_preference": preference,
         "rotation": float(rotation),
-        "penalties": penalties,
     }
+    # Online-learned multipliers (neutral 1.0) emphasise the components this user acts on.
+    components = {
+        key: round(value * (component_weights or {}).get(key, 1.0), 4) for key, value in raw.items()
+    }
+    components["exploration"] = round(item.exploration, 4)
+    components["penalties"] = penalties
     evidence = [
         occasion_evidence,
         weather_evidence,
@@ -129,7 +153,8 @@ def score_candidate(
         item.rating is not None
         or item.feedback_rating is not None
         or (preferred_projection is not None and item.projection is not None)
-        or (preferred_longevity is not None and item.longevity is not None),
+        or (preferred_longevity is not None and item.longevity is not None)
+        or (item.taste is not None and item.taste != 0.5),
         True,
     ]
     sprays = {"intimate": 5, "moderate": 4, "strong": 3}.get(item.projection or "", 4)

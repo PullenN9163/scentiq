@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from scentiq_api.schemas.catalog import FragranceSummary
 from scentiq_api.schemas.enums import Occasion, Season
+from scentiq_api.schemas.layering import LayeringStackSuggestion
 
 
 class RecommendationContext(BaseModel):
@@ -56,16 +57,19 @@ class RecommendationDecisionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     action: DecisionAction
     selected_fragrance_id: UUID | None = None
+    blend_key: str = Field(default="", max_length=100)
 
 
 class RecommendationDecisionResponse(BaseModel):
     action: DecisionAction
     selected_fragrance_id: UUID | None = None
+    blend_key: str = ""
 
 
 class RecommendationWearRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     selected_fragrance_id: UUID | None = None
+    blend_key: str = Field(default="", max_length=100)
     worn_at: datetime | None = None
     sprays: int | None = Field(default=None, ge=1, le=30)
     occasion: Occasion | None = None
@@ -88,6 +92,9 @@ class WearRecommendationCandidate(BaseModel):
     score_components: dict[str, float]
     reasons: list[str]
     warnings: list[str]
+    # Set for a layered blend: its members, sprays, body zones and percentage score.
+    blend: LayeringStackSuggestion | None = None
+    blend_key: str = ""
 
 
 class WearRecommendationResponse(WearRecommendationCandidate):

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fragranceSummary } from "@/test/catalog-fixtures";
@@ -18,6 +18,13 @@ const actions = vi.hoisted(() => ({
 vi.mock("@/lib/server/layering-actions", () => actions);
 vi.mock("@/lib/server/actions", () => ({
   getLayeringPair: vi.fn().mockResolvedValue(null),
+}));
+vi.mock("@/lib/server/event-actions", () => ({
+  recordEvents: vi.fn().mockResolvedValue(undefined),
+}));
+// three.js needs WebGL, which jsdom lacks; the real component falls back the same way.
+vi.mock("./blend-bottle", () => ({
+  BlendBottle: () => <div data-testid="blend-bottle" />,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 afterEach(cleanup);
@@ -48,6 +55,7 @@ const stack: LayeringStackSuggestion = {
   mode: "balanced",
   goal: null,
   score: 0.7,
+  score_percent: 70,
   score_components: {
     bridge: 0.5,
     complement: 0.5,
@@ -58,6 +66,7 @@ const stack: LayeringStackSuggestion = {
     user_affinity: 0.5,
     redundancy_penalty: 0.2,
     overload_penalty: 0,
+    known_pairing: 0.5,
   },
   shared_notes: ["cedar"],
   shared_accords: ["woody"],
@@ -97,8 +106,44 @@ describe("LayeringLab intelligence", () => {
       screen.getByRole("button", { name: `Choose anchor ${first.name}` }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Build around this scent")).toBeVisible();
-    expect(screen.getByText(/3 sprays/)).toBeVisible();
+    expect(screen.getAllByText(/3 sprays/).length).toBeGreaterThan(0);
     expect(screen.getByText(/80% recorded evidence/)).toBeVisible();
+  });
+  it("shows the blend as a percentage with a bottle and where to spray", () => {
+    render(
+      <LayeringLab
+        owned={[first, second, third]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+      />,
+    );
+    expect(screen.getAllByText(/70%/).length).toBeGreaterThan(0);
+    expect(screen.getByTestId("blend-bottle")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Where to spray" })).toBeInTheDocument();
+  });
+  it("clears a goal when it is chosen again and sends a seed for Surprise me", async () => {
+    const user = userEvent.setup();
+    actions.getLayeringIntelligence.mockResolvedValue(page);
+    render(
+      <LayeringLab
+        owned={[first, second]}
+        initialIntelligence={{ ...page, supported_goals: [...page.supported_goals] }}
+      />,
+    );
+    const fresher = screen.getByRole("button", { name: "Make it fresher" });
+    await user.click(fresher);
+    await waitFor(() => expect(fresher).toHaveAttribute("aria-pressed", "true"));
+    await user.click(fresher);
+    await waitFor(() =>
+      expect(actions.getLayeringIntelligence).toHaveBeenLastCalledWith(
+        expect.objectContaining({ goal: null }),
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: /Surprise me/ }));
+    await waitFor(() =>
+      expect(actions.getLayeringIntelligence).toHaveBeenLastCalledWith(
+        expect.objectContaining({ surpriseSeed: expect.any(Number) }),
+      ),
+    );
   });
   it("updates suggestions when the supported goal changes", async () => {
     const user = userEvent.setup();

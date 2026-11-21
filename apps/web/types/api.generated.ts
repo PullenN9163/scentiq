@@ -243,6 +243,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Events */
+        post: operations["record_events_api_v1_events_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/fragrances": {
         parameters: {
             query?: never;
@@ -1402,6 +1419,40 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** InteractionEventBatch */
+        InteractionEventBatch: {
+            /** Events */
+            events: components["schemas"]["InteractionEventIn"][];
+        };
+        /** InteractionEventIn */
+        InteractionEventIn: {
+            /** Context */
+            context?: {
+                [key: string]: string;
+            };
+            /**
+             * Event Type
+             * @enum {string}
+             */
+            event_type: "view" | "accept" | "reject" | "skip" | "dismiss" | "wear" | "like" | "dislike" | "surprise_click" | "surprise_shown" | "filter_select" | "stack_save" | "stack_edit" | "stack_discard" | "stack_wear";
+            /** Fragrance Ids */
+            fragrance_ids?: string[];
+            /** Rating */
+            rating?: number | null;
+            /**
+             * Subject Type
+             * @default fragrance
+             * @enum {string}
+             */
+            subject_type: "fragrance" | "stack" | "recommendation" | "ui";
+        };
+        /** InteractionEventResult */
+        InteractionEventResult: {
+            /** Learned */
+            learned: number;
+            /** Recorded */
+            recorded: number;
+        };
         /** LayeringIntelligencePage */
         LayeringIntelligencePage: {
             /** Saved */
@@ -1432,6 +1483,11 @@ export interface components {
             bridge: number;
             /** Complement */
             complement: number;
+            /**
+             * Known Pairing
+             * @default 0.5
+             */
+            known_pairing: number;
             /** Longevity Balance */
             longevity_balance: number;
             /** Novelty */
@@ -1459,6 +1515,8 @@ export interface components {
             role: "anchor" | "bridge" | "accent";
             /** Suggested Sprays */
             suggested_sprays: number;
+            /** Zones */
+            zones?: components["schemas"]["SprayZoneApplication"][];
         };
         /** LayeringStackRatingRequest */
         LayeringStackRatingRequest: {
@@ -1504,7 +1562,7 @@ export interface components {
         LayeringStackSuggestion: {
             /**
              * Algorithm Version
-             * @default layering-v2
+             * @default layering-v3
              */
             algorithm_version: string;
             /** Best Contexts */
@@ -1520,8 +1578,12 @@ export interface components {
              * @enum {string}
              */
             evidence_label: "limited" | "partial" | "strong";
+            /** Filter Effects */
+            filter_effects?: string[];
             /** Goal */
             goal?: ("fresher" | "warmer" | "sweeter" | "darker" | "cleaner" | "softer" | "more_projection" | "more_intimate" | "daytime" | "evening" | "spring" | "summer" | "fall" | "winter") | null;
+            /** Goal Fit */
+            goal_fit?: number | null;
             /** Items */
             items: components["schemas"]["LayeringStackItem"][];
             /**
@@ -1529,11 +1591,18 @@ export interface components {
              * @enum {string}
              */
             mode: "safe" | "balanced" | "contrast" | "experimental";
+            /** Pairing Evidence */
+            pairing_evidence?: string[];
             /** Reasons */
             reasons: string[];
             /** Score */
             score: number;
             score_components: components["schemas"]["LayeringScoreComponents"];
+            /**
+             * Score Percent
+             * @default 0
+             */
+            score_percent: number;
             /** Shared Accords */
             shared_accords: string[];
             /** Shared Notes */
@@ -1850,6 +1919,11 @@ export interface components {
              * @enum {string}
              */
             action: "accepted" | "rejected" | "replaced" | "dismissed";
+            /**
+             * Blend Key
+             * @default
+             */
+            blend_key: string;
             /** Selected Fragrance Id */
             selected_fragrance_id?: string | null;
         };
@@ -1860,6 +1934,11 @@ export interface components {
              * @enum {string}
              */
             action: "accepted" | "rejected" | "replaced" | "dismissed";
+            /**
+             * Blend Key
+             * @default
+             */
+            blend_key: string;
             /** Selected Fragrance Id */
             selected_fragrance_id?: string | null;
         };
@@ -1894,6 +1973,11 @@ export interface components {
         };
         /** RecommendationWearRequest */
         RecommendationWearRequest: {
+            /**
+             * Blend Key
+             * @default
+             */
+            blend_key: string;
             /** Notes */
             notes?: string | null;
             /** Occasion */
@@ -1968,6 +2052,16 @@ export interface components {
             source: string;
             /** Url */
             url: string | null;
+        };
+        /** SprayZoneApplication */
+        SprayZoneApplication: {
+            /** Sprays */
+            sprays: number;
+            /**
+             * Zone
+             * @enum {string}
+             */
+            zone: "chest" | "back_of_neck" | "neck" | "wrists" | "inner_elbows" | "behind_ears" | "behind_knees";
         };
         /** ValidationError */
         ValidationError: {
@@ -2074,6 +2168,12 @@ export interface components {
         };
         /** WearRecommendationCandidate */
         WearRecommendationCandidate: {
+            blend?: components["schemas"]["LayeringStackSuggestion"] | null;
+            /**
+             * Blend Key
+             * @default
+             */
+            blend_key: string;
             /** Evidence Coverage */
             evidence_coverage: number;
             fragrance: components["schemas"]["FragranceSummary"];
@@ -2110,6 +2210,12 @@ export interface components {
             algorithm_version: string;
             /** Alternatives */
             alternatives: components["schemas"]["WearRecommendationCandidate"][];
+            blend?: components["schemas"]["LayeringStackSuggestion"] | null;
+            /**
+             * Blend Key
+             * @default
+             */
+            blend_key: string;
             context: components["schemas"]["RecommendationContext"];
             /** Context Key */
             context_key: string;
@@ -2718,6 +2824,41 @@ export interface operations {
             };
         };
     };
+    record_events_api_v1_events_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InteractionEventBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionEventResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_fragrances_api_v1_fragrances_get: {
         parameters: {
             query?: {
@@ -2968,6 +3109,7 @@ export interface operations {
                 anchor_id?: string | null;
                 mode?: "safe" | "balanced" | "contrast" | "experimental";
                 goal?: ("fresher" | "warmer" | "sweeter" | "darker" | "cleaner" | "softer" | "more_projection" | "more_intimate" | "daytime" | "evening" | "spring" | "summer" | "fall" | "winter") | null;
+                surprise_seed?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -3107,6 +3249,8 @@ export interface operations {
                 limit?: number;
                 include_triples?: boolean;
                 stack_size?: (2 | 3) | null;
+                surprise_seed?: number | null;
+                exclude_ids?: string[] | null;
             };
             header?: {
                 authorization?: string | null;

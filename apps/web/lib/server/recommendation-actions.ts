@@ -10,9 +10,9 @@ function refresh() {
   for (const path of ["/dashboard", "/week", "/collection", "/insights", "/agent"]) revalidatePath(path);
 }
 
-export async function decideRecommendation(id: string, action: DecisionAction, selectedFragranceId?: string): Promise<Result<unknown>> {
+export async function decideRecommendation(id: string, action: DecisionAction, selectedFragranceId?: string, blendKey = ""): Promise<Result<unknown>> {
   try {
-    const data = await apiClient.post(`/api/v1/recommendations/${encodeURIComponent(id)}/decision`, { action, selected_fragrance_id: selectedFragranceId ?? null });
+    const data = await apiClient.post(`/api/v1/recommendations/${encodeURIComponent(id)}/decision`, { action, selected_fragrance_id: selectedFragranceId ?? null, blend_key: blendKey });
     refresh();
     return { ok: true, data };
   } catch (error) {

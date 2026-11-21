@@ -50,6 +50,7 @@ export async function getLayeringIntelligence(
     anchorId?: string;
     mode?: StackMode;
     goal?: LayeringGoal | null;
+    surpriseSeed?: number;
   } = {},
 ): Promise<LayeringIntelligencePage> {
   const parameters = new URLSearchParams();
@@ -57,6 +58,11 @@ export async function getLayeringIntelligence(
     parameters.set("anchor_id", z.uuid().parse(options.anchorId));
   parameters.set("mode", modeSchema.parse(options.mode ?? "balanced"));
   if (options.goal) parameters.set("goal", goalSchema.parse(options.goal));
+  if (options.surpriseSeed !== undefined)
+    parameters.set(
+      "surprise_seed",
+      String(z.number().int().min(0).max(2_147_483_647).parse(options.surpriseSeed)),
+    );
   return apiClient.get<LayeringIntelligencePage>(
     `/api/v1/layering/intelligence?${parameters}`,
   );

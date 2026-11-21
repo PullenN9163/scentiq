@@ -101,3 +101,12 @@ All endpoints are beneath `/api/v1/layering` and derive the member identifier fr
 Logging a stack also creates one ordinary wear entry per selected fragrance, using its allocated sprays. Insights and rotation therefore include the scents actually worn. Deleting a saved combination removes its layering history while ordinary fragrance wear logs remain. The legacy `/suggestions` endpoint retains its pair contract for the hybrid bundle during migration.
 
 The browser calls Next.js server actions; only the server attaches the Clerk token and reaches FastAPI. Fragrance ownership, stack ownership and wear ownership are checked on the backend. Cross-member identifiers return the same not-found response as missing identifiers. Private wear notes are retained as member data and are not included in algorithm telemetry.
+
+## layering-v3 (blends, filters, pairings, zones)
+
+* **Score** is exposed as `score_percent` (0-100) alongside the 0-1 `score`.
+* **Known pairings** (`services/layering_pairings.py`): reported fragrance pairs and signal-family rules (for example vetiver + cedar, tobacco + vanilla, and clashes such as oud + marine). Each carries a confidence (`reported`, `editorial`, `heuristic`) and a source URL. The pairing score is blended into the base score by mode (`PAIRING_WEIGHT`) and shrunk toward the user's own 1-5 ratings of that exact set (Bayesian average, `shrink_prior`). These are starting priors from forum and editorial sources, not measurements.
+* **Filters change composition** (`_apply_filters`, `layering_composition.py`): safe drops overloaded or non-bridging stacks, contrast/experimental drop highly redundant ones, and a goal removes stacks that do not match it and favours the best-matching scent when allocating sprays. Hard filters fall back to the unfiltered list when they would remove everything. `filter_effects` explains what each filter did.
+* **Where to spray**: each item carries `zones` (zone + sprays). The heaviest scent takes broad base zones (chest, back of neck); lighter scents take different pulse points so they layer instead of stacking.
+* **Surprise me** passes `surprise_seed`: random anchors and a score-weighted pick among the top blends, favouring strong known pairings. The same seed repeats the same result.
+* **Learned taste**: note/accord affinities learned from interaction events (`services/taste_profile.py`) feed `user_affinity`.

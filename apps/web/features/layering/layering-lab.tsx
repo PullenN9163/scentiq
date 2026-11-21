@@ -12,6 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { recordEvents } from "@/lib/server/event-actions";
+import { BlendBottle } from "./blend-bottle";
+import { SprayZones } from "./spray-zones";
 import { motionTokens } from "@/lib/motion";
 import {
   deleteLayerStack,
@@ -52,6 +55,9 @@ const goals: Record<LayeringGoal, string> = {
   winter: "Winter",
 };
 const percent = (value: number) => `${Math.round(value * 100)}%`;
+const ids = (stack: LayeringStackSuggestion) =>
+  stack.items.map((item) => item.fragrance.id);
+const newSeed = () => Math.floor(Math.random() * 2_147_483_647);
 const stackKey = (stack: LayeringStackSuggestion) =>
   stack.items.map((item) => item.fragrance.id).join(":");
 
@@ -98,10 +104,17 @@ export function LayeringLab({
     wears: LayeringStackWear[];
   } | null>(null);
   const [detail, setDetail] = useState<LayeringStackSuggestion | null>(null);
+  const [featuredKey, setFeaturedKey] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<SavedLayeringStack | null>(null);
   const requestVersion = useRef(0);
   const reducedMotion = useReducedMotion();
   const selectedAnchor = owned.find((item) => item.id === anchor);
+  // The bottle shows what the user is building, else the chosen suggestion, else the best one.
+  const featured =
+    evaluation ??
+    intelligence.suggestions.find((stack) => stackKey(stack) === featuredKey) ??
+    intelligence.suggestions[0] ??
+    null;
 
   function run(action: () => Promise<void>) {
     setError("");
@@ -118,6 +131,7 @@ export function LayeringLab({
     nextAnchor: string | undefined,
     nextMode: StackMode,
     nextGoal: LayeringGoal | null,
+    surpriseSeed?: number,
   ) {
     const version = ++requestVersion.current;
     run(async () => {
@@ -125,8 +139,23 @@ export function LayeringLab({
         anchorId: nextAnchor,
         mode: nextMode,
         goal: nextGoal,
+        surpriseSeed,
       });
-      if (version === requestVersion.current) setIntelligence(next);
+      if (version !== requestVersion.current) return;
+      setIntelligence(next);
+      setFeaturedKey(null);
+      if (surpriseSeed !== undefined && next.suggestions[0]) {
+        const first = next.suggestions[0];
+        setAnchor(first.items[0].fragrance.id);
+        void recordEvents([
+          {
+            event_type: "surprise_shown",
+            subject_type: "stack",
+            fragrance_ids: ids(first),
+            context: { mode: nextMode, ...(nextGoal ? { goal: nextGoal } : {}) },
+          },
+        ]);
+      }
     });
   }
   function updateStack(ids: string[]) {
@@ -141,7 +170,30 @@ export function LayeringLab({
       if (version === requestVersion.current) setEvaluation(result);
     });
   }
+  function selectGoal(next: LayeringGoal | null) {
+    // Choosing the active goal again clears it.
+    const target = next !== null && next === goal ? null : next;
+    setGoal(target);
+    setStackIds([]);
+    setEvaluation(null);
+    suggest(anchor, mode, target);
+    void recordEvents([
+      {
+        event_type: "filter_select",
+        subject_type: "ui",
+        context: { goal: target ?? "none", mode },
+      },
+    ]);
+  }
   function edit(stack: LayeringStackSuggestion) {
+    void recordEvents([
+      {
+        event_type: "stack_edit",
+        subject_type: "stack",
+        fragrance_ids: ids(stack),
+        context: { mode: stack.mode },
+      },
+    ]);
     setStackIds(stack.items.map((item) => item.fragrance.id));
     setEvaluation(stack);
     setMode(stack.mode);
@@ -169,6 +221,14 @@ export function LayeringLab({
           name,
         );
         setSaved((items) => [result, ...items]);
+        void recordEvents([
+          {
+            event_type: "stack_save",
+            subject_type: "stack",
+            fragrance_ids: saving.items.map((item) => item.fragrance.id),
+            context: { mode: saving.mode, ...(saving.goal ? { goal: saving.goal } : {}) },
+          },
+        ]);
         setSaving(null);
       }
       setMessage("Combination saved");
@@ -209,6 +269,15 @@ export function LayeringLab({
             : item,
         ),
       );
+      void recordEvents([
+        {
+          event_type: "stack_wear",
+          subject_type: "stack",
+          fragrance_ids: target.suggestion.items.map((item) => item.fragrance.id),
+          rating: rating ? Number(rating) : null,
+          context: { mode: target.suggestion.mode },
+        },
+      ]);
       setWearTarget(null);
       setMessage("Wear logged");
       toast.success("Wear logged");
@@ -297,10 +366,7 @@ export function LayeringLab({
             <Button
               variant={goal === null ? "primary" : "secondary"}
               disabled={pending}
-              onClick={() => {
-                setGoal(null);
-                suggest(anchor, mode, null);
-              }}
+              onClick={() => selectGoal(null)}
             >
               Keep it balanced
             </Button>
@@ -309,14 +375,8 @@ export function LayeringLab({
                 key={item}
                 disabled={pending}
                 variant={goal === item ? "primary" : "secondary"}
-                onClick={() => {
-                  setGoal(item);
-                  suggest(anchor, mode, item);
-                  if (stackIds.length >= 2) {
-                    setEvaluation(null);
-                    setStackIds([]);
-                  }
-                }}
+                aria-pressed={goal === item}
+                onClick={() => selectGoal(item)}
               >
                 {goals[item]}
               </Button>
@@ -333,6 +393,13 @@ export function LayeringLab({
                   setStackIds([]);
                   setEvaluation(null);
                   suggest(anchor, item, goal);
+                  void recordEvents([
+                    {
+                      event_type: "filter_select",
+                      subject_type: "ui",
+                      context: { mode: item, goal: goal ?? "none" },
+                    },
+                  ]);
                 }}
               >
                 {item}
@@ -344,7 +411,14 @@ export function LayeringLab({
               onClick={() => {
                 setStackIds([]);
                 setEvaluation(null);
-                suggest(undefined, mode, goal);
+                suggest(undefined, mode, goal, newSeed());
+                void recordEvents([
+                  {
+                    event_type: "surprise_click",
+                    subject_type: "ui",
+                    context: { mode, goal: goal ?? "none" },
+                  },
+                ]);
               }}
             >
               <Sparkles size={16} />
@@ -365,6 +439,45 @@ export function LayeringLab({
       <div aria-live="polite">
         {pending ? <p>Comparing your owned fragrances…</p> : null}
       </div>
+      {featured ? (
+        <section aria-label="Blend preview" className={styles.featured}>
+          <BlendBottle stack={featured} />
+          <div className={styles.featuredDetail}>
+            <p className="eyebrow">
+              {evaluation ? "Your blend" : "Featured blend"}
+            </p>
+            <h2 className="serif">
+              {featured.score_percent}% match
+            </h2>
+            <p>
+              {featured.items.map((item) => item.fragrance.name).join(" + ")} ·{" "}
+              {featured.total_sprays} sprays
+            </p>
+            <h3>Where to spray</h3>
+            <SprayZones stack={featured} />
+            {(featured.filter_effects ?? []).length ? (
+              <>
+                <h3>How your filters shaped it</h3>
+                <ul>
+                  {(featured.filter_effects ?? []).map((effect) => (
+                    <li key={effect}>{effect}</li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+            {(featured.pairing_evidence ?? []).length ? (
+              <>
+                <h3>Known pairings</h3>
+                <ul>
+                  {(featured.pairing_evidence ?? []).map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
       <section aria-label="Ranked layering suggestions">
         <h2 className="serif">Supporting scents, ranked for you</h2>
         <div className={styles.suggestions}>
@@ -387,7 +500,7 @@ export function LayeringLab({
                   ))}
                 </div>
                 <p>
-                  <strong>{percent(stack.score)}</strong> stack score ·{" "}
+                  <strong>{stack.score_percent}%</strong> blend match ·{" "}
                   {stack.items.length === 3 ? "Three-scent stack" : "Pair"}
                 </p>
                 <p>{stack.reasons[0]}</p>
@@ -396,7 +509,11 @@ export function LayeringLab({
                   {stack.items
                     .map(
                       (item) =>
-                        `${item.fragrance.name} ${item.suggested_sprays}`,
+                        `${item.fragrance.name} ${item.suggested_sprays}${
+                          item.zones?.length
+                            ? ` (${item.zones.map((zone) => zone.zone.replaceAll("_", " ")).join(", ")})`
+                            : ""
+                        }`,
                     )
                     .join(" + ")}
                 </p>
@@ -405,6 +522,15 @@ export function LayeringLab({
                   {stack.evidence_label}
                 </p>
                 <div className={styles.controls}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setEvaluation(null);
+                      setFeaturedKey(stackKey(stack));
+                    }}
+                  >
+                    View bottle
+                  </Button>
                   <Button variant="secondary" onClick={() => edit(stack)}>
                     Try / edit stack
                   </Button>
