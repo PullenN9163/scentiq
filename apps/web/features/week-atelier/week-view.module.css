@@ -81,3 +81,6 @@
 @media (prefers-reduced-motion: reduce) {
   .strip { scroll-behavior: auto; }
 }
+
+.blendIdea { display: block; margin-top: var(--space-3); padding: var(--space-3); border-radius: var(--radius-sm); text-decoration: none; color: inherit; background: var(--surface-2, transparent); }
+.blendIdea:hover b { text-decoration: underline; text-underline-offset: 4px; }

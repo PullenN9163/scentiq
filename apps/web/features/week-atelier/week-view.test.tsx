@@ -144,4 +144,23 @@ describe("WeekView", () => {
     renderWeek(connected, { emptyCollection: true });
     expect(screen.getByRole("heading", { name: "Your shelf starts here" })).toBeInTheDocument();
   });
+
+  it("shows the day's researched blend with its match and zones", () => {
+    const first = rec("2026-11-14", "r0", "Another 13");
+    const blend = {
+      items: [
+        { fragrance: first.fragrance, role: "anchor", application_order: 1, suggested_sprays: 2, zones: [{ zone: "chest", sprays: 2 }] },
+        { fragrance: fragranceDetail({ id: "f-cedar", name: "Cedar Drift" }), role: "accent", application_order: 2, suggested_sprays: 1, zones: [{ zone: "back_of_neck", sprays: 1 }] },
+      ],
+      mode: "balanced",
+      goal: "warmer",
+      score_percent: 88,
+      total_sprays: 3,
+    } as unknown as WearRecommendation["blend"];
+    renderWeek(connected, { plan: { ...plan, recommendations: [{ ...first, blend }, plan.recommendations[1]] } });
+    const link = screen.getByRole("link", { name: /Blend Another 13 \+ Cedar Drift/ });
+    expect(link).toHaveAttribute("href", `/layering?stack=${first.fragrance.id},f-cedar&mode=balanced&goal=warmer`);
+    expect(link).toHaveTextContent("88% match");
+    expect(link).toHaveTextContent("Cedar Drift on back of neck");
+  });
 });

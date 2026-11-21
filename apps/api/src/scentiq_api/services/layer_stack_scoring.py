@@ -17,8 +17,13 @@ from scentiq_api.schemas.layering import (
     LayeringStackSuggestion,
 )
 from scentiq_api.services.fragrances import to_fragrance_summary
+from scentiq_api.services.layering_composition import allocate_sprays, assign_zones, total_for
+from scentiq_api.services.layering_pairings import known_pairing_score, shrink_prior
 
-LAYERING_ALGORITHM_VERSION = "layering-v3"
+LAYERING_ALGORITHM_VERSION = "layering-v4"
+# Share of the base score given to researched pairing knowledge, by mode.
+PAIRING_WEIGHT = {"balanced": 0.20, "safe": 0.25, "contrast": 0.12, "experimental": 0.08}
+GOAL_WEIGHT = 0.40
 PAIR_BASE_LIMIT = 8
 THIRD_CANDIDATE_LIMIT = 16
 AUTO_COLLECTION_LIMIT = 200
@@ -63,6 +68,14 @@ def projection(item: Fragrance) -> float | None:
     return None
 
 
+def goal_share(profile: dict[str, float], goal: str) -> float:
+    """Fraction of a scent's recorded signal weight that matches a profile goal."""
+    wanted = GOAL_SIGNALS.get(goal, set())
+    return sum(value for key, value in profile.items() if key in wanted) / (
+        sum(profile.values()) or 1
+    )
+
+
 def supported_goals(items: list[Fragrance]) -> list[LayeringGoal]:
     all_signals = set().union(*(signals(item) for item in items)) if items else set()
     goals: list[LayeringGoal] = []
@@ -85,6 +98,7 @@ def score_stack(
     history_affinity: float = 0.5,
     maximum_sprays: int | None = None,
     performance: dict[UUID, tuple[str | None, float | None]] | None = None,
+    pairing_ratings: list[int] | None = None,
 ) -> LayeringStackSuggestion:
     if len(items) not in (2, 3) or len({item.id for item in items}) != len(items):
         raise ValueError("A stack needs two or three distinct fragrances")
@@ -150,6 +164,9 @@ def score_stack(
     longevity_balance = 1 - (max(longevity) - min(longevity)) if len(longevity) >= 2 else 0.5
     user_affinity = mean((affinity or {}).get(item.id, 0.5) for item in items)
     user_affinity = max(0, min(1, user_affinity + (history_affinity - 0.5) * 0.5))
+    labels = [f"{item.brand.name} {item.name}" for item in items]
+    pairing, pairing_evidence, pairing_confidence = known_pairing_score(labels, profiles)
+    pairing = shrink_prior(pairing, pairing_confidence, pairing_ratings or [])
     components = LayeringScoreComponents(
         bridge=round(bridge_score, 4),
         complement=round(complement, 4),
@@ -160,6 +177,7 @@ def score_stack(
         user_affinity=round(user_affinity, 4),
         redundancy_penalty=round(redundancy_penalty, 4),
         overload_penalty=round(overload, 4),
+        known_pairing=round(pairing, 4),
     )
     base = sum(
         weight * value
@@ -179,11 +197,7 @@ def score_stack(
     )
     goal_fit: float | None = None
     if goal in GOAL_SIGNALS:
-        goal_fit = mean(
-            sum(value for key, value in profile.items() if key in GOAL_SIGNALS[goal])
-            / (sum(profile.values()) or 1)
-            for profile in profiles[1:]
-        )
+        goal_fit = mean(goal_share(profile, goal) for profile in profiles)
         if goal in ("daytime", "evening"):
             votes: list[float] = []
             for item in items[1:]:
@@ -201,7 +215,10 @@ def score_stack(
     elif goal in ("softer", "more_intimate", "more_projection"):
         goal_fit = projection_balance
     if goal_fit is not None:
-        base = 0.70 * base + 0.30 * goal_fit
+        base = (1 - GOAL_WEIGHT) * base + GOAL_WEIGHT * goal_fit
+    if pairing_confidence is not None or pairing_ratings:
+        weight = PAIRING_WEIGHT[mode]
+        base = (1 - weight) * base + weight * pairing
     score = max(0, min(1, base - 0.18 * redundancy_penalty - 0.22 * overload))
     coverage = mean(
         mean(
@@ -226,16 +243,32 @@ def score_stack(
         warnings.append("Several projecting scents may dominate together; start with fewer sprays.")
     if bridge < 0.15:
         warnings.append("Few recorded bridging signals; this contrast is less predictable.")
-    total = (
-        3 if goal in ("softer", "more_intimate") or strong_count >= 2 else 4 if strong_count else 6
+    total, filter_effects = total_for(
+        mode=mode,
+        goal=goal,
+        strong_count=strong_count,
+        coverage=coverage,
+        maximum=maximum_sprays,
+        count=len(items),
     )
-    if coverage < 0.65:
-        total = min(total, 4)
-    total = max(len(items), min(total, maximum_sprays or 6))
-    # One spray per supporting role; allocate extra to anchor first, then bridge.
-    sprays = [1] * len(items)
-    for index in range(total - len(items)):
-        sprays[0 if index % 2 == 0 else bridge_index] += 1
+    favored: int | None = None
+    if goal in GOAL_SIGNALS:
+        shares = [goal_share(profile, goal) for profile in profiles]
+        favored = max(range(len(items)), key=lambda index: (shares[index], -index))
+        filter_effects.append(
+            f"{goal.replace('_', ' ').capitalize()}: favours "
+            f"{items[favored].name} ({round(shares[favored] * 100)}% goal match)."
+        )
+    elif goal == "more_projection":
+        favored = max(range(len(items)), key=lambda index: ((projections[index] or 0), -index))
+    sprays = allocate_sprays(
+        len(items),
+        total,
+        anchor_index=0,
+        favored_index=favored,
+        bridge_index=bridge_index if len(items) == 3 else 1,
+    )
+    zones = assign_zones(sprays, [projections[i] or 0.5 for i in range(len(items))])
     order = sorted(
         range(len(items)),
         key=lambda index: (
@@ -337,12 +370,17 @@ def score_stack(
                 role=roles[index],
                 application_order=order.index(index) + 1,
                 suggested_sprays=sprays[index],
+                zones=zones[index],
             )
             for index, item in enumerate(items)
         ],
         mode=mode,
         goal=goal,
         score=score_value,
+        score_percent=round(score_value * 100),
+        goal_fit=round(goal_fit, 4) if goal_fit is not None else None,
+        pairing_evidence=pairing_evidence,
+        filter_effects=filter_effects,
         score_components=components,
         shared_notes=shared_notes,
         shared_accords=shared_accords,
@@ -351,7 +389,7 @@ def score_stack(
         best_contexts=sorted(common_seasons) + ([goal] if goal in ("daytime", "evening") else []),
         reasons=reasons,
         warnings=warnings,
-        total_sprays=total,
+        total_sprays=sum(sprays),
         evidence_coverage=round(coverage, 4),
         evidence_label=evidence_label,
         verdict=verdict,

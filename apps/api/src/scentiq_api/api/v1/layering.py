@@ -49,9 +49,10 @@ def create_layering_router(get_session: object, current_user: CurrentUserDepende
         anchor_id: UUID | None = None,
         mode: LayeringMode = "balanced",
         goal: LayeringGoal | None = None,
+        surprise_seed: Annotated[int | None, Query(ge=0, le=2**31 - 1)] = None,
     ) -> LayeringIntelligencePage:
         return LayeringService(LayeringRepository(session)).intelligence_page(
-            user.user_id, anchor_id=anchor_id, mode=mode, goal=goal
+            user.user_id, anchor_id=anchor_id, mode=mode, goal=goal, surprise_seed=surprise_seed
         )
 
     @router.get("/stacks/suggestions", response_model=list[LayeringStackSuggestion])

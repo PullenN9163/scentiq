@@ -110,7 +110,7 @@ class Fragrance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "popularity_score IS NULL OR popularity_score >= 0",
             name="popularity_score_nonnegative",
         ),
-        Index("ix_fragrances_popularity_score_desc", text("popularity_score DESC")),
+        Index("ix_fragrances_popularity_score_desc", text("popularity_score DESC NULLS LAST")),
         Index(
             "ix_fragrances_search_text_trgm",
             "search_text",

@@ -219,4 +219,23 @@ describe("TodayView states", () => {
     await waitFor(() => expect(actions.decide).toHaveBeenCalledWith("rec2", "accepted", "f3"));
     expect(await screen.findByRole("button", { name: "Planned" })).toBeDisabled();
   });
+
+  it("offers the researched blend for today's pick with its match, sprays and zones", () => {
+    const base = recommendation();
+    const blend = {
+      items: [
+        { fragrance: base.fragrance, role: "anchor", application_order: 1, suggested_sprays: 2, zones: [{ zone: "chest", sprays: 2 }] },
+        { fragrance: fragranceDetail({ id: "f9", name: "Cedar Drift" }), role: "accent", application_order: 2, suggested_sprays: 1, zones: [{ zone: "wrists", sprays: 1 }] },
+      ],
+      mode: "balanced",
+      goal: "daytime",
+      score_percent: 84,
+      total_sprays: 3,
+    } as unknown as WearRecommendation["blend"];
+    renderToday({ plan: { local_date: "2026-11-14", timezone: "UTC", gaps: [], recommendations: [{ ...base, blend }] } });
+    const link = screen.getByRole("link", { name: /Blend Another 13 \+ Cedar Drift/ });
+    expect(link).toHaveAttribute("href", "/layering?stack=f1,f9&mode=balanced&goal=daytime");
+    expect(link).toHaveTextContent("84% match");
+    expect(link).toHaveTextContent("Another 13 on chest");
+  });
 });

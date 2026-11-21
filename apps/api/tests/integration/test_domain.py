@@ -48,6 +48,7 @@ REQUIRED_TABLES = {
     "fragrance_similarities",
     "fragrance_sources",
     "fragrances",
+    "interaction_events",
     "layering_logs",
     "layer_stacks",
     "layer_stack_items",

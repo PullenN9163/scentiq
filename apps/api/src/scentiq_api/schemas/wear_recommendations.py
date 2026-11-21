@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from scentiq_api.schemas.catalog import FragranceSummary
 from scentiq_api.schemas.enums import Occasion, Season
+from scentiq_api.schemas.layering import LayeringStackSuggestion
 
 
 class RecommendationContext(BaseModel):
@@ -108,6 +109,9 @@ class WearRecommendationResponse(WearRecommendationCandidate):
     profile_version: str | None = None
     remaining_options: int = 0
     options_exhausted: bool = False
+    # The best owned blend anchored on this pick, with ratios and where to spray. Computed
+    # when the plan is read and never persisted, so it always reflects the latest taste.
+    blend: LayeringStackSuggestion | None = None
 
 
 class WearRecommendationPlan(BaseModel):

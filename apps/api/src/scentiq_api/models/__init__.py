@@ -19,6 +19,7 @@ from scentiq_api.models.catalog import (
 from scentiq_api.models.hybrid_jobs import AsyncJob, RecommendationSnapshot, RecommendationState
 from scentiq_api.models.identity import IdentityEvent, UserIdentity
 from scentiq_api.models.layer_stacks import LayerStack, LayerStackItem, LayerStackWear
+from scentiq_api.models.learning import InteractionEvent
 from scentiq_api.models.planning import (
     CalendarConnection,
     CalendarEvent,
@@ -68,6 +69,7 @@ __all__ = [
     "FragranceSimilarity",
     "FragranceSource",
     "IdentityEvent",
+    "InteractionEvent",
     "LayerStack",
     "LayerStackItem",
     "LayerStackWear",

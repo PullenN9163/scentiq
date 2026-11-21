@@ -19,6 +19,7 @@ import { decideRecommendation } from "@/lib/server/recommendation-actions";
 import type { CollectionInsights, Me, WearLogEntry } from "@/types/api";
 import type { WearCandidate, WearPlan, WearRecommendation } from "@/types/wear-intelligence";
 
+import { blendHref, blendSummary } from "./blend-idea";
 import { HeroSkeleton, RecommendationHero, type ContextChip } from "./recommendation-hero";
 import { formatLongDate, latelyLine, recommendationCaption, selectedCandidate, weatherChip } from "./today-copy";
 import styles from "./today-view.module.css";
@@ -87,6 +88,9 @@ export function TodayView({
   const showCalendarNote = calendar.status === "not_connected" && !storedDismissal && !noteDismissed;
   const reconnect = calendar.status === "ok" && calendar.needsReconnect;
   const partner = later[0] ? selectedCandidate(later[0]).fragrance : null;
+  // The researched blend belongs to the original pick; it is hidden once another is chosen.
+  const blend = first?.blend && pick && pick.fragrance.id === first.fragrance.id ? first.blend : null;
+  const blendLink = blend ? blendHref(blend) : null;
   const lately = latelyLine(recentWears, timeZone);
 
   function dismissNote() {
@@ -146,14 +150,27 @@ export function TodayView({
           ) : null}
           {week ? <div className={styles.week}>{week}</div> : null}
           {pick ? (
-            <Link className={styles.blend} href={`/layering?a=${pick.fragrance.id}`}>
+            <Link className={styles.blend} href={blendLink ?? `/layering?a=${pick.fragrance.id}`}>
               <span className={styles.blendMark} aria-hidden="true">
-                <i style={accordVars(accordFor(pick.fragrance))} />
-                <i style={accordVars(partner ? accordFor(partner) : accordFor(pick.fragrance))} />
+                {blend ? blend.items.map((item) => <i key={item.fragrance.id} style={accordVars(accordFor(item.fragrance))} />) : (
+                  <>
+                    <i style={accordVars(accordFor(pick.fragrance))} />
+                    <i style={accordVars(partner ? accordFor(partner) : accordFor(pick.fragrance))} />
+                  </>
+                )}
               </span>
               <span className={styles.blendText}>
-                <b>{partner ? `Blend ${pick.fragrance.name} with ${partner.name}` : `Start a blend with ${pick.fragrance.name}`}</b>
-                {partner && later[0] ? <span className="at-caption">{later[0].context.daypart === "night" ? "For tonight" : "For later today"}</span> : null}
+                {blend ? (
+                  <>
+                    <b>{`Blend ${blend.items.map((item) => item.fragrance.name).join(" + ")}`}</b>
+                    <span className="at-caption">{blendSummary(blend)}</span>
+                  </>
+                ) : (
+                  <>
+                    <b>{partner ? `Blend ${pick.fragrance.name} with ${partner.name}` : `Start a blend with ${pick.fragrance.name}`}</b>
+                    {partner && later[0] ? <span className="at-caption">{later[0].context.daypart === "night" ? "For tonight" : "For later today"}</span> : null}
+                  </>
+                )}
               </span>
               <span className={cn("at-caption", styles.blendGo)} aria-hidden="true">Open →</span>
             </Link>

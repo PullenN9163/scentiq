@@ -1,6 +1,6 @@
 # Layering intelligence
 
-Layering Lab and the fragrance advisor use `LayeringService` to recommend and evaluate combinations of two or three owned fragrances. The production stack algorithm is `layering-v3`, implemented in `services/layer_stack_scoring.py`. Ranking is deterministic and follows the displayed score; the language model does not score or reorder combinations.
+Layering Lab and the fragrance advisor use `LayeringService` to recommend and evaluate combinations of two or three owned fragrances. The production stack algorithm is `layering-v4`, implemented in `services/layer_stack_scoring.py`. Ranking is deterministic and follows the displayed score; the language model does not score or reorder combinations.
 
 Catalog notes, accords, season suitability and performance records support olfactory comparisons. Roles, application order and spray allocations are rule-based starting guidance. Scores do not represent chemical compatibility, skin safety, exact combined longevity or guaranteed performance.
 
@@ -101,3 +101,11 @@ All endpoints are beneath `/api/v1/layering` and derive the member identifier fr
 Logging a stack also creates one ordinary wear entry per selected fragrance, using its allocated sprays. Insights and rotation therefore include the scents actually worn. Deleting a saved combination removes its layering history while ordinary fragrance wear logs remain. The legacy `/suggestions` endpoint retains its pair contract for the hybrid bundle during migration.
 
 The browser calls Next.js server actions; only the server attaches the Clerk token and reaches FastAPI. Fragrance ownership, stack ownership and wear ownership are checked on the backend. Cross-member identifiers return the same not-found response as missing identifiers. Private wear notes are retained as member data and are not included in algorithm telemetry.
+
+## layering-v4 (researched pairings, composition-changing filters, spray zones)
+
+* **Known pairings** (`services/layering_pairings.py`): reported fragrance pairs and signal-family rules (for example vetiver + cedar, tobacco + vanilla, and clashes such as oud + marine). Each carries a confidence (`reported`, `editorial`, `heuristic`) and a source URL. The pairing score is blended into the base score by mode (`PAIRING_WEIGHT`) and shrunk toward the member's own 1-5 ratings of that exact set (Bayesian average, `shrink_prior`). The priors come from forum and editorial sources, not measurements. `known_pairing` is a score component and `pairing_evidence` lists the pairings that applied.
+* **Filters change composition** (`LayeringService._apply_filters`, `layering_composition.py`): Safe drops stacks that do not bridge or that overload, Contrast and Experimental drop near-duplicates, and a tilt (goal) removes blends that do not match it and gives extra sprays to the best-matching scent. Hard filters fall back to the unfiltered list when they would remove everything. `filter_effects` explains what each filter did.
+* **Where to spray**: every item carries `zones` (zone and sprays). The heaviest scent takes broad base zones (chest, back of neck); lighter scents take different pulse points so they layer instead of stacking.
+* **Surprise me** passes `surprise_seed`: random anchors and a score-weighted pick among the top blends, favouring strong known pairings. The same seed repeats the same result.
+* **Score**: `score_percent` (0-100) accompanies the 0-1 `score`.

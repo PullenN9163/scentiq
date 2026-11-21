@@ -24,6 +24,15 @@ LayeringGoal = Literal[
     "winter",
 ]
 LayeringRole = Literal["anchor", "bridge", "accent"]
+SprayZone = Literal[
+    "chest",
+    "back_of_neck",
+    "neck",
+    "wrists",
+    "inner_elbows",
+    "behind_ears",
+    "behind_knees",
+]
 
 
 class LayeringSuggestion(BaseModel):
@@ -36,11 +45,18 @@ class LayeringSuggestion(BaseModel):
     season_overlap: float = Field(ge=0, le=1)
 
 
+class SprayZoneApplication(BaseModel):
+    zone: SprayZone
+    sprays: int = Field(ge=1, le=3)
+
+
 class LayeringStackItem(BaseModel):
     fragrance: FragranceSummary
     role: LayeringRole
     application_order: int = Field(ge=1, le=3)
     suggested_sprays: int = Field(ge=1, le=6)
+    # Where on the body to apply this scent; empty on blends saved before zones existed.
+    zones: list[SprayZoneApplication] = Field(default_factory=list)
 
 
 class LayeringScoreComponents(BaseModel):
@@ -53,6 +69,7 @@ class LayeringScoreComponents(BaseModel):
     user_affinity: float
     redundancy_penalty: float
     overload_penalty: float
+    known_pairing: float = 0.5
 
 
 class LayeringExplanation(BaseModel):
@@ -70,6 +87,8 @@ class LayeringStackSuggestion(BaseModel):
     mode: LayeringMode
     goal: LayeringGoal | None = None
     score: float = Field(ge=0, le=1)
+    score_percent: int = Field(default=0, ge=0, le=100)
+    goal_fit: float | None = Field(default=None, ge=0, le=1)
     score_components: LayeringScoreComponents
     shared_notes: list[str]
     shared_accords: list[str]
@@ -80,7 +99,7 @@ class LayeringStackSuggestion(BaseModel):
     warnings: list[str]
     total_sprays: int
     evidence_coverage: float = Field(ge=0, le=1)
-    algorithm_version: str = "layering-v3"
+    algorithm_version: str = "layering-v4"
     evidence_label: Literal["limited", "partial", "strong"]
     verdict: Literal[
         "Strong fit",
@@ -95,6 +114,9 @@ class LayeringStackSuggestion(BaseModel):
         "Little information available",
     ]
     explanation: LayeringExplanation
+    # Researched pairings that applied to this blend, and what each active filter did to it.
+    pairing_evidence: list[str] = Field(default_factory=list)
+    filter_effects: list[str] = Field(default_factory=list)
 
 
 class LayeringStackRequest(BaseModel):
